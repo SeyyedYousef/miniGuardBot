@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+  <head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover"/>
+    <meta name="theme-color" content="#000000"/>
+    <meta name="description" content="MiniGuard (@MiniGuardBot) — پلتفرم مدیریت پیشرفته گروه تلگرام. هر گروه، یک بات مدیریت گروه اختصاصی."/>
+    <meta name="robots" content="index, follow"/>
+    <meta property="og:title" content="MiniGuard — پلتفرم مدیریت پیشرفته گروه تلگرام"/>
+    <meta property="og:description" content="ساخت بات اختصاصی مدیریت گروه تلگرام (۱ بات = ۱ گروه) با ۱۰۰+ قابلیت ضداسپم، فایروال باینری، دستورات چت و پنل شیشه‌ای."/>
+    <meta property="og:type" content="website"/>
+    <title>MiniGuard — پلتفرم مدیریت پیشرفته گروه تلگرام</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg"/>
+    <link rel="manifest" href="/manifest.webmanifest"/>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Vazirmatn:wght@400;500;600;700;800;900&family=Noto+Sans+SC:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0..1,0&display=block" rel="stylesheet">
+
+    <style>
+      #app-splash {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #000000;
+        opacity: 1;
+        transition: opacity 0.12s ease-out;
+        pointer-events: none;
+      }
+      #app-splash.splash-hidden {
+        opacity: 0;
+      }
+      .tg-native-spinner {
+        width: 28px;
+        height: 28px;
+        border: 2.5px solid rgba(10, 132, 255, 0.22);
+        border-top-color: #0a84ff;
+        border-radius: 9999px;
+        animation: tgSpin 0.65s linear infinite;
+      }
+      @keyframes tgSpin {
+        to { transform: rotate(360deg); }
+      }
+    </style>
+
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script>
+      window.__SPLASH_START__ = Date.now();
+    </script>
+  </head>
+  <body>
+    <noscript>You need to enable JavaScript to run this app.</noscript>
+    <div id="app-splash" role="status" aria-label="Loading MiniGuard">
+      <div class="tg-native-spinner"></div>
+    </div>
+    <div id="root"></div>
+    <script src="/src/index.tsx" type="module"></script>
+  </body>
+</html>

@@ -1,0 +1,273 @@
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+@source "../../**/*.{js,ts,jsx,tsx}";
+
+:root {
+	--font-app:
+		-apple-system, BlinkMacSystemFont, "SF Pro Text", "Vazirmatn", "Manrope", "Roboto", sans-serif,
+		"Apple Color Emoji", "Segoe UI Emoji";
+
+	--tg-bg: #efeff4;
+	--tg-secondary-bg: #e5e5ea;
+	--tg-section-bg: #ffffff;
+	--tg-header-bg: rgba(248, 248, 248, 0.92);
+	--tg-text: #000000;
+	--tg-hint: #8e8e93;
+	--tg-link: #007aff;
+	--tg-button: #007aff;
+	--tg-button-text: #ffffff;
+	--tg-accent-soft: rgba(0, 122, 255, 0.12);
+	--tg-destructive: #ff3b30;
+	--tg-separator: rgba(60, 60, 67, 0.14);
+	--tg-input-bg: #e5e5ea;
+	--tg-card-border: rgba(0, 0, 0, 0.05);
+}
+
+html.dark {
+	--tg-bg: #000000;
+	--tg-secondary-bg: #2c2c2e;
+	--tg-section-bg: #1c1c1e;
+	--tg-header-bg: rgba(28, 28, 30, 0.9);
+	--tg-text: #ffffff;
+	--tg-hint: #8e8e93;
+	--tg-link: #0a84ff;
+	--tg-button: #0a84ff;
+	--tg-button-text: #ffffff;
+	--tg-accent-soft: rgba(10, 132, 255, 0.16);
+	--tg-destructive: #ff453a;
+	--tg-separator: rgba(84, 84, 88, 0.48);
+	--tg-input-bg: #2c2c2e;
+	--tg-card-border: rgba(255, 255, 255, 0.08);
+}
+
+@layer base {
+	html[lang="fa"],
+	html[lang="ps"] {
+		--font-app:
+			"Vazirmatn", -apple-system, BlinkMacSystemFont, "Manrope", sans-serif;
+		line-height: 1.6;
+	}
+
+	html[lang="en"],
+	html[lang="ru"] {
+		--font-app:
+			-apple-system, BlinkMacSystemFont, "SF Pro Text", "Manrope", "Roboto", sans-serif;
+		line-height: 1.45;
+	}
+
+	html[lang="zh"] {
+		--font-app:
+			"Noto Sans SC", -apple-system, BlinkMacSystemFont, "Manrope", sans-serif;
+		line-height: 1.55;
+	}
+
+	html,
+	body {
+		font-family: var(--font-app);
+		background-color: var(--tg-bg);
+		color: var(--tg-text);
+		overscroll-behavior-y: auto;
+		overflow-x: hidden;
+		width: 100%;
+		min-height: 100dvh;
+		margin: 0;
+		padding: 0;
+		-webkit-font-smoothing: antialiased;
+		-moz-osx-font-smoothing: grayscale;
+		-webkit-user-select: none;
+		user-select: none;
+		-webkit-tap-highlight-color: transparent;
+		transition: background-color 0.2s ease, color 0.2s ease;
+	}
+
+	#root {
+		min-height: 100dvh;
+		display: flex;
+		flex-direction: column;
+		width: 100%;
+	}
+
+	input,
+	textarea,
+	[contenteditable="true"] {
+		-webkit-user-select: text;
+		user-select: text;
+	}
+}
+
+/* Native Telegram Grouped List Primitives */
+.tg-canvas {
+	min-height: 100dvh;
+	width: 100%;
+	flex: 1 1 auto;
+	display: flex;
+	flex-direction: column;
+	background-color: var(--tg-bg);
+	color: var(--tg-text);
+}
+
+.tg-header {
+	position: sticky;
+	top: 0;
+	z-index: 50;
+	background-color: var(--tg-header-bg);
+	backdrop-filter: blur(20px);
+	-webkit-backdrop-filter: blur(20px);
+	border-bottom: 0.5px solid var(--tg-separator);
+}
+
+.tg-bottom-bar {
+	position: fixed;
+	bottom: 0;
+	left: 0;
+	right: 0;
+	z-index: 90;
+	background-color: var(--tg-header-bg);
+	backdrop-filter: blur(20px);
+	-webkit-backdrop-filter: blur(20px);
+	border-top: 0.5px solid var(--tg-separator);
+	padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.tg-section {
+	background-color: var(--tg-section-bg);
+	border-radius: 14px;
+	overflow: hidden;
+}
+
+.tg-section-label,
+.tg-section-header {
+	color: var(--tg-hint);
+	font-size: 12px;
+	font-weight: 600;
+	padding: 0 16px 6px 16px;
+	text-transform: uppercase;
+	letter-spacing: 0.01em;
+}
+
+html[dir="rtl"] .tg-section-label,
+html[dir="rtl"] .tg-section-header {
+	letter-spacing: 0;
+	font-size: 12.5px;
+}
+
+.tg-section-footer {
+	color: var(--tg-hint);
+	font-size: 12px;
+	line-height: 1.5;
+	padding: 6px 16px 0 16px;
+}
+
+.tg-cell {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	min-height: 52px;
+	padding: 11px 16px;
+	background-color: var(--tg-section-bg);
+	color: var(--tg-text);
+	transition: background-color 0.15s ease;
+	position: relative;
+}
+
+.tg-cell:not(:last-child)::after {
+	content: "";
+	position: absolute;
+	bottom: 0;
+	left: 16px;
+	right: 16px;
+	height: 0.5px;
+	background-color: var(--tg-separator);
+}
+
+button.tg-cell:active,
+a.tg-cell:active {
+	background-color: var(--tg-secondary-bg);
+}
+
+.tg-icon-box {
+	width: 30px;
+	height: 30px;
+	border-radius: 7px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	color: #ffffff;
+	flex-shrink: 0;
+}
+
+.tg-input {
+	background-color: var(--tg-input-bg);
+	color: var(--tg-text);
+	border-radius: 12px;
+}
+
+.tg-hint {
+	color: var(--tg-hint);
+}
+
+.tg-btn-primary {
+	background-color: var(--tg-button);
+	color: var(--tg-button-text);
+	border-radius: 12px;
+	font-weight: 600;
+	transition: transform 0.12s ease, opacity 0.15s ease;
+}
+
+.tg-btn-primary:active {
+	transform: scale(0.985);
+}
+
+.tg-btn-secondary {
+	background-color: var(--tg-accent-soft);
+	color: var(--tg-link);
+	border-radius: 12px;
+	font-weight: 600;
+	transition: transform 0.12s ease, opacity 0.15s ease;
+}
+
+.tg-btn-secondary:active {
+	transform: scale(0.985);
+	opacity: 0.8;
+}
+
+.tg-btn-stars {
+	background: linear-gradient(135deg, #f59e0b 0%, #eab308 50%, #d97706 100%);
+	color: #ffffff;
+	border-radius: 12px;
+	font-weight: 700;
+	box-shadow: 0 2px 10px rgba(245, 158, 11, 0.25);
+	transition: transform 0.12s ease, opacity 0.15s ease;
+}
+
+.tg-btn-stars:active {
+	transform: scale(0.985);
+}
+
+.material-symbols-outlined {
+	font-family: "Material Symbols Outlined";
+	font-weight: normal;
+	font-style: normal;
+	font-size: 22px;
+	line-height: 1;
+	display: inline-block;
+	white-space: nowrap;
+	direction: ltr;
+	-webkit-font-feature-settings: "liga";
+	font-feature-settings: "liga";
+	-webkit-font-smoothing: antialiased;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+	display: none;
+}
+
+.no-scrollbar {
+	-ms-overflow-style: none;
+	scrollbar-width: none;
+}
+
+.tabular-nums {
+	font-variant-numeric: tabular-nums;
+}

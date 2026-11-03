@@ -1,0 +1,6 @@
+{
+  "name": "iFragment",
+  "description": "MiniGuard (@MiniGuardBot) — Dedicated Telegram Group Management Platform. Every Group, One Advanced Management Bot.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
