@@ -1,5 +1,4 @@
-import assert from 'node:assert/strict';
-import { describe, it } from 'node:test';
+import { describe, expect, it } from 'vitest';
 import {
 	type BinaryFirewallConfig,
 	detectHomographAdminSpoofing,
@@ -7,7 +6,7 @@ import {
 	evaluateBinaryMessageFirewall,
 	evaluateChatJoinRequest,
 	isForumTopicWhitelisted,
-} from './firewall-engine.ts';
+} from './firewall-engine.js';
 
 const baseConfig: BinaryFirewallConfig = {
 	forumTopicsMode: true,
@@ -23,36 +22,39 @@ const baseConfig: BinaryFirewallConfig = {
 	removeLinks: true,
 };
 
-describe('MiniGuard Binary & Protocol Firewall Engine (node:test)', () => {
+describe('MiniGuard Binary & Protocol Firewall Engine', () => {
 	it('detects invisible Zero-Width Space (U+200B) and RTL Override (U+202E) characters', () => {
 		const clean = detectZeroWidthOrBidiOverride('سلام دوستان به گروه خوش آمدید');
-		assert.equal(clean.detected, false);
+		expect(clean.detected).toBe(false);
 
 		const obfuscatedLink = detectZeroWidthOrBidiOverride('https://t\u200B.me/\u202Espam_channel');
-		assert.equal(obfuscatedLink.detected, true);
-		assert.ok(obfuscatedLink.codePoints.includes('U+200B'));
-		assert.ok(obfuscatedLink.codePoints.includes('U+202E'));
+		expect(obfuscatedLink.detected).toBe(true);
+		expect(obfuscatedLink.codePoints).toContain('U+200B');
+		expect(obfuscatedLink.codePoints).toContain('U+202E');
 	});
 
 	it('detects Cyrillic/Arabic Homograph spoofing of group admin display names', () => {
 		// Using Cyrillic 'а' (\u0430) and 'е' (\u0435) instead of Latin 'a' and 'e'
 		const cyrillicSpoof = 'Аli Rеzaei';
 		const res = detectHomographAdminSpoofing(cyrillicSpoof, baseConfig.protectedAdminNames);
-		assert.equal(res.spoofed, true);
-		assert.equal(res.matchedAdmin, 'Ali Rezaei');
+		expect(res.spoofed).toBe(true);
+		expect(res.matchedAdmin).toBe('Ali Rezaei');
 
 		// Using Arabic Kaf/Yeh against Persian admin title
 		const arabicSpoof = 'مدير اصلي گروه';
 		const resFa = detectHomographAdminSpoofing(arabicSpoof, baseConfig.protectedAdminNames);
-		assert.equal(resFa.spoofed, true);
+		expect(resFa.spoofed).toBe(true);
 
-		const normalMember = detectHomographAdminSpoofing('Mohammad Karimi', baseConfig.protectedAdminNames);
-		assert.equal(normalMember.spoofed, false);
+		const normalMember = detectHomographAdminSpoofing(
+			'Mohammad Karimi',
+			baseConfig.protectedAdminNames,
+		);
+		expect(normalMember.spoofed).toBe(false);
 	});
 
 	it('exempts whitelisted Forum Topic IDs (message_thread_id) from link/external_reply locks', () => {
-		assert.equal(isForumTopicWhitelisted(42, true, [42, 108]), true);
-		assert.equal(isForumTopicWhitelisted(999, true, [42, 108]), false);
+		expect(isForumTopicWhitelisted(42, true, [42, 108])).toBe(true);
+		expect(isForumTopicWhitelisted(999, true, [42, 108])).toBe(false);
 
 		// Link inside whitelisted topic #42 is allowed
 		const allowedInTopic = evaluateBinaryMessageFirewall(
@@ -66,8 +68,8 @@ describe('MiniGuard Binary & Protocol Firewall Engine (node:test)', () => {
 			},
 			baseConfig,
 		);
-		assert.equal(allowedInTopic.allowed, true);
-		assert.equal(allowedInTopic.reason, 'whitelisted_topic');
+		expect(allowedInTopic.allowed).toBe(true);
+		expect(allowedInTopic.reason).toBe('whitelisted_topic');
 
 		// Same link in non-whitelisted topic #99 is blocked
 		const blockedInGeneral = evaluateBinaryMessageFirewall(
@@ -81,8 +83,8 @@ describe('MiniGuard Binary & Protocol Firewall Engine (node:test)', () => {
 			},
 			baseConfig,
 		);
-		assert.equal(blockedInGeneral.allowed, false);
-		assert.equal(blockedInGeneral.reason, 'link_blocked');
+		expect(blockedInGeneral.allowed).toBe(false);
+		expect(blockedInGeneral.reason).toBe('link_blocked');
 	});
 
 	it('blocks Bot API 8.x external_reply, story forwards, and custom_emoji spam', () => {
@@ -96,8 +98,8 @@ describe('MiniGuard Binary & Protocol Firewall Engine (node:test)', () => {
 			},
 			baseConfig,
 		);
-		assert.equal(extReplyVerdict.allowed, false);
-		assert.equal(extReplyVerdict.reason, 'external_reply_blocked');
+		expect(extReplyVerdict.allowed).toBe(false);
+		expect(extReplyVerdict.reason).toBe('external_reply_blocked');
 
 		const storyVerdict = evaluateBinaryMessageFirewall(
 			{
@@ -108,8 +110,8 @@ describe('MiniGuard Binary & Protocol Firewall Engine (node:test)', () => {
 			},
 			baseConfig,
 		);
-		assert.equal(storyVerdict.allowed, false);
-		assert.equal(storyVerdict.reason, 'story_forward_blocked');
+		expect(storyVerdict.allowed).toBe(false);
+		expect(storyVerdict.reason).toBe('story_forward_blocked');
 
 		const customEmojiVerdict = evaluateBinaryMessageFirewall(
 			{
@@ -117,12 +119,14 @@ describe('MiniGuard Binary & Protocol Firewall Engine (node:test)', () => {
 				user_id: 2002,
 				user_display_name: 'User2',
 				text: '💎 Join VIP',
-				entities: [{ type: 'custom_emoji', offset: 0, length: 2, custom_emoji_id: '5368324170671202286' }],
+				entities: [
+					{ type: 'custom_emoji', offset: 0, length: 2, custom_emoji_id: '5368324170671202286' },
+				],
 			},
 			baseConfig,
 		);
-		assert.equal(customEmojiVerdict.allowed, false);
-		assert.equal(customEmojiVerdict.reason, 'premium_custom_emoji_blocked');
+		expect(customEmojiVerdict.allowed).toBe(false);
+		expect(customEmojiVerdict.reason).toBe('premium_custom_emoji_blocked');
 	});
 
 	it('evaluates UpdateChatJoinRequest with WebApp Biometric verification', () => {
@@ -134,7 +138,7 @@ describe('MiniGuard Binary & Protocol Firewall Engine (node:test)', () => {
 			biometricTokenVerified: false,
 			protectedAdminNames: baseConfig.protectedAdminNames,
 		});
-		assert.equal(pendingBio.action, 'pending_biometric');
+		expect(pendingBio.action).toBe('pending_biometric');
 
 		const approvedHuman = evaluateChatJoinRequest({
 			userId: 501,
@@ -144,7 +148,7 @@ describe('MiniGuard Binary & Protocol Firewall Engine (node:test)', () => {
 			biometricTokenVerified: true,
 			protectedAdminNames: baseConfig.protectedAdminNames,
 		});
-		assert.equal(approvedHuman.action, 'approve');
+		expect(approvedHuman.action).toBe('approve');
 
 		const spoofDeclined = evaluateChatJoinRequest({
 			userId: 502,
@@ -154,6 +158,6 @@ describe('MiniGuard Binary & Protocol Firewall Engine (node:test)', () => {
 			biometricTokenVerified: false,
 			protectedAdminNames: baseConfig.protectedAdminNames,
 		});
-		assert.equal(spoofDeclined.action, 'decline');
+		expect(spoofDeclined.action).toBe('decline');
 	});
 });

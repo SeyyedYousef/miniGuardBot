@@ -1,6 +1,14 @@
 import { useNavigate, useParams } from '@solidjs/router';
 import { backButton } from '@tma.js/sdk-solid';
-import { type Component, createResource, createSignal, For, onCleanup, onMount, Show } from 'solid-js';
+import {
+	type Component,
+	createResource,
+	createSignal,
+	For,
+	onCleanup,
+	onMount,
+	Show,
+} from 'solid-js';
 import { createStore, reconcile } from 'solid-js/store';
 import { groupApi } from '@/shared/api/bot-management.js';
 import { isRtl, t } from '@/shared/i18n/index.js';
@@ -16,8 +24,10 @@ type RestrictionSetting = {
 	penalty: string;
 };
 
-const defaultSetting = (): RestrictionSetting => ({
-	enabled: false,
+const RECOMMENDED_DEFAULT_ON_KEYS = new Set(['removeLinks', 'blockBots', 'blockCrossChatReplies']);
+
+const defaultSetting = (key?: string): RestrictionSetting => ({
+	enabled: key ? RECOMMENDED_DEFAULT_ON_KEYS.has(key) : false,
 	window: 'Always',
 	start: '08:00',
 	end: '22:00',
@@ -26,7 +36,13 @@ const defaultSetting = (): RestrictionSetting => ({
 
 const settingKeys = {
 	links: ['removeLinks', 'blockBots', 'removeBotInviters', 'blockDomains', 'blockUsernames'],
-	text: ['blockHashtags', 'blockTextPatterns', 'blockEmojis', 'blockEmojiOnly', 'blockPhoneNumbers'],
+	text: [
+		'blockHashtags',
+		'blockTextPatterns',
+		'blockEmojis',
+		'blockEmojiOnly',
+		'blockPhoneNumbers',
+	],
 	media: [
 		'blockPhotos',
 		'blockStickers',
@@ -69,7 +85,7 @@ export const ContentRestrictionsPage: Component = () => {
 
 	const defaultStore: Record<string, RestrictionSetting> = {};
 	allKeys.forEach((k) => {
-		defaultStore[k] = defaultSetting();
+		defaultStore[k] = defaultSetting(k);
 	});
 
 	const [settings, setSettings] = createStore(defaultStore);
@@ -97,7 +113,7 @@ export const ContentRestrictionsPage: Component = () => {
 			setSettingsVersion(data.version);
 			const cr = (data.content_restrictions || {}) as any;
 			allKeys.forEach((k) => {
-				if (cr[k]) setSettings(k, reconcile({ ...defaultSetting(), ...cr[k] }));
+				if (cr[k]) setSettings(k, reconcile({ ...defaultSetting(k), ...cr[k] }));
 			});
 			if (cr.bannedKeywords) setBannedKeywords(cr.bannedKeywords);
 			if (cr.requiredKeywords) setRequiredKeywords(cr.requiredKeywords);
@@ -366,9 +382,7 @@ export const ContentRestrictionsPage: Component = () => {
 									onInput={(e) => setNewTopicId(e.currentTarget.value)}
 									onKeyDown={(e) => e.key === 'Enter' && addWhitelistedTopic()}
 									placeholder={
-										isRtl()
-											? 'مثال: #245 (تاپیک معرفی پروژه)'
-											: 'e.g. #245 (Showcase Topic)'
+										isRtl() ? 'مثال: #245 (تاپیک معرفی پروژه)' : 'e.g. #245 (Showcase Topic)'
 									}
 									class="flex-1 h-10 bg-[var(--tg-secondary-bg)] border border-[var(--tg-separator)] text-[var(--tg-text)] text-[13px] rounded-lg px-3 focus:outline-none focus:border-[var(--tg-button)]"
 								/>

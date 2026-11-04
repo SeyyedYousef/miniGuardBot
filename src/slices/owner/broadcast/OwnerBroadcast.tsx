@@ -1,8 +1,7 @@
-
-import { Component, createSignal, For, onMount, Show } from 'solid-js';
-import { BroadcastMessage, ownerApi } from '@/shared/api/owner.js';
-import { DangerActionDialog } from '@/widgets/owner/DangerActionDialog.js';
+import { type Component, createSignal, For, onMount, Show } from 'solid-js';
+import { type BroadcastMessage, ownerApi } from '@/shared/api/owner.js';
 import { haptic } from '@/shared/lib/haptic.js';
+import { DangerActionDialog } from '@/widgets/owner/DangerActionDialog.js';
 
 export const OwnerBroadcast: Component = () => {
 	const [broadcasts, setBroadcasts] = createSignal<BroadcastMessage[]>([]);

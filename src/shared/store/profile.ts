@@ -3,7 +3,7 @@
  * Uses localStorage for persistence (same pattern as airdrop store)
  */
 import { createEffect, createRoot, createSignal, onCleanup } from 'solid-js';
-import { z } from 'zod';
+import { z } from '@/shared/lib/zod-shim.js';
 
 // ─── Types ───
 export interface Achievement {
@@ -75,6 +75,8 @@ export interface ProfileSettings {
 	soundEnabled: boolean;
 	autoPlayAnimations: boolean;
 	biometricEnabled: boolean;
+	dailyPmReportEnabled: boolean;
+	threatAlertsEnabled: boolean;
 }
 
 const ProfileSettingsSchema = z.object({
@@ -91,6 +93,8 @@ const ProfileSettingsSchema = z.object({
 	soundEnabled: z.boolean().optional(),
 	autoPlayAnimations: z.boolean().optional(),
 	biometricEnabled: z.boolean().optional(),
+	dailyPmReportEnabled: z.boolean().optional(),
+	threatAlertsEnabled: z.boolean().optional(),
 });
 
 const STORAGE_KEY = 'profile-settings';

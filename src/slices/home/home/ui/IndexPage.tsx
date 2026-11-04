@@ -41,7 +41,10 @@ export const IndexPage: Component = () => {
 	const isValidGroupLink = (input: string): boolean => {
 		const trimmed = input.trim();
 		if (!trimmed) return false;
-		return /^(https?:\/\/)?(t\.me|telegram\.me)\/[A-Za-z0-9_+=-]+$/i.test(trimmed) || /^@[A-Za-z0-9_]{4,}$/.test(trimmed);
+		return (
+			/^(https?:\/\/)?(t\.me|telegram\.me)\/[A-Za-z0-9_+=-]+$/i.test(trimmed) ||
+			/^@[A-Za-z0-9_]{4,}$/.test(trimmed)
+		);
 	};
 
 	const handleCreateBot = async () => {
@@ -151,7 +154,10 @@ export const IndexPage: Component = () => {
 							<span class="text-[16px] font-bold tracking-tight text-[var(--tg-text)] leading-tight">
 								{txt().appTitle}
 							</span>
-							<span dir="ltr" class="text-[10.5px] font-mono text-[var(--tg-hint)] leading-tight text-start rtl:text-right">
+							<span
+								dir="ltr"
+								class="text-[10.5px] font-mono text-[var(--tg-hint)] leading-tight text-start rtl:text-right"
+							>
 								{txt().masterBotUsername}
 							</span>
 						</div>

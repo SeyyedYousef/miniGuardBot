@@ -6,8 +6,8 @@ import { render } from 'solid-js/web';
 import { init } from '@/app/init.js';
 import { Root } from '@/app/Root.js';
 import { bootstrapAuth } from '@/shared/api/axios.js';
-import { ErrorBoundary } from '@/shared/ui/ErrorBoundary.js';
 import { hideSplash } from '@/shared/lib/splash.js';
+import { ErrorBoundary } from '@/shared/ui/ErrorBoundary.js';
 import '@/shared/lib/tg-theme.js';
 
 import './app/styles/index.css';
@@ -33,7 +33,7 @@ async function startApp() {
 
 	try {
 		// 1. Check if we already have real launch params (e.g. from URL or Session Storage)
-		let realParams;
+		let realParams: any;
 		try {
 			realParams = retrieveLaunchParams();
 		} catch (_e) {
@@ -43,7 +43,7 @@ async function startApp() {
 				sessionStorage.removeItem('telegram-mini-apps-launch-params');
 				for (let i = sessionStorage.length - 1; i >= 0; i--) {
 					const k = sessionStorage.key(i);
-					if (k && k.toLowerCase().includes('launchparams')) {
+					if (k?.toLowerCase().includes('launchparams')) {
 						sessionStorage.removeItem(k);
 					}
 				}

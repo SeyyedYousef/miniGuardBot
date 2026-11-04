@@ -50,6 +50,27 @@ const createState = () => ({
 			nightMode: false,
 		},
 		content_restrictions: {
+			removeLinks: {
+				enabled: true,
+				window: 'Always',
+				start: '08:00',
+				end: '22:00',
+				penalty: 'delete',
+			},
+			blockBots: {
+				enabled: true,
+				window: 'Always',
+				start: '08:00',
+				end: '22:00',
+				penalty: 'default',
+			},
+			blockCrossChatReplies: {
+				enabled: true,
+				window: 'Always',
+				start: '08:00',
+				end: '22:00',
+				penalty: 'delete',
+			},
 			links: 'delete',
 			forward: 'warn',
 			photos: 'allow',

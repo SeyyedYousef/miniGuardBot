@@ -72,10 +72,7 @@ export function decryptBotToken(payload: string, masterKeyHex: string): string {
 	const key = Buffer.from(masterKeyHex.padEnd(64, '0').slice(0, 64), 'hex');
 	const decipher = crypto.createDecipheriv('aes-256-gcm', key, Buffer.from(ivHex, 'hex'));
 	decipher.setAuthTag(Buffer.from(tagHex, 'hex'));
-	const decrypted = Buffer.concat([
-		decipher.update(Buffer.from(encHex, 'hex')),
-		decipher.final(),
-	]);
+	const decrypted = Buffer.concat([decipher.update(Buffer.from(encHex, 'hex')), decipher.final()]);
 	return decrypted.toString('utf8');
 }
 
@@ -107,7 +104,9 @@ export function buildChildBotStartMessage(params: {
 					[
 						{
 							text: `👥 ورود به گروه ${groupTitle}`,
-							url: groupLink.startsWith('http') ? groupLink : `https://t.me/${groupLink.replace('@', '')}`,
+							url: groupLink.startsWith('http')
+								? groupLink
+								: `https://t.me/${groupLink.replace('@', '')}`,
 						},
 					],
 				],
@@ -133,7 +132,9 @@ export function buildChildBotStartMessage(params: {
 					[
 						{
 							text: `👥 Перейти в группу ${groupTitle}`,
-							url: groupLink.startsWith('http') ? groupLink : `https://t.me/${groupLink.replace('@', '')}`,
+							url: groupLink.startsWith('http')
+								? groupLink
+								: `https://t.me/${groupLink.replace('@', '')}`,
 						},
 					],
 				],
@@ -159,7 +160,9 @@ export function buildChildBotStartMessage(params: {
 					[
 						{
 							text: `👥 加入群组 ${groupTitle}`,
-							url: groupLink.startsWith('http') ? groupLink : `https://t.me/${groupLink.replace('@', '')}`,
+							url: groupLink.startsWith('http')
+								? groupLink
+								: `https://t.me/${groupLink.replace('@', '')}`,
 						},
 					],
 				],
@@ -184,7 +187,9 @@ export function buildChildBotStartMessage(params: {
 				[
 					{
 						text: `👥 Join ${groupTitle}`,
-						url: groupLink.startsWith('http') ? groupLink : `https://t.me/${groupLink.replace('@', '')}`,
+						url: groupLink.startsWith('http')
+							? groupLink
+							: `https://t.me/${groupLink.replace('@', '')}`,
 					},
 				],
 			],
@@ -223,9 +228,7 @@ export function buildMasterBotStartMessage(lang: BotLang, miniAppUrl: string) {
 				`• <b>24 часа бесплатно</b>, далее всего <b>100 Stars (⭐) / месяц</b>!\n\n` +
 				`Откройте Mini App ниже, чтобы создать бота 👇`,
 			reply_markup: {
-				inline_keyboard: [
-					[{ text: '🚀 Открыть панель MiniGuard', web_app: { url: miniAppUrl } }],
-				],
+				inline_keyboard: [[{ text: '🚀 Открыть панель MiniGuard', web_app: { url: miniAppUrl } }]],
 			},
 		};
 	}
@@ -239,9 +242,7 @@ export function buildMasterBotStartMessage(lang: BotLang, miniAppUrl: string) {
 				`• 100+ 项反垃圾、链接过滤、夜间宵禁与私聊日报功能\n` +
 				`• <b>24 小时免费试用</b>，之后仅需 <b>100 Stars (⭐) / 月</b>！`,
 			reply_markup: {
-				inline_keyboard: [
-					[{ text: '🚀 打开 MiniGuard 控制台', web_app: { url: miniAppUrl } }],
-				],
+				inline_keyboard: [[{ text: '🚀 打开 MiniGuard 控制台', web_app: { url: miniAppUrl } }]],
 			},
 		};
 	}
@@ -255,9 +256,7 @@ export function buildMasterBotStartMessage(lang: BotLang, miniAppUrl: string) {
 			`• <b>24-Hour Free Trial</b>, then just <b>100 Telegram Stars (⭐) / month</b>!\n\n` +
 			`Tap below to launch MiniGuard and create your group bot 👇`,
 		reply_markup: {
-			inline_keyboard: [
-				[{ text: '🚀 Launch MiniGuard Platform', web_app: { url: miniAppUrl } }],
-			],
+			inline_keyboard: [[{ text: '🚀 Launch MiniGuard Platform', web_app: { url: miniAppUrl } }]],
 		},
 	};
 }
@@ -383,7 +382,9 @@ export function buildChatJoinRequestVerificationPrompt(params: {
 				`🛡️ <b>احراز هویت ورود به گروه «${params.groupTitle}»</b>\n\n` +
 				`سلام <b>${params.userFirstName}</b> عزیز!\n` +
 				`برای جلوگیری از ورود ربات‌های اسپم (بدون ارسال هیچ پیام اضافی در گروه)، لطفاً روی دکمه زیر بزنید${
-					params.biometricRequired ? ' و با حسگر بیومتریک تلگرام (اثر انگشت / FaceID) هویت خود را تأیید کنید' : ''
+					params.biometricRequired
+						? ' و با حسگر بیومتریک تلگرام (اثر انگشت / FaceID) هویت خود را تأیید کنید'
+						: ''
 				} تا درخواست عضویت شما (` +
 				`<code>approveChatJoinRequest</code>) فوراً تایید شود:`,
 			reply_markup: {
@@ -417,11 +418,10 @@ export function buildChatJoinRequestVerificationPrompt(params: {
 						web_app: { url: verifyUrl },
 					},
 				],
-			},
+			],
 		},
 	};
 }
-
 
 // ─── 8. In-Chat /panel Inline Keyboard Builder & Callback Handler ───────────
 export function buildInChatControlPanelMessage(params: {

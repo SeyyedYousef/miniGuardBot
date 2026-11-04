@@ -40,8 +40,7 @@ export const uiText = () => {
 			tokenErrorFormat: 'فرمت توکن معتبر نیست (مثال: 123456:AAH...).',
 			groupLinkErrorEmpty:
 				'وارد کردن لینک یا آیدی گروه الزامی است (هر ربات فقط برای ۱ گروه ساخته می‌شود).',
-			groupLinkErrorFormat:
-				'فرمت لینک گروه معتبر نیست (مثال: https://t.me/group یا @group).',
+			groupLinkErrorFormat: 'فرمت لینک گروه معتبر نیست (مثال: https://t.me/group یا @group).',
 			oneBotOneGroupBanner: 'قانون ایزوله MiniGuard: هر ربات منحصراً برای ۱ گروه کار می‌کند.',
 			manageTabTitle: 'مدیریت گروه‌ها',
 			groupsHeader: 'گروه‌های تحت مدیریت شما',
@@ -98,7 +97,8 @@ export const uiText = () => {
 			threatAlertsTitle: 'هشدار فوری خطرات گروه در پیوی',
 			threatAlertsSub: 'اعلان آنی هنگام حمله رید، فلود لینک، بات‌های مخرب یا تغییر دسترسی ادمین',
 			subExpiryNotifTitle: 'اعلان هوشمند انقضای اشتراک (۲۴ ساعته / ماهانه)',
-			subExpiryNotifSub: 'ارسال یادآور در ۶ ساعت و ۱ ساعت مانده به پایان اشتراک به همراه دکمه تمدید ۱۰۰ ⭐',
+			subExpiryNotifSub:
+				'ارسال یادآور در ۶ ساعت و ۱ ساعت مانده به پایان اشتراک به همراه دکمه تمدید ۱۰۰ ⭐',
 			dailyPmReportTitle: 'گزارش آمار روزانه گروه در پیوی',
 			dailyPmReportSub: 'ارسال خودکار خلاصه پیام‌ها، جذب اعضا و اسپم‌های حذف‌شده به پیوی شما',
 			sendTestPmBtn: 'ارسال نمونه گزارش روزانه و هشدار امنیتی در پیوی (تست)',
@@ -164,8 +164,7 @@ export const uiText = () => {
 			modalTitle: 'Создание бота и привязка группы',
 			wizardDesc:
 				'Вставьте API-токен от @BotFather и ссылку на вашу группу (1 бот работает строго для 1 группы):',
-			modalDesc:
-				'Вставьте API-токен от @BotFather и ссылку на вашу группу (1 бот = 1 группа):',
+			modalDesc: 'Вставьте API-токен от @BotFather и ссылку на вашу группу (1 бот = 1 группа):',
 			openBotFather: 'Открыть @BotFather',
 			tokenLabel: 'Токен бота (@BotFather)',
 			groupLinkLabel: 'Ссылка или @username группы (обязательно)',
@@ -181,7 +180,8 @@ export const uiText = () => {
 			tokenErrorFormat: 'Неверный формат токена (пример: 123456:AAH...).',
 			groupLinkErrorEmpty: 'Укажите ссылку на группу (1 бот привязывается к 1 группе).',
 			groupLinkErrorFormat: 'Неверный формат ссылки (пример: https://t.me/group или @group).',
-			oneBotOneGroupBanner: 'Правило MiniGuard: каждый бот изолирован и обслуживает только 1 группу.',
+			oneBotOneGroupBanner:
+				'Правило MiniGuard: каждый бот изолирован и обслуживает только 1 группу.',
 			manageTabTitle: 'Управление группами',
 			groupsHeader: 'Ваши управляемые группы',
 			noGroupsTitle: 'Вы еще не добавили ни одной группы',
@@ -378,8 +378,10 @@ export const uiText = () => {
 				'🚀 欢迎使用 MiniGuard — 新一代 Telegram 群组管理平台！\n\n🔹 每个群组独立一个专属机器人 Token\n🔹 100+ 项反垃圾、链接过滤、宵禁与实时分析功能\n🔹 24 小时免费试用，之后仅需 100 Stars (⭐)/月！',
 			join4MsgsTitle: '机器人加入群组时自动发送的 4 条初始化消息',
 			joinMsg1: '1. 身份握手消息：「🛡️ 专属群组管理机器人已成功连接至 @MiniGuardBot 安全核心。」',
-			joinMsg2: '2. 管理员二进制权限自检：「✅ 删除消息、封禁成员与置顶权限已确认，防火墙已启动。」',
-			joinMsg3: '3. 24 小时免费试用激活：「🎁 24 小时全功能免费试用已开启！到期后仅需 100 Stars ⭐/月。」',
+			joinMsg2:
+				'2. 管理员二进制权限自检：「✅ 删除消息、封禁成员与置顶权限已确认，防火墙已启动。」',
+			joinMsg3:
+				'3. 24 小时免费试用激活：「🎁 24 小时全功能免费试用已开启！到期后仅需 100 Stars ⭐/月。」',
 			joinMsg4: '4. 迷你应用管理面板入口：「⚙️ 管理员请点击下方内联按钮直接进入本群高级控制面板。」',
 			profileTitle: '账户与系统偏好',
 			themeTitle: '外观主题 (Telegram Theme)',
@@ -424,8 +426,7 @@ export const uiText = () => {
 		modalTitle: 'Create Bot & Link Dedicated Group',
 		wizardDesc:
 			'Paste your @BotFather API token and your target group link (each bot is strictly bound to 1 group):',
-		modalDesc:
-			'Enter your @BotFather API token and target group link (1 Bot = 1 Dedicated Group):',
+		modalDesc: 'Enter your @BotFather API token and target group link (1 Bot = 1 Dedicated Group):',
 		openBotFather: 'Open @BotFather',
 		tokenLabel: 'Bot Token (@BotFather)',
 		groupLinkLabel: 'Target Group Link or @username (Required)',
@@ -439,8 +440,7 @@ export const uiText = () => {
 		tokenErrorEmpty: 'Please enter your bot token.',
 		tokenInvalid: 'Invalid token format (e.g. 123456:AAH...).',
 		tokenErrorFormat: 'Invalid token format (e.g. 123456:AAH...).',
-		groupLinkErrorEmpty:
-			'Please enter your group link (each bot is exclusively bound to 1 group).',
+		groupLinkErrorEmpty: 'Please enter your group link (each bot is exclusively bound to 1 group).',
 		groupLinkErrorFormat: 'Invalid group link format (e.g. https://t.me/group or @group).',
 		oneBotOneGroupBanner: 'MiniGuard Isolation Rule: Each bot operates exclusively for 1 group.',
 		manageTabTitle: 'Managed Groups',

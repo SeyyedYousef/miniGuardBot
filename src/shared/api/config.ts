@@ -7,8 +7,8 @@ export const API_CONFIG = {
 	// detect if running in Telegram Mini App production environment
 	IS_PRODUCTION: import.meta.env.PROD,
 
-	// Base URL for real API
-	BASE_URL: import.meta.env.VITE_API_URL || 'https://ifragment-api.onrender.com/api/v1',
+	// Base URL for real API (empty or '/api/v1' enables relative path when hosted together)
+	BASE_URL: import.meta.env.VITE_API_URL || '/api/v1',
 
 	// Should we use mocks?
 	// Safety: NEVER use mocks in production unless explicitly forced for demo

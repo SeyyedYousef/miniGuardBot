@@ -143,9 +143,7 @@ export const AirdropPage: Component = () => {
 		},
 		{
 			id: 'faq-3',
-			q: isFa()
-				? 'چرا ربات لینک‌ها یا پیام‌ها را پاک نمی‌کند؟'
-				: 'Why is the bot not deleting links?',
+			q: isFa() ? 'چرا ربات لینک‌ها یا پیام‌ها را پاک نمی‌کند؟' : 'Why is the bot not deleting links?',
 			a: isFa()
 				? 'مطمئن شوید فرستنده پیام ادمین گروه نیست (ادمین‌ها معاف هستند) و تیک Delete Messages و Ban Users در تنظیمات ادمین ربات روشن است.'
 				: 'Ensure the sender is not a group admin and the bot has Delete Messages & Ban Users permissions.',
@@ -327,9 +325,7 @@ export const AirdropPage: Component = () => {
 					>
 						<span class="material-symbols-outlined text-[19px]">terminal</span>
 						<span>
-							{isFa()
-								? 'تست زنده دستورات و پنل شیشه‌ای'
-								: 'Open Live Commands & Inline Panel'}
+							{isFa() ? 'تست زنده دستورات و پنل شیشه‌ای' : 'Open Live Commands & Inline Panel'}
 						</span>
 					</button>
 				</Show>

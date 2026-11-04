@@ -27,7 +27,7 @@ export async function init(options: {
 }): Promise<void> {
 	// 1. First, handle environment mocking if we're not in Telegram
 	// This must happen BEFORE initSDK to prevent hanging
-	let realParams;
+	let realParams: any;
 	try {
 		realParams = retrieveLaunchParams();
 	} catch (_e) {
@@ -102,7 +102,7 @@ export async function init(options: {
 	// event for the "web_app_request_safe_area" method.
 	if (options.mockForMacOS) {
 		let firstThemeSent = false;
-		let currentParams;
+		let currentParams: any;
 		try {
 			currentParams = retrieveLaunchParams();
 		} catch (_e) {}
@@ -179,10 +179,7 @@ export async function init(options: {
 		if (viewport && typeof viewport.mount === 'function') {
 			const mountResult = viewport.mount();
 			if (mountResult instanceof Promise) {
-				await Promise.race([
-					mountResult,
-					new Promise((resolve) => setTimeout(resolve, 250)),
-				]);
+				await Promise.race([mountResult, new Promise((resolve) => setTimeout(resolve, 250))]);
 			}
 			if (typeof viewport.bindCssVars === 'function') viewport.bindCssVars();
 			if (typeof viewport.expand === 'function') viewport.expand();

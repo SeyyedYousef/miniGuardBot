@@ -1,7 +1,7 @@
 import { useNavigate } from '@solidjs/router';
 import { backButton } from '@tma.js/sdk-solid';
 import { type Component, createResource, For, onMount, Show } from 'solid-js';
-import type { ManagedGroup } from '@/shared/api/bot-management.js';
+import type { ManagedBot, ManagedGroup } from '@/shared/api/bot-management.js';
 import { botApi } from '@/shared/api/bot-management.js';
 import { uiText } from '@/shared/i18n/group-ui.js';
 import { isRtl } from '@/shared/i18n/index.js';
@@ -25,7 +25,7 @@ export const DashboardPage: Component = () => {
 			const mockGroups = ((window as any).__mockGroups || []) as ManagedGroup[];
 			if (!bots || bots.length === 0) return mockGroups;
 			const lists = await Promise.all(
-				bots.map((b) => botApi.listGroups(b.id).catch(() => [] as ManagedGroup[])),
+				bots.map((b: ManagedBot) => botApi.listGroups(b.id).catch(() => [] as ManagedGroup[])),
 			);
 			const combined = [...lists.flat(), ...mockGroups];
 			const seen = new Set<string>();

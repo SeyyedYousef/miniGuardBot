@@ -4,8 +4,10 @@ import { groupApi } from '@/shared/api/bot-management.js';
 import { CustomTextsPage } from './CustomTextsPage.js';
 
 vi.mock('@solidjs/router', () => ({
-	useParams: () => ({ id: 'g1' }),
+	useParams: () => ({ id: 'g1', botId: 'b1' }),
 	useNavigate: () => vi.fn(),
+	useLocation: () => ({ pathname: '/group/g1' }),
+	A: (props: any) => props.children,
 }));
 
 vi.mock('@/shared/api/bot-management.js', () => ({
@@ -35,11 +37,13 @@ describe('CustomTextsPage', () => {
 
 	it('renders custom texts title', async () => {
 		render(() => <CustomTextsPage />);
-		expect(await screen.findByText('customTextsSettings.title')).toBeInTheDocument();
+		const titles = await screen.findAllByText(/متن‌های سفارشی/);
+		expect(titles.length).toBeGreaterThan(0);
 	});
 
-	it('renders subtitle', async () => {
+	it('renders welcome text section', async () => {
 		render(() => <CustomTextsPage />);
-		expect(await screen.findByText('customTextsSettings.subtitle')).toBeInTheDocument();
+		const elements = await screen.findAllByText(/خوش‌آمدگویی/);
+		expect(elements.length).toBeGreaterThan(0);
 	});
 });

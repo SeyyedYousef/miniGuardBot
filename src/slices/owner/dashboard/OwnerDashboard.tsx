@@ -81,7 +81,9 @@ export const OwnerDashboard: Component = () => {
 				{/* Native Telegram KPI Grid */}
 				<div class="grid grid-cols-2 md:grid-cols-4 gap-3">
 					<div class="tg-section p-4 flex flex-col gap-1.5">
-						<span class="text-[12px] text-[var(--tg-hint)] font-medium">مدیران فعال امروز (DAU)</span>
+						<span class="text-[12px] text-[var(--tg-hint)] font-medium">
+							مدیران فعال امروز (DAU)
+						</span>
 						<span class="text-[24px] font-bold text-[var(--tg-text)] font-mono tabular-nums">
 							{stats()?.dau?.toLocaleString() ?? 0}
 						</span>

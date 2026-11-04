@@ -4,8 +4,8 @@ import { type Component, createMemo, createSignal, For, onCleanup, onMount, Show
 import {
 	BOT_COMMANDS_CATALOG,
 	type CommandCategory,
-	type EdgeCaseScenarioId,
 	EDGE_CASE_RESOLUTIONS,
+	type EdgeCaseScenarioId,
 	evaluateCallbackQueryRbac,
 	type InlineKeyboardButton,
 	parseGroupCommand,
@@ -70,9 +70,9 @@ export const CommandsAndInlinePage: Component = () => {
 
 		const parsed = parseGroupCommand({
 			text: input,
-			isReplyToUser: true,
-			targetUserName: targetName(),
-			targetUserId: 8849201,
+			senderIsAdmin: true,
+			repliedUserName: targetName(),
+			repliedUserId: 8849201,
 		});
 
 		const methodLabel = parsed.botApiMethod || 'sendMessage';
@@ -520,7 +520,9 @@ export const CommandsAndInlinePage: Component = () => {
 											</div>
 											<button
 												type="button"
-												onClick={() => runSimulatedCommand(cmd.persianTriggers[0] || cmd.slashTriggers[0])}
+												onClick={() =>
+													runSimulatedCommand(cmd.persianTriggers[0] || cmd.slashTriggers[0])
+												}
 												class="px-2.5 py-1 rounded-lg bg-[var(--tg-button)]/12 text-[var(--tg-link)] text-[11px] font-bold shrink-0"
 											>
 												تست دستور ↰
@@ -703,7 +705,9 @@ export const CommandsAndInlinePage: Component = () => {
 													: 'bg-[var(--tg-button)]/14 text-[var(--tg-link)] border-[var(--tg-button)]/25'
 											}`}
 										>
-											{inlineLocks().emergencyLock ? '🔓 باز کردن قفل اضطراری' : '🔒 قفل اضطراری گروه'}
+											{inlineLocks().emergencyLock
+												? '🔓 باز کردن قفل اضطراری'
+												: '🔒 قفل اضطراری گروه'}
 										</button>
 									</div>
 
@@ -812,7 +816,8 @@ export const CommandsAndInlinePage: Component = () => {
 								<div class="text-[13px] text-[var(--tg-text)] leading-relaxed bg-[var(--tg-secondary-bg)] p-3 rounded-xl">
 									⚡ <b>تنظیم حساسیت ضدفلود و رگباری</b>
 									<br />
-									حداکثر تعداد پیام مجاز پشت سر هم در ۵ ثانیه: <b>{inlineLocks().floodLimit} پیام</b>
+									حداکثر تعداد پیام مجاز پشت سر هم در ۵ ثانیه:{' '}
+									<b>{inlineLocks().floodLimit} پیام</b>
 								</div>
 
 								<div class="grid grid-cols-3 gap-1.5">
@@ -972,15 +977,16 @@ export const CommandsAndInlinePage: Component = () => {
 										🟠 مرحله ۲: ارسال نوتیفیکیشن هوشمند در پی‌وی مالک (T-2h و T-30m)
 									</div>
 									<p class="text-[12px] text-[var(--tg-text)] leading-relaxed">
-										۲ ساعت قبل از اتمام اعتبار، ربات در پی‌وی مالک گروه پیام هشدار همراه با دکمه شیشه‌ای
-										پرداخت <code>sendInvoice (currency: &quot;XTR&quot;, amount: 100)</code> ارسال
-										می‌کند. در چت گروه هیچ پیام تبلیغاتی یا مزاحمی برای اعضا فرستاده نمی‌شود.
+										۲ ساعت قبل از اتمام اعتبار، ربات در پی‌وی مالک گروه پیام هشدار همراه با دکمه
+										شیشه‌ای پرداخت <code>sendInvoice (currency: &quot;XTR&quot;, amount: 100)</code>{' '}
+										ارسال می‌کند. در چت گروه هیچ پیام تبلیغاتی یا مزاحمی برای اعضا فرستاده نمی‌شود.
 									</p>
 								</Show>
 
 								<Show when={subLifecycleStage() === 'expired_hibernated'}>
 									<div class="text-[13px] font-bold text-[#FF3B30]">
-										🔴 مرحله ۳: اتمام اعتبار و عدم پرداخت ⟵ ورود به «حالت خواب ایمن (Safe Hibernation)»
+										🔴 مرحله ۳: اتمام اعتبار و عدم پرداخت ⟵ ورود به «حالت خواب ایمن (Safe
+										Hibernation)»
 									</div>
 									<ul class="text-[12px] text-[var(--tg-text)] leading-relaxed list-disc pr-4 space-y-1">
 										<li>

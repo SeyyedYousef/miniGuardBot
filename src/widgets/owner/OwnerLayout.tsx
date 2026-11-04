@@ -3,7 +3,7 @@ import type { Component, JSX } from 'solid-js';
 import { isRtl } from '@/shared/i18n/index.js';
 import { colorScheme, toggleThemeScheme } from '@/shared/lib/tg-theme.js';
 import { ImpersonationBanner } from './ImpersonationBanner.js';
-import { OwnerTabs, type OwnerTabId } from './OwnerTabs.js';
+import { type OwnerTabId, OwnerTabs } from './OwnerTabs.js';
 
 interface OwnerLayoutProps {
 	children: JSX.Element;
@@ -33,7 +33,9 @@ export const OwnerLayout: Component<OwnerLayoutProps> = (props) => {
 						<h1 class="text-[15px] font-bold text-[var(--tg-text)] truncate">
 							{props.title || 'Owner Console'}
 						</h1>
-						<span class="text-[11px] text-[var(--tg-hint)] truncate">MiniGuard (@MiniGuardBot)</span>
+						<span class="text-[11px] text-[var(--tg-hint)] truncate">
+							MiniGuard (@MiniGuardBot)
+						</span>
 					</div>
 				</div>
 

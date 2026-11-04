@@ -1,0 +1,36 @@
+services:
+  miniguard-bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: miniguard_bot
+    restart: unless-stopped
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+    ports:
+      # Isolated host port 3001 (iFragment uses 8080)
+      - "3001:3000"
+    volumes:
+      - miniguard_data:/app/data
+    networks:
+      - miniguard_network
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/health', (r) => { process.exit(r.statusCode === 200 ? 0 : 1); });"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  miniguard_data:
+    driver: local
+
+networks:
+  miniguard_network:
+    driver: bridge

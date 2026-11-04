@@ -11,6 +11,13 @@
  * 3. Comprehensive Edge-Case & Subscription Expiry Lifecycle Engine (10 critical edge cases).
  */
 
+export interface InlineKeyboardButton {
+	text: string;
+	callback_data?: string;
+	url?: string;
+	web_app?: { url: string };
+}
+
 export type CommandCategory = 'punishment' | 'cleanup' | 'locks' | 'users' | 'panel';
 
 export interface BotCommandDefinition {
@@ -383,10 +390,14 @@ export function normalizeDigits(input: string): string {
  * into seconds. Defaults to 3600s (1 hour) if not specified.
  */
 export function parseDurationToSeconds(rawArg: string): number {
-	const text = normalizeDigits(rawArg || '').trim().toLowerCase();
+	const text = normalizeDigits(rawArg || '')
+		.trim()
+		.toLowerCase();
 	if (!text) return 3600;
 
-	const match = text.match(/(\d+)\s*(m|min| دقیقه|دقیقه|h|hr|hour| ساعت|ساعت|d|day| روز|روز|s| ثانیه|ثانیه)?/i);
+	const match = text.match(
+		/(\d+)\s*(m|min| دقیقه|دقیقه|h|hr|hour| ساعت|ساعت|d|day| روز|روز|s| ثانیه|ثانیه)?/i,
+	);
 	if (!match) return 3600;
 
 	const num = parseInt(match[1], 10);
@@ -456,9 +467,7 @@ export function parseGroupCommand(params: {
 					{ text: '🌙 ساعات سکوت', callback_data: 'mg:menu:quiet' },
 					{ text: '📢 عضویت اجباری', callback_data: 'mg:menu:mandatory' },
 				],
-				[
-					{ text: '🔒 قفل اضطراری کل گروه: خاموش', callback_data: 'mg:toggle:emergencylock' },
-				],
+				[{ text: '🔒 قفل اضطراری کل گروه: خاموش', callback_data: 'mg:toggle:emergencylock' }],
 				[
 					{ text: '📱 باز کردن مینی‌اپ پیشرفته', callback_data: 'mg:open:webapp' },
 					{ text: '❌ بستن پنل', callback_data: 'mg:close' },
@@ -475,7 +484,8 @@ export function parseGroupCommand(params: {
 		raw.startsWith('بن ') ||
 		raw.startsWith('اخراج دایم')
 	) {
-		const reason = raw.replace(/^(\/ban|!ban|بن|اخراج دایم)\s*/i, '').trim() || 'تخلف از قوانین گروه';
+		const reason =
+			raw.replace(/^(\/ban|!ban|بن|اخراج دایم)\s*/i, '').trim() || 'تخلف از قوانین گروه';
 		return {
 			matched: true,
 			commandId: 'ban',
@@ -620,16 +630,19 @@ export function parseGroupCommand(params: {
 	}
 
 	// 10. Check `/vip` | `معاف`
-	if (lower.startsWith('/vip') || lower.startsWith('/whitelist') || raw === 'معاف' || raw === 'ویژه') {
+	if (
+		lower.startsWith('/vip') ||
+		lower.startsWith('/whitelist') ||
+		raw === 'معاف' ||
+		raw === 'ویژه'
+	) {
 		return {
 			matched: true,
 			commandId: 'vip',
 			category: 'users',
 			botApiMethod: 'Internal Whitelist DB',
 			responsePreviewFa: `🌟 کاربر <b>${targetName}</b> [<code>${targetId}</code>] به لیست <b>اعضای ویژه (VIP)</b> اضافه شد و از قفل لینک، ضدفلود و عضویت اجباری معاف گردید.`,
-			inlineButtons: [
-				[{ text: '❌ لغو معافیت VIP', callback_data: `mg:unvip:${targetId}` }],
-			],
+			inlineButtons: [[{ text: '❌ لغو معافیت VIP', callback_data: `mg:unvip:${targetId}` }]],
 		};
 	}
 
@@ -640,8 +653,7 @@ export function parseGroupCommand(params: {
 			commandId: 'report',
 			category: 'users',
 			botApiMethod: 'sendMessage (Admin PM)',
-			responsePreviewFa:
-				`🚨 <b>گزارش تخلف ثبت شد!</b>\nپیام کاربر <b>${targetName}</b> به پیوی تمام ادمین‌های گروه ارسال گردید.`,
+			responsePreviewFa: `🚨 <b>گزارش تخلف ثبت شد!</b>\nپیام کاربر <b>${targetName}</b> به پیوی تمام ادمین‌های گروه ارسال گردید.`,
 			inlineButtons: [
 				[
 					{ text: '🚫 بن متخلف + حذف پیام', callback_data: `mg:report_ban:${targetId}` },
@@ -653,7 +665,13 @@ export function parseGroupCommand(params: {
 	}
 
 	// 12. Check `/info` | `اطلاعات` | `آمار من`
-	if (lower === '/info' || lower === '/id' || raw === 'اطلاعات' || raw === 'آیدی' || raw === 'آمار من') {
+	if (
+		lower === '/info' ||
+		lower === '/id' ||
+		raw === 'اطلاعات' ||
+		raw === 'آیدی' ||
+		raw === 'آمار من'
+	) {
 		return {
 			matched: true,
 			commandId: 'info',
@@ -670,7 +688,8 @@ export function parseGroupCommand(params: {
 
 	return {
 		matched: false,
-		responsePreviewFa: 'دستور شناخته نشد. از «پنل» یا دستورات استاندارد مانند «بن»، «سکوت ۲ ساعت»، «اخطار» استفاده کنید.',
+		responsePreviewFa:
+			'دستور شناخته نشد. از «پنل» یا دستورات استاندارد مانند «بن»، «سکوت ۲ ساعت»، «اخطار» استفاده کنید.',
 	};
 }
 

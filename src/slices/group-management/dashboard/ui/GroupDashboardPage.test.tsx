@@ -4,8 +4,10 @@ import { groupApi } from '@/shared/api/bot-management.js';
 import { GroupDashboardPage } from './GroupDashboardPage.js';
 
 vi.mock('@solidjs/router', () => ({
-	useParams: () => ({ id: 'g1' }),
+	useParams: () => ({ id: 'g1', botId: 'b1' }),
 	useNavigate: () => vi.fn(),
+	useLocation: () => ({ pathname: '/group/g1' }),
+	A: (props: any) => props.children,
 }));
 
 vi.mock('@/shared/api/bot-management.js', () => ({
@@ -44,6 +46,7 @@ describe('GroupDashboardPage', () => {
 
 	it('renders dashboard status badge', async () => {
 		render(() => <GroupDashboardPage />);
-		expect(await screen.findByText('groupDashboard.proBadge')).toBeInTheDocument();
+		const badges = await screen.findAllByText('اشتراک ویژه فعال');
+		expect(badges.length).toBeGreaterThan(0);
 	});
 });

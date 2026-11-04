@@ -1,6 +1,14 @@
 import { useNavigate } from '@solidjs/router';
 import { backButton } from '@tma.js/sdk-solid';
-import { type Component, createResource, createSignal, For, onCleanup, onMount, Show } from 'solid-js';
+import {
+	type Component,
+	createResource,
+	createSignal,
+	For,
+	onCleanup,
+	onMount,
+	Show,
+} from 'solid-js';
 import type { ManagedBot } from '@/shared/api/bot-management.js';
 import { botApi } from '@/shared/api/bot-management.js';
 import { uiText } from '@/shared/i18n/group-ui.js';
@@ -83,8 +91,7 @@ export const ManagedBotsPage: Component = () => {
 				.replace(/^https?:\/\/(t\.me|telegram\.me)\//i, '')
 				.replace(/^@/, '')
 				.replace(/^\+/, '');
-			const resolvedTitle =
-				groupTitle().trim() || `Group @${cleanSlug || botIdStr.slice(0, 4)}`;
+			const resolvedTitle = groupTitle().trim() || `Group @${cleanSlug || botIdStr.slice(0, 4)}`;
 
 			const created = await botApi.registerBot({
 				token,

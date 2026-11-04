@@ -178,11 +178,7 @@ export const mockApiLogic = (method: string = 'GET', url: string = '', _data: an
 		}
 
 		// /groups endpoints
-		if (
-			path.includes('/groups') &&
-			!path.includes('/settings') &&
-			!path.includes('/analytics')
-		) {
+		if (path.includes('/groups') && !path.includes('/settings') && !path.includes('/analytics')) {
 			if (methodUp === 'GET') {
 				if (path.includes('/audit')) {
 					return [
@@ -344,11 +340,16 @@ export const mockApiLogic = (method: string = 'GET', url: string = '', _data: an
 						silenceEndText: '🔓 ساعات خاموشی به پایان رسید. گفتگو آزاد است.',
 						rulesText: '📜 قوانین گروه:\n۱. احترام متقابل\n۲. عدم ارسال لینک و تبلیغات',
 						forceJoinText: '📢 {user} عزیز، برای ارسال پیام ابتدا عضو کانال شوید:\n{channel_names}',
-						forceAddText: '👥 {user} عزیز، برای چت باید {remainadd} نفر دیگر دعوت کنید ({added}/{number})',
+						forceAddText:
+							'👥 {user} عزیز، برای چت باید {remainadd} نفر دیگر دعوت کنید ({added}/{number})',
 						botStartText:
 							'🛡️ سلام {user} عزیز!\nمن ربات اختصاصی مدیریت گروه «{group}» هستم.\n\n⚡ این ربات توسط @MiniGuardBot ساخته شده است! اگر می‌خواهید یک ربات مدیریت گروه با نام دلخواه و بیش از ۱۰۰ قابلیت پیشرفته داشته باشید، همین حالا آن را امتحان کنید.',
 						inlineButtons: [
-							{ id: 'btn-1', title: '🚀 ساخت ربات با @MiniGuardBot', url: 'https://t.me/MiniGuardBot' },
+							{
+								id: 'btn-1',
+								title: '🚀 ساخت ربات با @MiniGuardBot',
+								url: 'https://t.me/MiniGuardBot',
+							},
 						],
 					},
 					dynamic_bio: {

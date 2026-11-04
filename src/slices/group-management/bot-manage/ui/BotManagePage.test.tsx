@@ -4,8 +4,10 @@ import { botApi, frgApi, subscriptionApi } from '@/shared/api/bot-management.js'
 import { BotManagePage } from './BotManagePage.js';
 
 vi.mock('@solidjs/router', () => ({
-	useParams: () => ({ botId: 'b1' }),
+	useParams: () => ({ id: 'g1', botId: 'b1' }),
 	useNavigate: () => vi.fn(),
+	useLocation: () => ({ pathname: '/group/g1' }),
+	A: (props: any) => props.children,
 }));
 
 vi.mock('@/shared/api/bot-management.js', () => ({
@@ -41,7 +43,7 @@ describe('BotManagePage', () => {
 
 	it('renders bot manage title', async () => {
 		render(() => <BotManagePage />);
-		expect(await screen.findByText('botManage.title')).toBeInTheDocument();
+		expect(await screen.findByText('Test Bot')).toBeInTheDocument();
 	});
 
 	it('renders bot username', async () => {
@@ -51,6 +53,7 @@ describe('BotManagePage', () => {
 
 	it('renders connected group', async () => {
 		render(() => <BotManagePage />);
-		expect(await screen.findByText('My Group')).toBeInTheDocument();
+		const groups = await screen.findAllByText('My Group');
+		expect(groups.length).toBeGreaterThan(0);
 	});
 });

@@ -1,5 +1,5 @@
 import { hapticFeedback } from '@tma.js/sdk-solid';
-import { Component } from 'solid-js';
+import type { Component } from 'solid-js';
 
 interface Props {
 	checked: boolean;

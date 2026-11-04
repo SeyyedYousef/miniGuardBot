@@ -48,7 +48,9 @@ export const SettingsPage: Component = () => {
 					>
 						<span class="material-symbols-outlined text-[22px] rtl:rotate-180">arrow_back</span>
 					</button>
-					<h1 class="text-[16px] font-bold text-[var(--tg-text)] truncate">{txt().settingsTitle}</h1>
+					<h1 class="text-[16px] font-bold text-[var(--tg-text)] truncate">
+						{txt().settingsTitle}
+					</h1>
 				</div>
 			</header>
 
@@ -128,7 +130,8 @@ export const SettingsPage: Component = () => {
 									</span>
 								</div>
 								<span class="text-[15px] font-medium text-[var(--tg-text)]">
-									{txt().themeTitle} ({colorScheme() === 'dark' ? txt().themeDark : txt().themeLight})
+									{txt().themeTitle} (
+									{colorScheme() === 'dark' ? txt().themeDark : txt().themeLight})
 								</span>
 							</div>
 							<ToggleSwitch
@@ -170,10 +173,7 @@ export const SettingsPage: Component = () => {
 									<span class="text-[12px] text-[var(--tg-hint)]">{t('settings.soundDesc')}</span>
 								</div>
 							</div>
-							<ToggleSwitch
-								checked={profileSettings().soundEnabled}
-								onChange={handleToggleSound}
-							/>
+							<ToggleSwitch checked={profileSettings().soundEnabled} onChange={handleToggleSound} />
 						</div>
 
 						<div class="tg-cell justify-between">

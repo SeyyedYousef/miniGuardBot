@@ -4,8 +4,10 @@ import { groupApi } from '@/shared/api/bot-management.js';
 import { LimitsPage } from './LimitsPage.js';
 
 vi.mock('@solidjs/router', () => ({
-	useParams: () => ({ id: 'g1' }),
+	useParams: () => ({ id: 'g1', botId: 'b1' }),
 	useNavigate: () => vi.fn(),
+	useLocation: () => ({ pathname: '/group/g1' }),
+	A: (props: any) => props.children,
 }));
 
 vi.mock('@/shared/api/bot-management.js', () => ({
@@ -33,11 +35,12 @@ describe('LimitsPage', () => {
 
 	it('renders limits title', async () => {
 		render(() => <LimitsPage />);
-		expect(await screen.findByText('limitsSettings.title')).toBeInTheDocument();
+		expect(await screen.findByText('محدودیت‌ها')).toBeInTheDocument();
 	});
 
-	it('renders subtitle', async () => {
+	it('renders message length section', async () => {
 		render(() => <LimitsPage />);
-		expect(await screen.findByText('limitsSettings.subtitle')).toBeInTheDocument();
+		const elements = await screen.findAllByText('طول پیام');
+		expect(elements.length).toBeGreaterThan(0);
 	});
 });

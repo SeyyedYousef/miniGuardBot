@@ -1,4 +1,4 @@
-import { Component } from 'solid-js';
+import type { Component } from 'solid-js';
 import { t } from '@/shared/i18n/index.js';
 
 export const ErrorFallback: Component<{ err: Error; reset: () => void }> = (props) => {

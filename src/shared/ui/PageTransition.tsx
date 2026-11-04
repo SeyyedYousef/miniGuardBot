@@ -1,5 +1,5 @@
 import { useLocation } from '@solidjs/router';
-import { Component, createEffect, createSignal, JSX, onMount } from 'solid-js';
+import { type Component, createEffect, createSignal, type JSX, onMount } from 'solid-js';
 
 export const PageTransition: Component<{ children: JSX.Element }> = (props) => {
 	const location = useLocation();

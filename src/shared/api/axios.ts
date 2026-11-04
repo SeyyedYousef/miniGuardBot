@@ -1,8 +1,11 @@
 import { retrieveLaunchParams } from '@tma.js/sdk-solid';
-import axios, { AxiosError, AxiosInstance, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
+import axios, {
+	type AxiosError,
+	type AxiosInstance,
+	type AxiosResponse,
+	type InternalAxiosRequestConfig,
+} from 'axios';
 import { API_CONFIG } from './config.js';
-
-import { demoAdapter, isDemoRequest } from './demo-adapter.js';
 
 export const clearUserSessionData = () => {
 	try {
@@ -143,7 +146,6 @@ apiClient.interceptors.request.use(
 					return Promise.reject(err);
 				}
 			};
-			return config;
 		}
 
 		const initData = getInitData();
@@ -234,7 +236,11 @@ apiClient.interceptors.response.use(
 						parsedData = JSON.parse(parsedData);
 					} catch (_e) {}
 				}
-				const mockData = mockApiLogic(originalRequest.method || 'GET', originalRequest.url || '', parsedData);
+				const mockData = mockApiLogic(
+					originalRequest.method || 'GET',
+					originalRequest.url || '',
+					parsedData,
+				);
 				return {
 					data: mockData,
 					status: 200,

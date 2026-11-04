@@ -1,5 +1,5 @@
 import { hapticFeedback } from '@tma.js/sdk-solid';
-import { Component, createSignal, For, Show } from 'solid-js';
+import { type Component, createSignal, For, Show } from 'solid-js';
 import { isRtl, t } from '@/shared/i18n/index.js';
 
 // Native Telegram / iOS Switch Component

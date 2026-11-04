@@ -1,5 +1,5 @@
-import { Component, createSignal, For, onCleanup, onMount, Show } from 'solid-js';
-import { ownerApi, SystemHealthMetrics } from '@/shared/api/owner.js';
+import { type Component, createSignal, For, onCleanup, onMount, Show } from 'solid-js';
+import { ownerApi, type SystemHealthMetrics } from '@/shared/api/owner.js';
 
 export const OwnerHealth: Component = () => {
 	const [metrics, setMetrics] = createSignal<SystemHealthMetrics | null>(null);

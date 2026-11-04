@@ -4,8 +4,10 @@ import { groupApi } from '@/shared/api/bot-management.js';
 import { GeneralSettingsPage } from './GeneralSettingsPage.js';
 
 vi.mock('@solidjs/router', () => ({
-	useParams: () => ({ id: 'g1' }),
+	useParams: () => ({ id: 'g1', botId: 'b1' }),
 	useNavigate: () => vi.fn(),
+	useLocation: () => ({ pathname: '/group/g1' }),
+	A: (props: any) => props.children,
 }));
 
 vi.mock('@/shared/api/bot-management.js', () => ({
@@ -19,18 +21,19 @@ describe('GeneralSettingsPage', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		(groupApi.getSettings as any).mockResolvedValue({
-			general: { language: 'en', timezone: 'UTC', welcomeMessage: true },
+			general: { language: 'fa', timezone: 'Asia/Tehran', welcomeMessage: true },
 			version: 1,
 		});
 	});
 
 	it('renders settings title', async () => {
 		render(() => <GeneralSettingsPage />);
-		expect(await screen.findByText('generalSettings.title')).toBeInTheDocument();
+		expect(await screen.findByText('تنظیمات عمومی')).toBeInTheDocument();
 	});
 
-	it('renders subtitle', async () => {
+	it('renders core sections', async () => {
 		render(() => <GeneralSettingsPage />);
-		expect(await screen.findByText('generalSettings.description')).toBeInTheDocument();
+		const elements = await screen.findAllByText('تنظیمات اصلی ربات');
+		expect(elements.length).toBeGreaterThan(0);
 	});
 });

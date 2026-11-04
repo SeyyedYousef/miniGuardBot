@@ -1,6 +1,14 @@
 import { useNavigate, useParams } from '@solidjs/router';
 import { backButton } from '@tma.js/sdk-solid';
-import { type Component, createResource, createSignal, For, onCleanup, onMount, Show } from 'solid-js';
+import {
+	type Component,
+	createResource,
+	createSignal,
+	For,
+	onCleanup,
+	onMount,
+	Show,
+} from 'solid-js';
 import { groupApi, subscriptionApi } from '@/shared/api/bot-management.js';
 import { uiText } from '@/shared/i18n/group-ui.js';
 import { isRtl } from '@/shared/i18n/index.js';
@@ -58,7 +66,10 @@ export const GroupDashboardPage: Component = () => {
 	const handleBiometricVerify = () => {
 		haptic.notify('success');
 		setBiometricVerified(true);
-		showToast('هویت بیومتریک تأیید شد! درخواست عضویت (approveChatJoinRequest) پذیرفته شد.', 'success');
+		showToast(
+			'هویت بیومتریک تأیید شد! درخواست عضویت (approveChatJoinRequest) پذیرفته شد.',
+			'success',
+		);
 		setTimeout(() => {
 			setShowBiometricSheet(false);
 		}, 1200);
@@ -272,9 +283,7 @@ export const GroupDashboardPage: Component = () => {
 
 						<span
 							class={`text-[11.5px] font-bold px-2.5 py-1 rounded-lg shrink-0 ${
-								isTrial()
-									? 'bg-[#F59E0B]/15 text-[#F59E0B]'
-									: 'bg-[#34C759]/15 text-[#34C759]'
+								isTrial() ? 'bg-[#F59E0B]/15 text-[#F59E0B]' : 'bg-[#34C759]/15 text-[#34C759]'
 							}`}
 						>
 							{isTrial() ? txt().trialBadge : txt().paidBadge}

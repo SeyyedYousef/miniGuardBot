@@ -1002,7 +1002,8 @@ export const dict = {
 	},
 	groupLessons: {
 		heroTitle: 'iFragment Group Management Academy',
-		heroDesc: 'Complete 0 to 100 group management guide. Enable security, moderation & automated tools.',
+		heroDesc:
+			'Complete 0 to 100 group management guide. Enable security, moderation & automated tools.',
 		statusActive: 'Active ✓',
 		statusInactive: 'Inactive',
 		ephemeral: {

@@ -4,8 +4,10 @@ import { groupApi } from '@/shared/api/bot-management.js';
 import { ContentRestrictionsPage } from './ContentRestrictionsPage.js';
 
 vi.mock('@solidjs/router', () => ({
-	useParams: () => ({ id: 'g1' }),
+	useParams: () => ({ id: 'g1', botId: 'b1' }),
 	useNavigate: () => vi.fn(),
+	useLocation: () => ({ pathname: '/group/g1' }),
+	A: (props: any) => props.children,
 }));
 
 vi.mock('@/shared/api/bot-management.js', () => ({
@@ -24,13 +26,15 @@ describe('ContentRestrictionsPage', () => {
 		});
 	});
 
-	it('renders content restrictions title', async () => {
+	it('renders content restrictions title and tabs', async () => {
 		render(() => <ContentRestrictionsPage />);
-		expect(await screen.findByText('contentRestrictions.title')).toBeInTheDocument();
+		expect(await screen.findByText('محدودیت محتوا')).toBeInTheDocument();
+		expect(await screen.findByText('لینک‌ها و شناسه‌ها')).toBeInTheDocument();
 	});
 
-	it('renders subtitle', async () => {
+	it('renders remove links control with active default', async () => {
 		render(() => <ContentRestrictionsPage />);
-		expect(await screen.findByText('contentRestrictions.subtitle')).toBeInTheDocument();
+		const els = await screen.findAllByText('حذف لینک‌ها');
+		expect(els.length).toBeGreaterThan(0);
 	});
 });

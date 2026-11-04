@@ -4,8 +4,10 @@ import { groupApi } from '@/shared/api/bot-management.js';
 import { AnalyticsPage } from './AnalyticsPage.js';
 
 vi.mock('@solidjs/router', () => ({
-	useParams: () => ({ id: 'g1' }),
+	useParams: () => ({ id: 'g1', botId: 'b1' }),
 	useNavigate: () => vi.fn(),
+	useLocation: () => ({ pathname: '/group/g1' }),
+	A: (props: any) => props.children,
 }));
 
 vi.mock('@/shared/api/bot-management.js', () => ({
@@ -37,11 +39,11 @@ describe('AnalyticsPage', () => {
 
 	it('renders analytics title', async () => {
 		render(() => <AnalyticsPage />);
-		expect(await screen.findByText('analyticsSettings.title')).toBeInTheDocument();
+		expect(await screen.findByText('آمار و تحلیل')).toBeInTheDocument();
 	});
 
-	it('renders subtitle', async () => {
+	it('renders activity chart header', async () => {
 		render(() => <AnalyticsPage />);
-		expect(await screen.findByText('analyticsSettings.subtitle')).toBeInTheDocument();
+		expect(await screen.findByText('فعالیت پیام‌ها')).toBeInTheDocument();
 	});
 });

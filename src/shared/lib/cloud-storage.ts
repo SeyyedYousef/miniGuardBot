@@ -76,7 +76,11 @@ export const cloudStorage = {
 					if (error) resolve({});
 					else {
 						const safeValues = Object.create(null);
-						if (values) Object.keys(values).forEach((k) => (safeValues[k] = values[k]));
+						if (values) {
+							for (const k of Object.keys(values)) {
+								safeValues[k] = values[k];
+							}
+						}
 						resolve(safeValues);
 					}
 				});

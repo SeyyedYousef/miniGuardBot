@@ -435,10 +435,7 @@ export const OwnerUsers: Component = () => {
 							</select>
 						</div>
 						<div class="flex gap-2">
-							<button
-								onClick={closeActionModal}
-								class="flex-1 h-10 tg-btn-secondary text-[13px]"
-							>
+							<button onClick={closeActionModal} class="flex-1 h-10 tg-btn-secondary text-[13px]">
 								انصراف
 							</button>
 							<button

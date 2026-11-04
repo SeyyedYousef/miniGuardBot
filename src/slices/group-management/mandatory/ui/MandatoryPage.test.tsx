@@ -4,8 +4,10 @@ import { groupApi } from '@/shared/api/bot-management.js';
 import { MandatoryPage } from './MandatoryPage.js';
 
 vi.mock('@solidjs/router', () => ({
-	useParams: () => ({ id: 'g1' }),
+	useParams: () => ({ id: 'g1', botId: 'b1' }),
 	useNavigate: () => vi.fn(),
+	useLocation: () => ({ pathname: '/group/g1' }),
+	A: (props: any) => props.children,
 }));
 
 vi.mock('@/shared/api/bot-management.js', () => ({
@@ -33,11 +35,12 @@ describe('MandatoryPage', () => {
 
 	it('renders mandatory title', async () => {
 		render(() => <MandatoryPage />);
-		expect(await screen.findByText('mandatorySettings.title')).toBeInTheDocument();
+		expect(await screen.findByText('عضویت اجباری')).toBeInTheDocument();
 	});
 
-	it('renders subtitle', async () => {
+	it('renders force join section', async () => {
 		render(() => <MandatoryPage />);
-		expect(await screen.findByText('mandatorySettings.subtitle')).toBeInTheDocument();
+		const elements = await screen.findAllByText('عضویت اجباری در کانال');
+		expect(elements.length).toBeGreaterThan(0);
 	});
 });

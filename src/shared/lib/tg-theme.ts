@@ -38,7 +38,7 @@ const DARK_VARS: Record<string, string> = {
 };
 
 const isHexDark = (hex?: string): boolean => {
-	if (!hex || !hex.startsWith('#')) return true;
+	if (!hex?.startsWith('#')) return true;
 	const clean = hex.slice(1);
 	const num = parseInt(
 		clean.length === 3

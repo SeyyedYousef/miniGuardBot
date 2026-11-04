@@ -1,5 +1,5 @@
 import { A, useLocation } from '@solidjs/router';
-import { Component } from 'solid-js';
+import type { Component } from 'solid-js';
 import { uiText } from '@/shared/i18n/group-ui.js';
 import { isRtl } from '@/shared/i18n/index.js';
 import { haptic } from '@/shared/lib/haptic.js';

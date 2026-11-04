@@ -1,5 +1,5 @@
 import * as Sentry from '@sentry/browser';
-import { Component, JSX, ErrorBoundary as SolidErrorBoundary } from 'solid-js';
+import { type Component, type JSX, ErrorBoundary as SolidErrorBoundary } from 'solid-js';
 import { t } from '@/shared/i18n/index.js';
 
 interface Props {

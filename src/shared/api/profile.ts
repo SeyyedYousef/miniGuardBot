@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from '@/shared/lib/zod-shim.js';
 import type { Achievement, ProfileStats, ReferralInfo } from '@/shared/store/profile.js';
 import { setProfilePhotoUrl } from '@/shared/store/profile.js';
 import { apiFetch } from './base.js';

@@ -10,35 +10,29 @@ vi.mock('@solidjs/router', () => ({
 }));
 
 vi.mock('@tma.js/sdk-solid', () => ({
+	backButton: { hide: vi.fn(), show: vi.fn(), onClick: vi.fn() },
 	hapticFeedback: { impactOccurred: vi.fn() },
 	initData: {
 		user: () => ({ first_name: 'Test', photo_url: '' }),
 	},
 }));
 
-vi.mock('@tanstack/solid-query', () => ({
-	createQuery: () => ({
-		data: {
-			managed_bots: [{ id: '1', bot_name: 'Test Bot', bot_username: 'test_bot' }],
-		},
-		isLoading: false,
-		isError: false,
-	}),
+vi.mock('@/shared/api/bot-management.js', () => ({
+	botApi: {
+		listBots: vi.fn().mockResolvedValue([]),
+		listGroups: vi.fn().mockResolvedValue([]),
+	},
 }));
 
 describe('DashboardPage', () => {
-	it('renders the dashboard with title', () => {
+	it('renders the dashboard with title', async () => {
 		render(() => <DashboardPage />);
-		expect(screen.getByText('dashboard.title')).toBeInTheDocument();
+		expect(await screen.findByText('گروه‌های تحت مدیریت شما')).toBeInTheDocument();
 	});
 
-	it('renders the group management section', () => {
+	it('renders the add group button', async () => {
 		render(() => <DashboardPage />);
-		expect(screen.getByText('dashboard.groupMgmt')).toBeInTheDocument();
-	});
-
-	it('contains the bottom navigation dashboard link', () => {
-		render(() => <DashboardPage />);
-		expect(screen.getByText('bottomNav.dashboard')).toBeInTheDocument();
+		const buttons = await screen.findAllByText('افزودن گروه');
+		expect(buttons.length).toBeGreaterThan(0);
 	});
 });

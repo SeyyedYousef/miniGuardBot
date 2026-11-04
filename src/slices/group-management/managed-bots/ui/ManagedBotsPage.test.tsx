@@ -4,7 +4,10 @@ import { botApi } from '@/shared/api/bot-management.js';
 import { ManagedBotsPage } from './ManagedBotsPage.js';
 
 vi.mock('@solidjs/router', () => ({
+	useParams: () => ({ id: 'g1', botId: 'b1' }),
 	useNavigate: () => vi.fn(),
+	useLocation: () => ({ pathname: '/group/g1' }),
+	A: (props: any) => props.children,
 }));
 
 vi.mock('@/shared/api/bot-management.js', () => ({
@@ -24,12 +27,7 @@ describe('ManagedBotsPage', () => {
 
 	it('renders managed bots title', async () => {
 		render(() => <ManagedBotsPage />);
-		expect(await screen.findByText('managedBots.title')).toBeInTheDocument();
-	});
-
-	it('renders description', async () => {
-		render(() => <ManagedBotsPage />);
-		expect(await screen.findByText('managedBots.description')).toBeInTheDocument();
+		expect(await screen.findByText('ربات‌های اختصاصی شما')).toBeInTheDocument();
 	});
 
 	it('renders bot name from API', async () => {

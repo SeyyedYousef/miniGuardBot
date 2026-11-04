@@ -89,7 +89,9 @@ export const SecurityPage: Component = () => {
 					>
 						<span class="material-symbols-outlined text-[22px] rtl:rotate-180">arrow_back</span>
 					</button>
-					<h1 class="text-[16px] font-bold text-[var(--tg-text)] truncate">{txt().securityTitle}</h1>
+					<h1 class="text-[16px] font-bold text-[var(--tg-text)] truncate">
+						{txt().securityTitle}
+					</h1>
 				</div>
 			</header>
 

@@ -94,10 +94,7 @@ export const ProfilePage: Component = () => {
 				{/* Telegram Settings Grouped List */}
 				<div class="tg-section">
 					{/* Dedicated Bots */}
-					<button
-						onClick={() => handleNavigate('/managed-bots')}
-						class="tg-cell w-full text-start"
-					>
+					<button onClick={() => handleNavigate('/managed-bots')} class="tg-cell w-full text-start">
 						<div class="tg-icon-box" style={{ 'background-color': '#007AFF' }}>
 							<span class="material-symbols-outlined text-[18px]">smart_toy</span>
 						</div>

@@ -1729,8 +1729,7 @@ export const dict = {
 		welcomeTextDesc: '当新成员加入群组时发送。',
 	},
 	dashboard: {
-		channelDesc:
-			'强劲 AI 频道助手；动态自动简介、彩色玻璃按钮、秒发首条评论与智能自动回复。',
+		channelDesc: '强劲 AI 频道助手；动态自动简介、彩色玻璃按钮、秒发首条评论与智能自动回复。',
 		channelMgmt: '智能频道管理',
 		description: '选择一项服务来管理您的 Telegram 社区。',
 		groupDesc:

@@ -172,6 +172,9 @@ export const routes: Route[] = [
 		path: '/owner/broadcast',
 		Component: withOwnerGuard(OwnerBroadcastPage, 'broadcast', 'ارسال همگانی'),
 	},
-	{ path: '/owner/finance', Component: withOwnerGuard(OwnerFinancePage, 'finance', 'اشتراک استارز') },
+	{
+		path: '/owner/finance',
+		Component: withOwnerGuard(OwnerFinancePage, 'finance', 'اشتراک استارز'),
+	},
 	{ path: '/owner/health', Component: withOwnerGuard(OwnerHealthPage, 'health', 'سلامت سرور') },
 ];

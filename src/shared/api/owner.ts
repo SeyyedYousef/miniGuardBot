@@ -144,7 +144,8 @@ export const ownerApi = {
 		const mergedPayload: SystemSettings = {
 			maintenance_mode: settingsPayload.maintenance_mode ?? existing?.maintenance_mode ?? false,
 			trial_hours: settingsPayload.trial_hours ?? existing?.trial_hours ?? 24,
-			monthly_stars_price: settingsPayload.monthly_stars_price ?? existing?.monthly_stars_price ?? 100,
+			monthly_stars_price:
+				settingsPayload.monthly_stars_price ?? existing?.monthly_stars_price ?? 100,
 			max_bots_per_admin: settingsPayload.max_bots_per_admin ?? existing?.max_bots_per_admin ?? 20,
 		};
 

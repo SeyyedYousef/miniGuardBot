@@ -1,6 +1,14 @@
 import { useNavigate, useParams } from '@solidjs/router';
 import { backButton } from '@tma.js/sdk-solid';
-import { type Component, createResource, createSignal, For, onCleanup, onMount, Show } from 'solid-js';
+import {
+	type Component,
+	createResource,
+	createSignal,
+	For,
+	onCleanup,
+	onMount,
+	Show,
+} from 'solid-js';
 import type { DailyMetric } from '@/shared/api/bot-management.js';
 import { groupApi } from '@/shared/api/bot-management.js';
 import { isRtl, locale, t } from '@/shared/i18n/index.js';
@@ -110,7 +118,10 @@ export const AnalyticsPage: Component = () => {
 					</For>
 				</div>
 
-				<div class="flex justify-between text-[11px] text-[var(--tg-hint)] font-mono mt-1.5" dir="ltr">
+				<div
+					class="flex justify-between text-[11px] text-[var(--tg-hint)] font-mono mt-1.5"
+					dir="ltr"
+				>
 					<span>{metrics[0]?.date.slice(5)}</span>
 					<span>{metrics[metrics.length - 1]?.date.slice(5)}</span>
 				</div>
@@ -251,7 +262,12 @@ export const AnalyticsPage: Component = () => {
 
 	const topMembers = () => [
 		{ rank: 1, name: 'Ali Rezaei', msgs: 412, badge: isFa() ? 'مشارکت عالی' : 'Top Contributor' },
-		{ rank: 2, name: 'Sina Dev', msgs: 305, badge: isFa() ? 'تایید بیومتریک' : 'Biometric Verified' },
+		{
+			rank: 2,
+			name: 'Sina Dev',
+			msgs: 305,
+			badge: isFa() ? 'تایید بیومتریک' : 'Biometric Verified',
+		},
 		{ rank: 3, name: 'Maryam K.', msgs: 288, badge: isFa() ? 'فعال روزانه' : 'Daily Active' },
 		{ rank: 4, name: 'Reza T.', msgs: 214, badge: isFa() ? 'دعوت‌کننده برتر' : 'Top Inviter' },
 	];
@@ -421,7 +437,10 @@ export const AnalyticsPage: Component = () => {
 							: '24-Hour Peak Activity Distribution'}
 					</div>
 					<div class="tg-section p-4 space-y-3">
-						<div class="flex items-end justify-between gap-1.5 h-24 pt-2 border-b border-[var(--tg-separator)] pb-1" dir="ltr">
+						<div
+							class="flex items-end justify-between gap-1.5 h-24 pt-2 border-b border-[var(--tg-separator)] pb-1"
+							dir="ltr"
+						>
 							<For each={hourlyPeak}>
 								{(slot) => (
 									<div class="flex-1 flex flex-col items-center justify-end h-full gap-1">
@@ -436,14 +455,15 @@ export const AnalyticsPage: Component = () => {
 								)}
 							</For>
 						</div>
-						<div class="flex items-center justify-between text-[10.5px] font-mono text-[var(--tg-hint)]" dir="ltr">
+						<div
+							class="flex items-center justify-between text-[10.5px] font-mono text-[var(--tg-hint)]"
+							dir="ltr"
+						>
 							<For each={hourlyPeak}>{(slot) => <span>{slot.hour}:00</span>}</For>
 						</div>
 						<div class="text-[11.5px] text-[var(--tg-hint)] flex items-center justify-between pt-1">
 							<span>
-								{isFa()
-									? '🔥 شلوغ‌ترین ساعت: ۱۹:۰۰ الی ۲۲:۳۰ شب'
-									: '🔥 Peak Window: 19:00 – 22:30'}
+								{isFa() ? '🔥 شلوغ‌ترین ساعت: ۱۹:۰۰ الی ۲۲:۳۰ شب' : '🔥 Peak Window: 19:00 – 22:30'}
 							</span>
 							<span class="text-[var(--tg-link)] font-semibold">
 								{isFa() ? 'پیشنهاد سکوت: ۰۰:۳۰ تا ۰۷:۰۰' : 'Quiet: 00:30–07:00'}
@@ -489,9 +509,7 @@ export const AnalyticsPage: Component = () => {
 										<div class="text-[13px] font-mono font-bold text-[var(--tg-text)]">
 											{tp.msgs.toLocaleString()} msgs
 										</div>
-										<div class="text-[11px] font-mono text-[#FF3B30]">
-											{tp.spam} blocked
-										</div>
+										<div class="text-[11px] font-mono text-[#FF3B30]">{tp.spam} blocked</div>
 									</div>
 								</div>
 							)}
