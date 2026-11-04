@@ -5,26 +5,100 @@ import { setLanguage } from '@/shared/api/profile.js';
 
 import { dict as en } from './en.js';
 
-export type Locale = 'en' | 'fa' | 'ps' | 'ru' | 'zh';
+export type Locale =
+	| 'fa'
+	| 'en'
+	| 'ar'
+	| 'ru'
+	| 'tr'
+	| 'es'
+	| 'hi'
+	| 'ur'
+	| 'ps'
+	| 'ku'
+	| 'az'
+	| 'uz'
+	| 'id'
+	| 'pt'
+	| 'fr'
+	| 'de'
+	| 'zh';
+
 export type Dictionary = typeof en;
 
+export interface LanguageOption {
+	code: Locale;
+	native: string;
+	label: string;
+	flag: string;
+	rtl: boolean;
+}
+
+export const SUPPORTED_LANGUAGES: readonly LanguageOption[] = [
+	{ code: 'fa', native: 'فارسی', label: 'فارسی (Persian)', flag: '🇮🇷', rtl: true },
+	{ code: 'en', native: 'English', label: 'English', flag: '🇬🇧', rtl: false },
+	{ code: 'ar', native: 'العربية', label: 'العربية (Arabic)', flag: '🇸🇦', rtl: true },
+	{ code: 'ru', native: 'Русский', label: 'Русский (Russian)', flag: '🇷🇺', rtl: false },
+	{ code: 'tr', native: 'Türkçe', label: 'Türkçe (Turkish)', flag: '🇹🇷', rtl: false },
+	{ code: 'es', native: 'Español', label: 'Español (Spanish)', flag: '🇪🇸', rtl: false },
+	{ code: 'hi', native: 'हिन्दी', label: 'हिन्दी (Hindi)', flag: '🇮🇳', rtl: false },
+	{ code: 'ur', native: 'اردو', label: 'اردو (Urdu)', flag: '🇵🇰', rtl: true },
+	{ code: 'ps', native: 'پښتو', label: 'پښتو (Pashto)', flag: '🇦🇫', rtl: true },
+	{ code: 'ku', native: 'کوردی', label: 'کوردی (Kurdish)', flag: '☀️', rtl: true },
+	{
+		code: 'az',
+		native: 'Azərbaycanca',
+		label: 'Azərbaycanca (Azerbaijani)',
+		flag: '🇦🇿',
+		rtl: false,
+	},
+	{ code: 'uz', native: 'Oʻzbekcha', label: 'Oʻzbekcha (Uzbek)', flag: '🇺🇿', rtl: false },
+	{ code: 'id', native: 'Bahasa Indonesia', label: 'Bahasa Indonesia', flag: '🇮🇩', rtl: false },
+	{ code: 'pt', native: 'Português', label: 'Português (Portuguese)', flag: '🇧🇷', rtl: false },
+	{ code: 'fr', native: 'Français', label: 'Français (French)', flag: '🇫🇷', rtl: false },
+	{ code: 'de', native: 'Deutsch', label: 'Deutsch (German)', flag: '🇩🇪', rtl: false },
+	{ code: 'zh', native: '简体中文', label: '简体中文 (Chinese)', flag: '🇨🇳', rtl: false },
+] as const;
+
+export const VALID_LOCALE_CODES = SUPPORTED_LANGUAGES.map((l) => l.code);
+
+export const RTL_LOCALES: Locale[] = ['fa', 'ps', 'ar', 'ur', 'ku'];
+
+export const getLanguageLabel = (code?: Locale): string => {
+	const found = SUPPORTED_LANGUAGES.find((l) => l.code === code);
+	return found ? `${found.flag} ${found.native}` : '🇮🇷 فارسی';
+};
+
 const mapLanguageCode = (code?: string): Locale => {
-	if (!code) return 'en';
+	if (!code) return 'fa';
 	const c = code.toLowerCase();
-	if (c.startsWith('fa')) return 'fa';
+	if (c.startsWith('fa') || c.startsWith('per') || c.startsWith('prs')) return 'fa';
+	if (c.startsWith('ar')) return 'ar';
+	if (c.startsWith('ru') || c.startsWith('uk') || c.startsWith('be')) return 'ru';
+	if (c.startsWith('tr')) return 'tr';
+	if (c.startsWith('es')) return 'es';
+	if (c.startsWith('hi') || c.startsWith('bn')) return 'hi';
+	if (c.startsWith('ur')) return 'ur';
 	if (c.startsWith('ps') || c.startsWith('puk') || c.startsWith('pus')) return 'ps';
-	if (c.startsWith('ru')) return 'ru';
+	if (c.startsWith('ku') || c.startsWith('ckb')) return 'ku';
+	if (c.startsWith('az')) return 'az';
+	if (c.startsWith('uz')) return 'uz';
+	if (c.startsWith('id') || c.startsWith('ms')) return 'id';
+	if (c.startsWith('pt')) return 'pt';
+	if (c.startsWith('fr')) return 'fr';
+	if (c.startsWith('de')) return 'de';
 	if (c.startsWith('zh')) return 'zh';
+	if (c.startsWith('en')) return 'en';
 	return 'en';
 };
 
-export const RTL_LOCALES: Locale[] = ['fa', 'ps'];
-
 const getInitialLocale = (): Locale => {
-	const saved = localStorage.getItem('user_selected_locale');
-	if (saved && ['en', 'fa', 'ps', 'ru', 'zh'].includes(saved)) {
-		return saved as Locale;
-	}
+	try {
+		const saved = localStorage.getItem('user_selected_locale') as Locale | null;
+		if (saved && VALID_LOCALE_CODES.includes(saved)) {
+			return saved;
+		}
+	} catch {}
 
 	try {
 		const params = new URLSearchParams(window.location.hash.slice(1) || window.location.search);
@@ -44,33 +118,36 @@ const [getLocale, rawSetLocale] = createSignal<Locale>(getInitialLocale());
 export { getLocale as locale };
 
 const enFlattened = i18n.flatten(en);
-const [loadedDicts, setLoadedDicts] = createSignal<Record<Locale, any>>({
+const [loadedDicts, setLoadedDicts] = createSignal<Record<string, any>>({
 	en: enFlattened,
-	fa: {},
-	ps: {},
-	ru: {},
-	zh: {},
 });
 
 export const loadDictionary = async (loc: Locale) => {
 	if (loc === 'en') return;
 	const current = loadedDicts();
-	if (Object.keys(current[loc] || {}).length > 0) return;
+	if (current[loc] && Object.keys(current[loc]).length > 0) return;
 
 	try {
 		let module: { dict: any } | undefined;
 		switch (loc) {
 			case 'fa':
+			case 'ku':
 				module = await import('./fa.js');
 				break;
 			case 'ps':
+			case 'ur':
+			case 'ar':
 				module = await import('./ps.js');
 				break;
 			case 'ru':
+			case 'uz':
 				module = await import('./ru.js');
 				break;
 			case 'zh':
 				module = await import('./zh.js');
+				break;
+			default:
+				module = { dict: en };
 				break;
 		}
 		if (module?.dict) {
@@ -86,10 +163,12 @@ export const loadDictionary = async (loc: Locale) => {
 loadDictionary(getInitialLocale());
 
 export const setLocale = (newLocale: Locale) => {
-	localStorage.setItem('user_selected_locale', newLocale);
+	try {
+		localStorage.setItem('user_selected_locale', newLocale);
+	} catch {}
 	rawSetLocale(newLocale);
 	loadDictionary(newLocale);
-	setLanguage(newLocale).catch(console.error);
+	setLanguage(newLocale).catch(() => {});
 };
 
 export const isRtl = () => RTL_LOCALES.includes(getLocale());
@@ -97,7 +176,9 @@ export const isRtl = () => RTL_LOCALES.includes(getLocale());
 createRoot(() => {
 	// Reactively detect language from Telegram SDK after it initializes
 	createEffect(() => {
-		if (localStorage.getItem('user_selected_locale')) return;
+		try {
+			if (localStorage.getItem('user_selected_locale')) return;
+		} catch {}
 		const user = initData.user();
 		if (user?.language_code) {
 			const loc = mapLanguageCode(user.language_code);
@@ -109,8 +190,10 @@ createRoot(() => {
 	// Keep HTML lang attribute in sync, handle RTL
 	createEffect(() => {
 		const currentLocale = getLocale();
-		document.documentElement.dir = RTL_LOCALES.includes(currentLocale) ? 'rtl' : 'ltr';
-		document.documentElement.lang = currentLocale;
+		if (typeof document !== 'undefined') {
+			document.documentElement.dir = RTL_LOCALES.includes(currentLocale) ? 'rtl' : 'ltr';
+			document.documentElement.lang = currentLocale;
+		}
 	});
 });
 
@@ -166,7 +249,6 @@ export const t = i18n.translator(getDict, customResolveTemplate) as (
 	args?: Record<string, any>,
 ) => string;
 
-// Helper to format numbers based on active locale (en-US for consistent English digits)
 export const getIntlLocale = (): string => {
 	return 'en-US';
 };

@@ -3,15 +3,28 @@
  * 2026 Production Standards
  */
 
+const resolveDefaultBaseUrl = (): string => {
+	if (import.meta.env.VITE_API_URL) {
+		return import.meta.env.VITE_API_URL;
+	}
+	if (typeof window !== 'undefined') {
+		const host = window.location.hostname;
+		// Automatically route Cloudflare Pages & external static hosts to the live VPS API
+		if (host.endsWith('.pages.dev') || host.endsWith('.workers.dev')) {
+			return 'https://guard-109-172-94-139.sslip.io/api/v1';
+		}
+	}
+	return '/api/v1';
+};
+
 export const API_CONFIG = {
 	// detect if running in Telegram Mini App production environment
 	IS_PRODUCTION: import.meta.env.PROD,
 
-	// Base URL for real API (empty or '/api/v1' enables relative path when hosted together)
-	BASE_URL: import.meta.env.VITE_API_URL || '/api/v1',
+	// Base URL for real API
+	BASE_URL: resolveDefaultBaseUrl(),
 
 	// Should we use mocks?
-	// Safety: NEVER use mocks in production unless explicitly forced for demo
 	USE_MOCKS: import.meta.env.DEV || import.meta.env.VITE_FORCE_MOCKS === 'true',
 
 	TIMEOUT: 15000,

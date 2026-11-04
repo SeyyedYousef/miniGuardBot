@@ -42,22 +42,37 @@ html.dark {
 
 @layer base {
 	html[lang="fa"],
-	html[lang="ps"] {
+	html[lang="ps"],
+	html[lang="ar"],
+	html[lang="ur"],
+	html[lang="ku"] {
 		--font-app:
-			"Vazirmatn", -apple-system, BlinkMacSystemFont, "Manrope", sans-serif;
+			"Vazirmatn", -apple-system, BlinkMacSystemFont, "Manrope", sans-serif, "Apple Color Emoji",
+			"Segoe UI Emoji";
 		line-height: 1.6;
 	}
 
 	html[lang="en"],
-	html[lang="ru"] {
+	html[lang="ru"],
+	html[lang="tr"],
+	html[lang="es"],
+	html[lang="pt"],
+	html[lang="fr"],
+	html[lang="de"],
+	html[lang="id"],
+	html[lang="uz"],
+	html[lang="az"],
+	html[lang="hi"] {
 		--font-app:
-			-apple-system, BlinkMacSystemFont, "SF Pro Text", "Manrope", "Roboto", sans-serif;
+			-apple-system, BlinkMacSystemFont, "SF Pro Text", "Manrope", "Roboto", sans-serif,
+			"Apple Color Emoji", "Segoe UI Emoji";
 		line-height: 1.45;
 	}
 
 	html[lang="zh"] {
 		--font-app:
-			"Noto Sans SC", -apple-system, BlinkMacSystemFont, "Manrope", sans-serif;
+			"Noto Sans SC", -apple-system, BlinkMacSystemFont, "Manrope", sans-serif, "Apple Color Emoji",
+			"Segoe UI Emoji";
 		line-height: 1.55;
 	}
 
@@ -246,17 +261,33 @@ a.tg-cell:active {
 }
 
 .material-symbols-outlined {
-	font-family: "Material Symbols Outlined";
-	font-weight: normal;
-	font-style: normal;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 1em;
+	height: 1em;
 	font-size: 22px;
 	line-height: 1;
-	display: inline-block;
 	white-space: nowrap;
 	direction: ltr;
-	-webkit-font-feature-settings: "liga";
-	font-feature-settings: "liga";
+	vertical-align: middle;
+	flex-shrink: 0;
+	overflow: hidden;
+	user-select: none;
 	-webkit-font-smoothing: antialiased;
+}
+
+.material-symbols-outlined:not([data-mg-svg="1"]) {
+	color: transparent !important;
+	text-indent: -9999px;
+}
+
+.material-symbols-outlined > svg {
+	width: 1em;
+	height: 1em;
+	display: block;
+	flex-shrink: 0;
+	pointer-events: none;
 }
 
 .no-scrollbar::-webkit-scrollbar {

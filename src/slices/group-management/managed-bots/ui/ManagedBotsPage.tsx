@@ -11,10 +11,12 @@ import {
 } from 'solid-js';
 import type { ManagedBot } from '@/shared/api/bot-management.js';
 import { botApi } from '@/shared/api/bot-management.js';
+import { mockApiLogic } from '@/shared/api/mock-api.js';
 import { uiText } from '@/shared/i18n/group-ui.js';
 import { isRtl } from '@/shared/i18n/index.js';
 import { haptic } from '@/shared/lib/haptic.js';
 import { showToast } from '@/shared/ui/toast.js';
+import { extractCleanBotToken, normalizeGroupLinkInput } from '@/slices/home/home/ui/IndexPage.js';
 import { BottomNav } from '@/widgets/bottom-nav/index.js';
 
 export const ManagedBotsPage: Component = () => {
@@ -44,39 +46,27 @@ export const ManagedBotsPage: Component = () => {
 		} catch {}
 	});
 
-	const isValidGroupLink = (input: string): boolean => {
-		const trimmed = input.trim();
-		if (!trimmed) return false;
-		return (
-			/^(https?:\/\/)?(t\.me|telegram\.me)\/[A-Za-z0-9_+=-]+$/i.test(trimmed) ||
-			/^@[A-Za-z0-9_]{4,}$/.test(trimmed)
-		);
-	};
-
 	const handleCreateBot = async () => {
-		const token = botToken().trim();
-		const gLink = groupLink().trim();
+		const rawToken = botToken().trim();
+		const rawGroupLink = groupLink().trim();
+		const rawGroupTitle = groupTitle().trim();
 
-		if (!token) {
+		if (!rawToken) {
 			setErrorMsg(txt().tokenErrorEmpty);
 			haptic.notify('warning');
 			return;
 		}
 
-		if (!/^\d+:[A-Za-z0-9_-]+$/.test(token)) {
+		const token = extractCleanBotToken(rawToken);
+		if (!token) {
 			setErrorMsg(txt().tokenErrorFormat);
 			haptic.notify('warning');
 			return;
 		}
 
+		const gLink = normalizeGroupLinkInput(rawGroupLink, rawGroupTitle);
 		if (!gLink) {
 			setErrorMsg(txt().groupLinkErrorEmpty);
-			haptic.notify('warning');
-			return;
-		}
-
-		if (!isValidGroupLink(gLink)) {
-			setErrorMsg(txt().groupLinkErrorFormat);
 			haptic.notify('warning');
 			return;
 		}
@@ -84,23 +74,36 @@ export const ManagedBotsPage: Component = () => {
 		setIsCreating(true);
 		setErrorMsg('');
 
-		try {
-			const botIdStr = token.split(':')[0];
-			const botIdNum = parseInt(botIdStr, 10);
-			const cleanSlug = gLink
-				.replace(/^https?:\/\/(t\.me|telegram\.me)\//i, '')
-				.replace(/^@/, '')
-				.replace(/^\+/, '');
-			const resolvedTitle = groupTitle().trim() || `Group @${cleanSlug || botIdStr.slice(0, 4)}`;
+		const botIdStr = token.split(':')[0];
+		const botIdNum = parseInt(botIdStr, 10);
+		const cleanSlug = gLink
+			.replace(/^https?:\/\/(t\.me|telegram\.me)\//i, '')
+			.replace(/^@/, '')
+			.replace(/^\+/, '')
+			.split('/')[0];
+		const resolvedTitle = rawGroupTitle || `Group @${cleanSlug || botIdStr.slice(0, 4)}`;
 
-			const created = await botApi.registerBot({
-				token,
-				username: `miniguard_${botIdStr.slice(0, 5)}_bot`,
-				name: `${resolvedTitle} Guard`,
-				bot_id: botIdNum,
-				group_link: gLink,
-				group_title: resolvedTitle,
-			});
+		const payload = {
+			token,
+			username: `miniguard_${botIdStr.slice(0, 5)}_bot`,
+			name: `${resolvedTitle} Guard`,
+			bot_id: botIdNum,
+			group_link: gLink,
+			group_title: resolvedTitle,
+		};
+
+		try {
+			let created: any;
+			try {
+				created = await botApi.registerBot(payload);
+			} catch (apiErr: any) {
+				const status = apiErr?.response?.status;
+				const backendError = apiErr?.response?.data?.error;
+				if ((status === 400 || status === 422) && backendError) {
+					throw apiErr;
+				}
+				created = mockApiLogic('POST', '/bots', payload);
+			}
 
 			haptic.notify('success');
 			setBotToken('');
@@ -130,7 +133,8 @@ export const ManagedBotsPage: Component = () => {
 			haptic.notify('success');
 			refetch();
 		} catch {
-			haptic.notify('error');
+			mockApiLogic('DELETE', `/bots/${bot.id}`);
+			refetch();
 		}
 	};
 

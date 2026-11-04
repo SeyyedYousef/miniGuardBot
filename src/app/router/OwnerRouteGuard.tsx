@@ -19,7 +19,7 @@ export const OwnerRouteGuard: Component<OwnerRouteGuardProps> = (props) => {
 		if (!token) {
 			setStatus('unauthorized');
 			setShowAuthGate(true);
-			return;
+			return false;
 		}
 
 		if (isJwtExpired(token)) {
@@ -28,10 +28,11 @@ export const OwnerRouteGuard: Component<OwnerRouteGuardProps> = (props) => {
 			sessionStorage.removeItem('owner_telegram_id');
 			setStatus('unauthorized');
 			setShowAuthGate(true);
-			return;
+			return false;
 		}
 
 		setStatus('authenticated');
+		return true;
 	};
 
 	onMount(() => {
@@ -40,7 +41,7 @@ export const OwnerRouteGuard: Component<OwnerRouteGuardProps> = (props) => {
 
 	const handleGateClose = () => {
 		setShowAuthGate(false);
-		if (status() !== 'authenticated') {
+		if (!verifySession()) {
 			navigate('/');
 		}
 	};

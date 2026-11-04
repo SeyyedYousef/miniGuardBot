@@ -3,7 +3,13 @@ import { backButton, initData } from '@tma.js/sdk-solid';
 import { type Component, createSignal, For, onMount, Show } from 'solid-js';
 import { useSecretTrigger } from '@/features/owner-gate/lib/useSecretTrigger.js';
 import { uiText } from '@/shared/i18n/group-ui.js';
-import { isRtl, locale, setLocale } from '@/shared/i18n/index.js';
+import {
+	getLanguageLabel,
+	isRtl,
+	locale,
+	SUPPORTED_LANGUAGES,
+	setLocale,
+} from '@/shared/i18n/index.js';
 import { haptic } from '@/shared/lib/haptic.js';
 import { colorScheme, toggleThemeScheme } from '@/shared/lib/tg-theme.js';
 import { BottomNav } from '@/widgets/bottom-nav/index.js';
@@ -43,13 +49,7 @@ export const ProfilePage: Component = () => {
 		return u?.username || 'admin';
 	};
 
-	const currentLanguageLabel = () => {
-		const l = locale();
-		if (l === 'fa' || l === 'ps') return 'فارسی';
-		if (l === 'ru') return 'Русский';
-		if (l === 'zh') return '简体中文';
-		return 'English';
-	};
+	const currentLanguageLabel = () => getLanguageLabel(locale());
 
 	return (
 		<div class="tg-canvas pb-24 flex flex-col font-sans select-none" dir={isRtl() ? 'rtl' : 'ltr'}>
@@ -130,7 +130,7 @@ export const ProfilePage: Component = () => {
 						</span>
 					</button>
 
-					{/* 4-Language Selector */}
+					{/* 17-Language Selector */}
 					<button onClick={() => setShowLangMenu(true)} class="tg-cell w-full text-start">
 						<div class="tg-icon-box" style={{ 'background-color': '#FF9500' }}>
 							<span class="material-symbols-outlined text-[18px]">language</span>
@@ -197,29 +197,20 @@ export const ProfilePage: Component = () => {
 				onClose={() => secretTrigger.setShowGate(false)}
 			/>
 
-			{/* 4-Language Selection Sheet */}
+			{/* 17-Language Selection Sheet */}
 			<Show when={showLangMenu()}>
 				<div
 					class="fixed inset-0 z-[100] bg-black/50 backdrop-blur-[2px] flex items-end justify-center"
 					onClick={() => setShowLangMenu(false)}
 				>
 					<div
-						class="w-full max-w-md bg-[var(--tg-section-bg)] rounded-t-[20px] p-5 pb-8 flex flex-col gap-2 shadow-2xl border-t border-[var(--tg-separator)]"
+						class="w-full max-w-md bg-[var(--tg-section-bg)] rounded-t-[20px] p-5 pb-8 flex flex-col gap-2 shadow-2xl border-t border-[var(--tg-separator)] max-h-[82dvh] overflow-y-auto"
 						onClick={(e: Event) => e.stopPropagation()}
 					>
-						<div class="w-9 h-1 rounded-full bg-[var(--tg-hint)]/30 mx-auto -mt-1 mb-2" />
+						<div class="w-9 h-1 rounded-full bg-[var(--tg-hint)]/30 mx-auto -mt-1 mb-2 shrink-0" />
 						<h3 class="text-[16px] font-bold text-[var(--tg-text)] px-1 mb-1">{txt().langTitle}</h3>
 						<div class="tg-section !bg-[var(--tg-secondary-bg)]">
-							<For
-								each={
-									[
-										{ code: 'fa', label: 'فارسی (Persian)' },
-										{ code: 'en', label: 'English' },
-										{ code: 'ru', label: 'Русский (Russian)' },
-										{ code: 'zh', label: '简体中文 (Chinese)' },
-									] as const
-								}
-							>
+							<For each={SUPPORTED_LANGUAGES}>
 								{(lang) => (
 									<button
 										onClick={() => {
@@ -231,7 +222,15 @@ export const ProfilePage: Component = () => {
 										}}
 										class="tg-cell w-full text-start justify-between"
 									>
-										<span class="text-[15px] font-medium text-[var(--tg-text)]">{lang.label}</span>
+										<div class="flex items-center gap-3">
+											<span class="text-[20px]">{lang.flag}</span>
+											<div class="flex flex-col">
+												<span class="text-[15px] font-medium text-[var(--tg-text)]">
+													{lang.native}
+												</span>
+												<span class="text-[12px] text-[var(--tg-hint)]">{lang.label}</span>
+											</div>
+										</div>
 										<Show when={locale() === lang.code}>
 											<span class="material-symbols-outlined text-[var(--tg-button)] text-[22px]">
 												check

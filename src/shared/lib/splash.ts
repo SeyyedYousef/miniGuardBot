@@ -1,18 +1,53 @@
 /**
- * Ultra-fast Telegram Mini App Splash Controller (Zero artificial delay)
+ * Branded Telegram Mini App Splash Controller
+ * Guarantees fonts, SVG icons, translations, and initial UI are 100% ready before reveal.
  */
 
 let alreadyHidden = false;
 
-export function hideSplash(_immediate = false): void {
+export function updateSplashProgress(percent: number, statusText?: string): void {
+	if (typeof document === 'undefined' || alreadyHidden) return;
+	const bar = document.getElementById('splash-progress-bar');
+	if (bar) {
+		const clamped = Math.max(5, Math.min(100, percent));
+		bar.style.width = `${clamped}%`;
+	}
+	if (statusText) {
+		const statusEl = document.getElementById('splash-status-text');
+		if (statusEl) {
+			statusEl.textContent = statusText;
+		}
+	}
+}
+
+export function hideSplash(immediate = false): void {
 	if (alreadyHidden) return;
 	alreadyHidden = true;
 
 	const el = document.getElementById('app-splash');
 	if (!el) return;
 
-	el.classList.add('splash-hidden');
-	window.setTimeout(() => el.remove(), 120);
+	updateSplashProgress(100);
+
+	const doRemove = () => {
+		el.classList.add('splash-hidden');
+		window.setTimeout(() => {
+			try {
+				el.remove();
+			} catch {}
+		}, 340);
+	};
+
+	if (immediate) {
+		doRemove();
+		return;
+	}
+
+	const elapsed = getBootDuration();
+	const minDisplayMs = 420;
+	const remaining = Math.max(0, minDisplayMs - elapsed);
+
+	window.setTimeout(doRemove, remaining);
 }
 
 export function getBootDuration(): number {

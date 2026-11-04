@@ -1,5 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { getGroupSettings, processTelegramUpdate, telegram } from './server.js';
+import {
+	createServer,
+	extractCleanBotToken,
+	getGroupSettings,
+	processTelegramUpdate,
+	telegram,
+} from './server.js';
 
 describe('MiniGuard Backend Bot Engine & Firewall Execution', () => {
 	beforeEach(() => {
@@ -160,5 +166,38 @@ describe('MiniGuard Backend Bot Engine & Firewall Execution', () => {
 		await processTelegramUpdate(mockJoinUpdate, 'test_bot_token');
 
 		expect(approveSpy).toHaveBeenCalledWith(-1001234567890, 12345, 'test_bot_token');
+	});
+
+	it('extracts valid BotFather tokens even when pasted with extra message text or zero-width chars', () => {
+		const rawPasted =
+			'Done! Congratulations on your new bot. Use this token to access the HTTP API:\n\u200B8463728029:AAFxFFyIQ1gYh16MP1uYk6_xFDcWiMQuEfY\nKeep your token secure!';
+		expect(extractCleanBotToken(rawPasted)).toBe(
+			'8463728029:AAFxFFyIQ1gYh16MP1uYk6_xFDcWiMQuEfY',
+		);
+		expect(extractCleanBotToken('invalid-token')).toBeNull();
+	});
+
+	it('accepts valid bot token via POST /api/v1/bots and returns 201 with bound group', async () => {
+		const srv = createServer();
+		await new Promise<void>((resolve) => srv.listen(0, '127.0.0.1', () => resolve()));
+		const addr = srv.address() as { port: number };
+		try {
+			const res = await fetch(`http://127.0.0.1:${addr.port}/api/v1/bots`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					bot_token: '8463728029:AAFxFFyIQ1gYh16MP1uYk6_xFDcWiMQuEfY',
+					bot_username: 'MyCustomGuardBot',
+					bound_group_link: '@my_super_group',
+				}),
+			});
+			expect(res.status).toBe(201);
+			const json = (await res.json()) as any;
+			expect(json.bot_username).toBe('MyCustomGuardBot');
+			expect(json.status).toBe('active');
+			expect(json.bound_group_id).toBeTruthy();
+		} finally {
+			srv.close();
+		}
 	});
 });

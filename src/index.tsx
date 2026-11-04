@@ -1,16 +1,30 @@
 /* @refresh reload */
 
+import '@fontsource/vazirmatn/400.css';
+import '@fontsource/vazirmatn/500.css';
+import '@fontsource/vazirmatn/600.css';
+import '@fontsource/vazirmatn/700.css';
+import '@fontsource/vazirmatn/800.css';
+import '@fontsource/manrope/400.css';
+import '@fontsource/manrope/600.css';
+import '@fontsource/manrope/700.css';
+
 import * as Sentry from '@sentry/browser';
 import { isTMA, mockTelegramEnv, retrieveLaunchParams } from '@tma.js/sdk-solid';
 import { render } from 'solid-js/web';
 import { init } from '@/app/init.js';
 import { Root } from '@/app/Root.js';
 import { bootstrapAuth } from '@/shared/api/axios.js';
-import { hideSplash } from '@/shared/lib/splash.js';
+import { loadDictionary, locale } from '@/shared/i18n/index.js';
+import { initIconEngine, renderIconsInRoot } from '@/shared/lib/icon-engine.js';
+import { hideSplash, updateSplashProgress } from '@/shared/lib/splash.js';
 import { ErrorBoundary } from '@/shared/ui/ErrorBoundary.js';
 import '@/shared/lib/tg-theme.js';
 
 import './app/styles/index.css';
+
+// Initialize zero-latency inline SVG icon engine before any DOM render
+initIconEngine();
 
 if (import.meta.env.VITE_SENTRY_DSN) {
 	Sentry.init({
@@ -32,12 +46,13 @@ async function startApp() {
 	});
 
 	try {
+		updateSplashProgress(25, 'در حال اتصال به هسته تلگرام...');
+
 		// 1. Check if we already have real launch params (e.g. from URL or Session Storage)
 		let realParams: any;
 		try {
 			realParams = retrieveLaunchParams();
 		} catch (_e) {
-			// Clear any corrupted launchParams in sessionStorage from v2 format
 			try {
 				sessionStorage.removeItem('tapps/launchParams');
 				sessionStorage.removeItem('telegram-mini-apps-launch-params');
@@ -117,15 +132,27 @@ async function startApp() {
 			}
 		}
 
-		// 4. Initialize App logic
-		await init({
-			debug,
-			eruda: false,
-			mockForMacOS: launchParams.tgWebAppPlatform === 'macos',
-		});
+		updateSplashProgress(50, 'در حال بارگذاری زبان‌ها، فونت‌ها و آیکون‌ها...');
+
+		// 4. Initialize App logic, active dictionary & fonts in parallel
+		await Promise.all([
+			init({
+				debug,
+				eruda: false,
+				mockForMacOS: launchParams.tgWebAppPlatform === 'macos',
+			}),
+			loadDictionary(locale()),
+			typeof document !== 'undefined' && 'fonts' in document
+				? Promise.race([document.fonts.ready, new Promise((resolve) => setTimeout(resolve, 1500))])
+				: Promise.resolve(),
+		]);
+
+		updateSplashProgress(80, 'در حال احراز هویت امنیتی...');
 
 		// 4.5. Proactively obtain JWT before any API calls to avoid 401→refresh loops
 		await bootstrapAuth();
+
+		updateSplashProgress(95, 'آماده‌سازی پنل مدیریت...');
 
 		// 5. Final Render
 		render(
@@ -137,14 +164,16 @@ async function startApp() {
 			root,
 		);
 
-		// 6. Hide splash — دو rAF پشت سر هم تضمین می‌کند اولین فریم واقعی
-		//    اپ روی صفحه نقاشی شده باشد و کاربر بین splash و UI، فلش سیاه نبیند.
+		// Convert all rendered icons immediately before first paint
+		renderIconsInRoot(root);
+
+		// 6. Hide splash after two animation frames so UI + SVG icons are 100% painted
 		requestAnimationFrame(() => {
+			renderIconsInRoot(root);
 			requestAnimationFrame(() => hideSplash());
 		});
 	} catch (e) {
 		console.error('Startup Error:', e);
-		// P0-F1: Use DOM API instead of innerHTML to prevent XSS from error messages
 		const errorContainer = document.createElement('div');
 		errorContainer.style.cssText =
 			'display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;background:#0f1014;color:white;font-family:sans-serif;text-align:center;padding:20px;';
@@ -165,7 +194,7 @@ async function startApp() {
 
 		errorContainer.append(title, msg, btn);
 		root.replaceChildren(errorContainer);
-		hideSplash(true); // فوری، چون کاربر باید پیام خطا و دکمه Reload را ببیند
+		hideSplash(true);
 	}
 }
 
@@ -179,7 +208,6 @@ if ('serviceWorker' in navigator && !import.meta.env.DEV) {
 			.then((registration) => {
 				console.info('[SW] ServiceWorker registered with scope:', registration.scope);
 
-				// Listen for updates
 				registration.addEventListener('updatefound', () => {
 					const newWorker = registration.installing;
 					if (newWorker) {

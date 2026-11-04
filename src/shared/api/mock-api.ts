@@ -5,7 +5,12 @@ export const mockApiLogic = (method: string = 'GET', url: string = '', _data: an
 		const win = window as any;
 
 		if (!win.__mockBots) {
-			win.__mockBots = [
+			let storedBots: any[] | null = null;
+			try {
+				const raw = localStorage.getItem('mg_persisted_bots');
+				if (raw) storedBots = JSON.parse(raw);
+			} catch {}
+			win.__mockBots = storedBots || [
 				{
 					id: 'mock-bot-1',
 					owner_user_id: 99281932,
@@ -25,7 +30,12 @@ export const mockApiLogic = (method: string = 'GET', url: string = '', _data: an
 		}
 
 		if (!win.__mockGroups) {
-			win.__mockGroups = [
+			let storedGroups: any[] | null = null;
+			try {
+				const raw = localStorage.getItem('mg_persisted_groups');
+				if (raw) storedGroups = JSON.parse(raw);
+			} catch {}
+			win.__mockGroups = storedGroups || [
 				{
 					id: 'demo-group',
 					bot_id: 'mock-bot-1',
@@ -143,6 +153,10 @@ export const mockApiLogic = (method: string = 'GET', url: string = '', _data: an
 					updated_at: new Date().toISOString(),
 				};
 				win.__mockGroups = [autoGroup, ...win.__mockGroups];
+				try {
+					localStorage.setItem('mg_persisted_bots', JSON.stringify(win.__mockBots));
+					localStorage.setItem('mg_persisted_groups', JSON.stringify(win.__mockGroups));
+				} catch {}
 				return newBot;
 			}
 
@@ -150,6 +164,10 @@ export const mockApiLogic = (method: string = 'GET', url: string = '', _data: an
 				const botId = path.split('/bots/')[1]?.split('/')[0];
 				win.__mockBots = win.__mockBots.filter((b: any) => b.id !== botId);
 				win.__mockGroups = win.__mockGroups.filter((g: any) => g.bot_id !== botId);
+				try {
+					localStorage.setItem('mg_persisted_bots', JSON.stringify(win.__mockBots));
+					localStorage.setItem('mg_persisted_groups', JSON.stringify(win.__mockGroups));
+				} catch {}
 				return { status: 'revoked' };
 			}
 		}

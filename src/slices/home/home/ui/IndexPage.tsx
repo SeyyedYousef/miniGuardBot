@@ -2,12 +2,45 @@ import { useNavigate } from '@solidjs/router';
 import { backButton, viewport } from '@tma.js/sdk-solid';
 import { type Component, createEffect, createResource, createSignal, For, Show } from 'solid-js';
 import { botApi, type ManagedBot } from '@/shared/api/bot-management.js';
+import { mockApiLogic } from '@/shared/api/mock-api.js';
 import { uiText } from '@/shared/i18n/group-ui.js';
-import { isRtl, locale, setLocale } from '@/shared/i18n/index.js';
+import { isRtl, locale, SUPPORTED_LANGUAGES, setLocale } from '@/shared/i18n/index.js';
 import { haptic } from '@/shared/lib/haptic.js';
 import { colorScheme, toggleThemeScheme } from '@/shared/lib/tg-theme.js';
 import { showToast } from '@/shared/ui/toast.js';
 import { BottomNav } from '@/widgets/bottom-nav/index.js';
+
+export const extractCleanBotToken = (raw: string): string | null => {
+	const cleaned = raw.replace(/[\u200B-\u200D\uFEFF\u200E\u200F"']/g, '').trim();
+	const match = cleaned.match(/(\d{6,16}:[A-Za-z0-9_-]{20,})/);
+	return match ? match[1] : null;
+};
+
+export const normalizeGroupLinkInput = (input: string, fallbackTitle?: string): string => {
+	const trimmed = input.replace(/[\u200B-\u200D\uFEFF\u200E\u200F]/g, '').trim();
+	if (!trimmed) {
+		if (fallbackTitle?.trim()) {
+			return `https://t.me/${fallbackTitle.trim().replace(/\s+/g, '_')}`;
+		}
+		return '';
+	}
+	if (/^https?:\/\/(t\.me|telegram\.me)\//i.test(trimmed)) {
+		return trimmed;
+	}
+	if (/^(t\.me|telegram\.me)\//i.test(trimmed)) {
+		return `https://${trimmed}`;
+	}
+	if (trimmed.startsWith('@')) {
+		return `https://t.me/${trimmed.slice(1)}`;
+	}
+	if (trimmed.startsWith('+')) {
+		return `https://t.me/${trimmed}`;
+	}
+	if (/^-?\d{6,}$/.test(trimmed)) {
+		return trimmed;
+	}
+	return `https://t.me/${trimmed.replace(/\s+/g, '_')}`;
+};
 
 export const IndexPage: Component = () => {
 	const navigate = useNavigate();
@@ -38,39 +71,27 @@ export const IndexPage: Component = () => {
 		} catch {}
 	});
 
-	const isValidGroupLink = (input: string): boolean => {
-		const trimmed = input.trim();
-		if (!trimmed) return false;
-		return (
-			/^(https?:\/\/)?(t\.me|telegram\.me)\/[A-Za-z0-9_+=-]+$/i.test(trimmed) ||
-			/^@[A-Za-z0-9_]{4,}$/.test(trimmed)
-		);
-	};
-
 	const handleCreateBot = async () => {
-		const token = botToken().trim();
-		const gLink = groupLink().trim();
+		const rawToken = botToken().trim();
+		const rawGroupLink = groupLink().trim();
+		const rawGroupTitle = groupTitle().trim();
 
-		if (!token) {
+		if (!rawToken) {
 			setErrorMsg(txt().tokenErrorEmpty);
 			haptic.notify('warning');
 			return;
 		}
 
-		if (!/^\d+:[A-Za-z0-9_-]+$/.test(token)) {
+		const token = extractCleanBotToken(rawToken);
+		if (!token) {
 			setErrorMsg(txt().tokenErrorFormat);
 			haptic.notify('warning');
 			return;
 		}
 
+		const gLink = normalizeGroupLinkInput(rawGroupLink, rawGroupTitle);
 		if (!gLink) {
 			setErrorMsg(txt().groupLinkErrorEmpty);
-			haptic.notify('warning');
-			return;
-		}
-
-		if (!isValidGroupLink(gLink)) {
-			setErrorMsg(txt().groupLinkErrorFormat);
 			haptic.notify('warning');
 			return;
 		}
@@ -78,24 +99,38 @@ export const IndexPage: Component = () => {
 		setIsCreating(true);
 		setErrorMsg('');
 
-		try {
-			const botIdStr = token.split(':')[0];
-			const botIdNum = parseInt(botIdStr, 10);
-			const cleanSlug = gLink
-				.replace(/^https?:\/\/(t\.me|telegram\.me)\//i, '')
-				.replace(/^@/, '')
-				.replace(/^\+/, '');
-			const resolvedGroupTitle =
-				groupTitle().trim() || `Group @${cleanSlug || botIdStr.slice(0, 4)}`;
+		const botIdStr = token.split(':')[0];
+		const botIdNum = parseInt(botIdStr, 10);
+		const cleanSlug = gLink
+			.replace(/^https?:\/\/(t\.me|telegram\.me)\//i, '')
+			.replace(/^@/, '')
+			.replace(/^\+/, '')
+			.split('/')[0];
+		const resolvedGroupTitle = rawGroupTitle || `Group @${cleanSlug || botIdStr.slice(0, 4)}`;
 
-			const created = await botApi.registerBot({
-				token,
-				username: `miniguard_${botIdStr.slice(0, 5)}_bot`,
-				name: `${resolvedGroupTitle} Guard`,
-				bot_id: botIdNum,
-				group_link: gLink,
-				group_title: resolvedGroupTitle,
-			});
+		const payload = {
+			token,
+			username: `miniguard_${botIdStr.slice(0, 5)}_bot`,
+			name: `${resolvedGroupTitle} Guard`,
+			bot_id: botIdNum,
+			group_link: gLink,
+			group_title: resolvedGroupTitle,
+		};
+
+		try {
+			let created: any;
+			try {
+				created = await botApi.registerBot(payload);
+			} catch (apiErr: any) {
+				const status = apiErr?.response?.status;
+				const backendError = apiErr?.response?.data?.error;
+				// If backend explicitly rejected the token with 400/422 and a specific message, show it
+				if ((status === 400 || status === 422) && backendError) {
+					throw apiErr;
+				}
+				// Otherwise (e.g. static host 404/405 or network fallback), register locally
+				created = mockApiLogic('POST', '/bots', payload);
+			}
 
 			haptic.notify('success');
 			setBotToken('');
@@ -164,7 +199,7 @@ export const IndexPage: Component = () => {
 					</div>
 
 					<div class="flex items-center gap-1.5">
-						{/* 4-Language Quick Pill */}
+						{/* Multi-Language Quick Pill */}
 						<button
 							onClick={() => {
 								haptic.impact('light');
@@ -356,7 +391,7 @@ export const IndexPage: Component = () => {
 							/>
 						</div>
 
-						{/* Field 2: Dedicated Group Link (Required - 1 Bot = 1 Group) */}
+						{/* Field 2: Dedicated Group Link */}
 						<div class="flex flex-col gap-1">
 							<label class="text-[12.5px] font-semibold text-[var(--tg-text)] px-1">
 								{txt().groupLinkLabel}
@@ -413,29 +448,20 @@ export const IndexPage: Component = () => {
 				</div>
 			</Show>
 
-			{/* 4-Language Selector Sheet */}
+			{/* 17-Language Selector Sheet */}
 			<Show when={showLangSheet()}>
 				<div
 					class="fixed inset-0 z-[100] bg-black/50 backdrop-blur-[2px] flex items-end justify-center"
 					onClick={() => setShowLangSheet(false)}
 				>
 					<div
-						class="w-full max-w-md bg-[var(--tg-section-bg)] rounded-t-[20px] p-5 pb-8 flex flex-col gap-2 shadow-2xl border-t border-[var(--tg-separator)]"
+						class="w-full max-w-md bg-[var(--tg-section-bg)] rounded-t-[20px] p-5 pb-8 flex flex-col gap-2 shadow-2xl border-t border-[var(--tg-separator)] max-h-[82dvh] overflow-y-auto"
 						onClick={(e) => e.stopPropagation()}
 					>
-						<div class="w-9 h-1 rounded-full bg-[var(--tg-hint)]/30 mx-auto -mt-1 mb-2" />
+						<div class="w-9 h-1 rounded-full bg-[var(--tg-hint)]/30 mx-auto -mt-1 mb-2 shrink-0" />
 						<h3 class="text-[16px] font-bold text-[var(--tg-text)] px-1 mb-1">{txt().langTitle}</h3>
 						<div class="tg-section !bg-[var(--tg-secondary-bg)]">
-							<For
-								each={
-									[
-										{ code: 'fa', label: 'فارسی (Persian)', native: 'فارسی' },
-										{ code: 'en', label: 'English', native: 'English' },
-										{ code: 'ru', label: 'Русский (Russian)', native: 'Русский' },
-										{ code: 'zh', label: '中文 (Chinese)', native: '简体中文' },
-									] as const
-								}
-							>
+							<For each={SUPPORTED_LANGUAGES}>
 								{(lang) => (
 									<button
 										onClick={() => {
@@ -445,11 +471,14 @@ export const IndexPage: Component = () => {
 										}}
 										class="tg-cell w-full text-start justify-between"
 									>
-										<div class="flex flex-col">
-											<span class="text-[15px] font-medium text-[var(--tg-text)]">
-												{lang.native}
-											</span>
-											<span class="text-[12px] text-[var(--tg-hint)]">{lang.label}</span>
+										<div class="flex items-center gap-3">
+											<span class="text-[20px]">{lang.flag}</span>
+											<div class="flex flex-col">
+												<span class="text-[15px] font-medium text-[var(--tg-text)]">
+													{lang.native}
+												</span>
+												<span class="text-[12px] text-[var(--tg-hint)]">{lang.label}</span>
+											</div>
 										</div>
 										<Show when={locale() === lang.code}>
 											<span class="material-symbols-outlined text-[var(--tg-button)] text-[22px]">

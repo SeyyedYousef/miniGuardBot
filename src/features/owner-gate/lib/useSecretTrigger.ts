@@ -5,9 +5,11 @@ export function useSecretTrigger() {
 	const [tapCount, setTapCount] = createSignal(0);
 	const [showGate, setShowGate] = createSignal(false);
 	let tapTimeout: any = null;
+	let pressTimeout: any = null;
 
 	onCleanup(() => {
 		if (tapTimeout) clearTimeout(tapTimeout);
+		if (pressTimeout) clearTimeout(pressTimeout);
 	});
 
 	const onVersionTap = () => {
@@ -31,8 +33,22 @@ export function useSecretTrigger() {
 		}
 	};
 
-	const onLogoPressStart = () => {};
-	const onLogoPressEnd = () => {};
+	const onLogoPressStart = () => {
+		if (pressTimeout) clearTimeout(pressTimeout);
+		pressTimeout = setTimeout(() => {
+			try {
+				haptic.notify('success');
+			} catch {}
+			setShowGate(true);
+		}, 1500);
+	};
+
+	const onLogoPressEnd = () => {
+		if (pressTimeout) {
+			clearTimeout(pressTimeout);
+			pressTimeout = null;
+		}
+	};
 
 	return {
 		onVersionTap,

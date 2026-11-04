@@ -1,7 +1,7 @@
 import { useNavigate } from '@solidjs/router';
 import { type Component, For, Show } from 'solid-js';
 import { uiText } from '@/shared/i18n/group-ui.js';
-import { isRtl, locale, setLocale, t } from '@/shared/i18n/index.js';
+import { isRtl, locale, SUPPORTED_LANGUAGES, setLocale, t } from '@/shared/i18n/index.js';
 import { haptic } from '@/shared/lib/haptic.js';
 import { colorScheme, toggleThemeScheme } from '@/shared/lib/tg-theme.js';
 import { useTelegramBackButton } from '@/shared/lib/useTelegramBackButton.js';
@@ -208,20 +208,11 @@ export const SettingsPage: Component = () => {
 					</div>
 				</div>
 
-				{/* 4-Language Selection */}
+				{/* 17-Language Selection */}
 				<div>
 					<div class="tg-section-header">{txt().langTitle}</div>
 					<div class="tg-section">
-						<For
-							each={
-								[
-									{ code: 'fa', label: 'فارسی (Persian)', flag: '🇮🇷' },
-									{ code: 'en', label: 'English', flag: '🇬🇧' },
-									{ code: 'ru', label: 'Русский (Russian)', flag: '🇷🇺' },
-									{ code: 'zh', label: '简体中文 (Chinese)', flag: '🇨🇳' },
-								] as const
-							}
-						>
+						<For each={SUPPORTED_LANGUAGES}>
 							{(lang) => (
 								<button
 									onClick={() => {
@@ -232,7 +223,12 @@ export const SettingsPage: Component = () => {
 								>
 									<div class="flex items-center gap-3">
 										<span class="text-[20px]">{lang.flag}</span>
-										<span class="text-[15px] font-medium text-[var(--tg-text)]">{lang.label}</span>
+										<div class="flex flex-col">
+											<span class="text-[15px] font-medium text-[var(--tg-text)]">
+												{lang.native}
+											</span>
+											<span class="text-[12px] text-[var(--tg-hint)]">{lang.label}</span>
+										</div>
 									</div>
 									<Show when={locale() === lang.code}>
 										<span class="material-symbols-outlined text-[var(--tg-button)] text-[22px]">
