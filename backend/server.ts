@@ -20,9 +20,15 @@
  */
 
 import crypto from 'node:crypto';
+import dns from 'node:dns';
 import fs from 'node:fs';
 import http from 'node:http';
+import https from 'node:https';
 import path from 'node:path';
+
+try {
+	dns.setDefaultResultOrder('ipv4first');
+} catch {}
 import {
 	evaluateCallbackQueryRbac,
 	parseGroupCommand,
@@ -465,8 +471,7 @@ export function extractCleanBotToken(rawInput: string): string | null {
 	return match ? match[1] : null;
 }
 
-// ─── Telegram Bot API 8.x Client ───────────────────────────────────────────
-const TG_API_BASE = 'https://api.telegram.org/bot';
+// ─── Telegram Bot API 8.x Client (IPv4-Forced for Docker Reliability) ───────
 
 export async function callTelegramApi<T = any>(
 	method: string,
@@ -477,21 +482,55 @@ export async function callTelegramApi<T = any>(
 		return { ok: false, description: 'BOT_TOKEN missing' };
 	}
 
-	try {
-		const res = await fetch(`${TG_API_BASE}${token}/${method}`, {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify(params),
+	const bodyStr = JSON.stringify(params);
+
+	return new Promise((resolve) => {
+		const req = https.request(
+			{
+				hostname: 'api.telegram.org',
+				port: 443,
+				path: `/bot${token}/${method}`,
+				method: 'POST',
+				family: 4, // Force IPv4 so Docker bridge networks without IPv6 never fail
+				headers: {
+					'Content-Type': 'application/json',
+					'Content-Length': Buffer.byteLength(bodyStr, 'utf8'),
+				},
+				timeout: 35000,
+			},
+			(res) => {
+				let raw = '';
+				res.setEncoding('utf8');
+				res.on('data', (chunk) => {
+					raw += chunk;
+				});
+				res.on('end', () => {
+					try {
+						const json = JSON.parse(raw || '{}');
+						if (!json.ok) {
+							console.warn(`[Telegram API Error] ${method}:`, json.description);
+						}
+						resolve(json);
+					} catch {
+						resolve({ ok: false, description: 'Invalid JSON from Telegram API' });
+					}
+				});
+			},
+		);
+
+		req.on('timeout', () => {
+			req.destroy();
+			resolve({ ok: false, description: 'Telegram API request timeout' });
 		});
-		const json = (await res.json()) as any;
-		if (!json.ok) {
-			console.warn(`[Telegram API Error] ${method}:`, json.description);
-		}
-		return json;
-	} catch (err: any) {
-		console.error(`[Telegram API Network Error] ${method}:`, err?.message || err);
-		return { ok: false, description: err?.message || 'Network error' };
-	}
+
+		req.on('error', (err: any) => {
+			console.error(`[Telegram API Network Error] ${method}:`, err?.message || err);
+			resolve({ ok: false, description: err?.message || 'Network error' });
+		});
+
+		req.write(bodyStr);
+		req.end();
+	});
 }
 
 export const telegram = {
