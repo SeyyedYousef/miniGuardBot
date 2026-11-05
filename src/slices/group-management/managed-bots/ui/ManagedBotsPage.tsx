@@ -9,14 +9,18 @@ import {
 	onMount,
 	Show,
 } from 'solid-js';
-import type { ManagedBot } from '@/shared/api/bot-management.js';
+import type { ManagedBot, VerifiedBotTokenInfo } from '@/shared/api/bot-management.js';
 import { botApi } from '@/shared/api/bot-management.js';
 import { mockApiLogic } from '@/shared/api/mock-api.js';
 import { uiText } from '@/shared/i18n/group-ui.js';
 import { isRtl } from '@/shared/i18n/index.js';
 import { haptic } from '@/shared/lib/haptic.js';
 import { showToast } from '@/shared/ui/toast.js';
-import { extractCleanBotToken, normalizeGroupLinkInput } from '@/slices/home/home/ui/IndexPage.js';
+import {
+	extractCleanBotToken,
+	normalizeGroupLinkInput,
+	openTelegramExternalLink,
+} from '@/slices/home/home/ui/IndexPage.js';
 import { BottomNav } from '@/widgets/bottom-nav/index.js';
 
 export const ManagedBotsPage: Component = () => {
@@ -27,6 +31,8 @@ export const ManagedBotsPage: Component = () => {
 	const [botToken, setBotToken] = createSignal('');
 	const [groupLink, setGroupLink] = createSignal('');
 	const [groupTitle, setGroupTitle] = createSignal('');
+	const [verifiedBot, setVerifiedBot] = createSignal<VerifiedBotTokenInfo | null>(null);
+	const [isVerifyingToken, setIsVerifyingToken] = createSignal(false);
 	const [isCreating, setIsCreating] = createSignal(false);
 	const [errorMsg, setErrorMsg] = createSignal('');
 	const [bots, { refetch }] = createResource(async () => {
@@ -56,6 +62,31 @@ export const ManagedBotsPage: Component = () => {
 			});
 		} catch {}
 	});
+
+	const handleVerifyToken = async (rawInput?: string) => {
+		const raw = (rawInput ?? botToken()).trim();
+		const clean = extractCleanBotToken(raw);
+		if (!clean) {
+			setVerifiedBot(null);
+			return;
+		}
+		setIsVerifyingToken(true);
+		setErrorMsg('');
+		try {
+			const info = await botApi.verifyToken(clean);
+			setVerifiedBot(info);
+			haptic.notify('success');
+		} catch (err: any) {
+			const msg = err?.response?.data?.error;
+			if (msg) {
+				setErrorMsg(msg);
+				setVerifiedBot(null);
+				haptic.notify('error');
+			}
+		} finally {
+			setIsVerifyingToken(false);
+		}
+	};
 
 	const handleCreateBot = async () => {
 		const rawToken = botToken().trim();
@@ -92,16 +123,17 @@ export const ManagedBotsPage: Component = () => {
 			.replace(/^@/, '')
 			.replace(/^\+/, '')
 			.split('/')[0];
-		const resolvedTitle = rawGroupTitle || `Group @${cleanSlug || botIdStr.slice(0, 4)}`;
+		const resolvedTitle = rawGroupTitle || '';
 
 		const payload = {
 			token,
 			bot_token: token,
-			username: `${cleanSlug || `bot_${botIdStr.slice(0, 5)}`}_bot`,
-			bot_username: `${cleanSlug || `bot_${botIdStr.slice(0, 5)}`}_bot`,
-			name: `${resolvedTitle} Guard`,
-			bot_name: `${resolvedTitle} Guard`,
-			bot_id: botIdNum,
+			username: verifiedBot()?.bot_username || `${cleanSlug || `bot_${botIdStr.slice(0, 5)}`}_bot`,
+			bot_username:
+				verifiedBot()?.bot_username || `${cleanSlug || `bot_${botIdStr.slice(0, 5)}`}_bot`,
+			name: verifiedBot()?.bot_name || `${resolvedTitle || cleanSlug} Guard`,
+			bot_name: verifiedBot()?.bot_name || `${resolvedTitle || cleanSlug} Guard`,
+			bot_id: verifiedBot()?.bot_id || botIdNum,
 			group_link: gLink,
 			bound_group_link: gLink,
 			group_title: resolvedTitle,
@@ -109,26 +141,13 @@ export const ManagedBotsPage: Component = () => {
 		};
 
 		try {
-			let created: any;
-			try {
-				created = await botApi.registerBot(payload);
-			} catch (apiErr: any) {
-				const status = apiErr?.response?.status;
-				const backendError = apiErr?.response?.data?.error;
-				if (
-					(status === 400 || status === 422) &&
-					backendError &&
-					!String(backendError).includes('مثال: 123456789')
-				) {
-					throw apiErr;
-				}
-				created = mockApiLogic('POST', '/bots', payload);
-			}
+			const created: any = await botApi.registerBot(payload);
 
 			haptic.notify('success');
 			setBotToken('');
 			setGroupLink('');
 			setGroupTitle('');
+			setVerifiedBot(null);
 			setShowCreateModal(false);
 			await refetch();
 			showToast(txt().trialBadge, 'success');
@@ -139,7 +158,17 @@ export const ManagedBotsPage: Component = () => {
 				navigate(`/bot/${created.id}/manage`);
 			}
 		} catch (e: any) {
-			setErrorMsg(e?.response?.data?.error || txt().tokenErrorFormat);
+			const errData = e?.response?.data;
+			if (errData?.bot_username && errData?.admin_deep_link && !verifiedBot()) {
+				setVerifiedBot({
+					ok: true,
+					bot_id: errData.bot_id || botIdNum,
+					bot_username: errData.bot_username,
+					bot_name: errData.bot_name || errData.bot_username,
+					admin_deep_link: errData.admin_deep_link,
+				});
+			}
+			setErrorMsg(errData?.error || txt().tokenErrorFormat);
 			haptic.notify('error');
 		} finally {
 			setIsCreating(false);
@@ -301,23 +330,60 @@ export const ManagedBotsPage: Component = () => {
 							</div>
 						</Show>
 
-						<div class="flex flex-col gap-1">
-							<label class="text-[12.5px] font-semibold text-[var(--tg-text)] px-1">
-								{txt().tokenLabel}
+						<div class="flex flex-col gap-1.5">
+							<label class="text-[12.5px] font-bold text-[var(--tg-text)] px-1">
+								۱. {txt().tokenLabel}
 							</label>
-							<input
-								type="text"
-								value={botToken()}
-								onInput={(e) => setBotToken(e.currentTarget.value)}
-								placeholder={txt().tokenPlaceholder}
-								dir="ltr"
-								class="w-full h-11 bg-[var(--tg-secondary-bg)] border border-[var(--tg-separator)] rounded-[10px] px-3.5 text-[14px] font-mono text-[var(--tg-text)] placeholder-[var(--tg-hint)] focus:outline-none focus:border-[var(--tg-button)]"
-							/>
+							<div class="flex gap-2">
+								<input
+									type="text"
+									value={botToken()}
+									onInput={(e) => {
+										const val = e.currentTarget.value;
+										setBotToken(val);
+										if (extractCleanBotToken(val)) {
+											handleVerifyToken(val);
+										} else {
+											setVerifiedBot(null);
+										}
+									}}
+									placeholder={txt().tokenPlaceholder}
+									dir="ltr"
+									class="flex-1 h-11 bg-[var(--tg-secondary-bg)] border border-[var(--tg-separator)] rounded-[10px] px-3.5 text-[14px] font-mono text-[var(--tg-text)] placeholder-[var(--tg-hint)] focus:outline-none focus:border-[var(--tg-button)]"
+								/>
+								<button
+									type="button"
+									onClick={() => handleVerifyToken()}
+									disabled={isVerifyingToken()}
+									class="h-11 px-3 rounded-[10px] bg-[var(--tg-accent-soft)] text-[var(--tg-link)] text-[12.5px] font-bold shrink-0"
+								>
+									{isVerifyingToken() ? '...' : 'بررسی'}
+								</button>
+							</div>
 						</div>
 
+						<Show when={verifiedBot()}>
+							{(vBot) => (
+								<div class="p-3 rounded-xl bg-[#34C759]/10 border border-[#34C759]/30 flex flex-col gap-2">
+									<div class="text-[12px] text-[var(--tg-text)] leading-relaxed">
+										<b>۲. گام الزامی:</b> ابتدا ربات <b dir="ltr">@{vBot().bot_username}</b> را در
+										گروه خود ادمین کنید:
+									</div>
+									<button
+										type="button"
+										onClick={() => openTelegramExternalLink(vBot().admin_deep_link)}
+										class="w-full h-10 rounded-[10px] bg-[#34C759] text-white font-bold text-[12.5px] flex items-center justify-center gap-1.5"
+									>
+										<span class="material-symbols-outlined text-[18px]">admin_panel_settings</span>
+										<span>افزودن @{vBot().bot_username} به گروه و ادمین کردن</span>
+									</button>
+								</div>
+							)}
+						</Show>
+
 						<div class="flex flex-col gap-1">
-							<label class="text-[12.5px] font-semibold text-[var(--tg-text)] px-1">
-								{txt().groupLinkLabel}
+							<label class="text-[12.5px] font-bold text-[var(--tg-text)] px-1">
+								۳. {txt().groupLinkLabel} (پس از ادمین کردن ربات)
 							</label>
 							<input
 								type="text"

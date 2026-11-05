@@ -1,11 +1,21 @@
 import { useNavigate, useParams } from '@solidjs/router';
 import { backButton, openTelegramLink } from '@tma.js/sdk-solid';
-import { type Component, createResource, For, onCleanup, onMount, Show } from 'solid-js';
+import {
+	type Component,
+	createResource,
+	createSignal,
+	For,
+	onCleanup,
+	onMount,
+	Show,
+} from 'solid-js';
 import type { ManagedGroup } from '@/shared/api/bot-management.js';
 import { botApi } from '@/shared/api/bot-management.js';
+import { mockApiLogic } from '@/shared/api/mock-api.js';
 import { uiText } from '@/shared/i18n/group-ui.js';
 import { isRtl } from '@/shared/i18n/index.js';
 import { haptic } from '@/shared/lib/haptic.js';
+import { showToast } from '@/shared/ui/toast.js';
 import { BottomNav } from '@/widgets/bottom-nav/index.js';
 
 export const BotManagePage: Component = () => {
@@ -13,6 +23,7 @@ export const BotManagePage: Component = () => {
 	const params = useParams();
 	const botId = params.botId;
 	const txt = () => uiText();
+	const [isDeleting, setIsDeleting] = createSignal(false);
 
 	const [bot] = createResource(
 		() => botId,
@@ -40,11 +51,27 @@ export const BotManagePage: Component = () => {
 	const handleInviteToGroup = () => {
 		if (!bot()) return;
 		haptic.impact('medium');
-		const url = `https://t.me/${bot()!.bot_username.replace('@', '')}?startgroup=start&admin=restrict_members+delete_messages+ban_users+invite_users+pin_messages`;
+		const url = `https://t.me/${bot()!.bot_username.replace('@', '')}?startgroup=start&admin=restrict_members+delete_messages+ban_users+invite_users+pin_messages+manage_chat`;
 		try {
 			openTelegramLink(url);
 		} catch {
 			window.open(url, '_blank');
+		}
+	};
+
+	const handleDeleteThisBot = async () => {
+		if (isDeleting()) return;
+		haptic.impact('medium');
+		setIsDeleting(true);
+		try {
+			await botApi.revokeBot(botId);
+		} catch {
+			mockApiLogic('DELETE', `/bots/${botId}`);
+		} finally {
+			setIsDeleting(false);
+			haptic.notify('success');
+			showToast('ربات و گروه متصل با موفقیت حذف شدند 🗑️', 'success');
+			navigate('/');
 		}
 	};
 
@@ -109,8 +136,17 @@ export const BotManagePage: Component = () => {
 						onClick={handleInviteToGroup}
 						class="tg-btn-primary w-full h-11 text-[14px] flex items-center justify-center gap-2"
 					>
-						<span class="material-symbols-outlined text-[19px]">person_add</span>
-						<span>{txt().addGroupBtn} (Telegram)</span>
+						<span class="material-symbols-outlined text-[19px]">admin_panel_settings</span>
+						<span>افزودن ربات به گروه و ادمین کردن (تلگرام)</span>
+					</button>
+
+					<button
+						onClick={handleDeleteThisBot}
+						disabled={isDeleting()}
+						class="w-full h-10 rounded-xl bg-[var(--tg-destructive)]/12 text-[var(--tg-destructive)] font-bold text-[13px] flex items-center justify-center gap-1.5 active:opacity-80"
+					>
+						<span class="material-symbols-outlined text-[18px]">delete_forever</span>
+						<span>{isDeleting() ? 'در حال حذف...' : 'حذف کامل این ربات و گروه متصل'}</span>
 					</button>
 				</div>
 

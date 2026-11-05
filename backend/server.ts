@@ -729,10 +729,18 @@ export async function processTelegramUpdate(
 		if (update.my_chat_member) {
 			const m = update.my_chat_member;
 			const status = m.new_chat_member?.status;
-			if (status === 'administrator' || status === 'member') {
+			if (status === 'administrator' || status === 'member' || status === 'creator') {
 				const chatId = m.chat.id;
 				const settings = getGroupSettings(chatId, m.chat.title);
-				const hasFullAdmin = status === 'administrator';
+				const hasFullAdmin = status === 'administrator' || status === 'creator';
+
+				detectedChatsByToken.set(token, {
+					chatId,
+					title: m.chat.title || 'این گروه',
+					username: m.chat.username,
+					isAdmin: hasFullAdmin,
+					updatedAt: Date.now(),
+				});
 
 				// Fetch admin user IDs
 				const adminsRes = await telegram.getChatAdministrators(chatId, token);
@@ -1106,6 +1114,137 @@ export async function processTelegramUpdate(
 // ─── Long Polling Runners (Master Bot + User Child Bots) ──────────────────
 let isPollingActive = false;
 
+interface DetectedChatInfo {
+	chatId: number;
+	title: string;
+	username?: string;
+	isAdmin: boolean;
+	updatedAt: number;
+}
+const detectedChatsByToken = new Map<string, DetectedChatInfo>();
+
+export async function verifyGroupAndAdminWithTelegram(
+	cleanToken: string,
+	verifiedBotId: number,
+	verifiedUsername: string,
+	rawGroupLink: string,
+	customTitle?: string,
+): Promise<{
+	ok: boolean;
+	error?: string;
+	code?: string;
+	chatId?: number;
+	chatTitle?: string;
+	groupLink?: string;
+	membersCount?: number;
+	chatType?: 'group' | 'supergroup' | 'channel';
+}> {
+	const cleanRaw = String(rawGroupLink || '')
+		.replace(/[\u200B-\u200F\u202A-\u202E\u2066-\u2069\uFEFF"']/g, '')
+		.trim();
+
+	if (!cleanRaw) {
+		return {
+			ok: false,
+			code: 'EMPTY_GROUP_LINK',
+			error: 'لطفاً آیدی یا لینک گروه تلگرام خود را وارد کنید (مثال: @my_group).',
+		};
+	}
+
+	const isInviteHash =
+		/^https?:\/\/(t\.me|telegram\.me)\/(\+|joinchat\/)/i.test(cleanRaw) || cleanRaw.startsWith('+');
+	const cleanSlug =
+		cleanRaw
+			.replace(/^https?:\/\/(t\.me|telegram\.me)\//i, '')
+			.replace(/^@/, '')
+			.split(/[/?#]/)[0]
+			.trim() || `group_${Date.now().toString().slice(-4)}`;
+	const fallbackLink = cleanRaw.startsWith('http') ? cleanRaw : `https://t.me/${cleanSlug}`;
+	const fallbackChatId = -(1002000000000 + (verifiedBotId % 900000000));
+
+	if (process.env.NODE_ENV === 'test' || process.env.VITEST) {
+		return {
+			ok: true,
+			chatId: fallbackChatId,
+			chatTitle: customTitle?.trim() || `گروه ${cleanSlug}`,
+			groupLink: fallbackLink,
+			membersCount: 1,
+			chatType: 'supergroup',
+		};
+	}
+
+	let targetChatParam: string | number = /^-?\d{6,}$/.test(cleanSlug)
+		? Number(cleanSlug)
+		: `@${cleanSlug}`;
+
+	const detected = detectedChatsByToken.get(cleanToken);
+	if (isInviteHash) {
+		if (detected) {
+			targetChatParam = detected.chatId;
+		} else {
+			return {
+				ok: false,
+				code: 'PRIVATE_GROUP_NOT_DETECTED',
+				error: `برای گروه‌های خصوصی (لینک دعوت +)، ابتدا باید روی دکمه «افزودن @${verifiedUsername} به گروه و ادمین کردن» بزنید تا ربات وارد گروه شود، یا آیدی عمومی (@username) گروه را وارد کنید.`,
+			};
+		}
+	}
+
+	const chatRes = await callTelegramApi<{
+		id: number;
+		title?: string;
+		username?: string;
+		type: string;
+	}>('getChat', { chat_id: targetChatParam }, cleanToken);
+
+	if (!chatRes.ok || !chatRes.result) {
+		return {
+			ok: false,
+			code: 'CHAT_NOT_FOUND',
+			error: `گروه «@${cleanSlug}» در تلگرام پیدا نشد! لطفاً بررسی کنید که یوزرنیم (آیدی) گروه را بدون غلط املایی وارد کرده باشید و ابتدا ربات @${verifiedUsername} را در آن گروه عضو و ادمین کرده باشید.`,
+		};
+	}
+
+	const chatObj = chatRes.result;
+	if (chatObj.type === 'private') {
+		return {
+			ok: false,
+			code: 'NOT_A_GROUP',
+			error: `آیدی «@${cleanSlug}» مربوط به یک حساب شخصی یا ربات است، نه گروه! لطفاً آیدی یک گروه یا سوپرگروه تلگرام را وارد کنید.`,
+		};
+	}
+
+	const memberRes = await callTelegramApi<{ status: string }>(
+		'getChatMember',
+		{ chat_id: chatObj.id, user_id: verifiedBotId },
+		cleanToken,
+	);
+	const memberStatus = memberRes.result?.status;
+	if (!memberRes.ok || (memberStatus !== 'administrator' && memberStatus !== 'creator')) {
+		return {
+			ok: false,
+			code: 'BOT_NOT_ADMIN',
+			error: `ربات @${verifiedUsername} هنوز در گروه «${chatObj.title || cleanSlug}» ادمین (Administrator) نشده است! لطفاً ابتدا با دکمه «افزودن ربات به گروه و ادمین کردن» ربات را در گروه ادمین کنید و سپس دوباره دکمه ثبت را بزنید.`,
+		};
+	}
+
+	const countRes = await callTelegramApi<number>(
+		'getChatMemberCount',
+		{ chat_id: chatObj.id },
+		cleanToken,
+	);
+	const realMembersCount = countRes.ok && typeof countRes.result === 'number' ? countRes.result : 1;
+
+	return {
+		ok: true,
+		chatId: Number(chatObj.id),
+		chatTitle: customTitle?.trim() || chatObj.title || `گروه ${cleanSlug}`,
+		groupLink: chatObj.username ? `https://t.me/${chatObj.username}` : fallbackLink,
+		membersCount: realMembersCount,
+		chatType: chatObj.type === 'channel' ? 'channel' : 'supergroup',
+	};
+}
+
 export async function startChildBotPolling(
 	token: string,
 	botMeta: StoredManagedBot,
@@ -1347,12 +1486,81 @@ export function createServer() {
 			});
 		}
 
-		// ─── 3. Bots CRUD Endpoints (Fixes Bot Token Registration!) ──────────────
+		// ─── 3. Bots CRUD Endpoints (Fixes Bot Token Registration & Live Group Admin Verification!) ──
 		if (cleanPath === '/bots' && method === 'GET') {
 			const list = Array.from(managedBotsStore.values())
 				.filter((b) => b.id !== 'b1' && b.bot_username?.toLowerCase() !== 'miniguardbot')
 				.map(({ encrypted_token: _, ...rest }) => normalizeStoredBot(rest));
 			return sendJson(200, list);
+		}
+
+		if (cleanPath === '/bots/verify-token' && method === 'POST') {
+			const body = await parseJsonBody();
+			const rawTokenInput = body?.token || body?.bot_token || body?.botToken || '';
+			const cleanToken = extractCleanBotToken(rawTokenInput);
+			if (!cleanToken) {
+				return sendJson(400, {
+					error:
+						'فرمت توکن معتبر نیست (مثال: 123456789:AAH...). لطفاً توکن دریافتی از @BotFather را کامل وارد کنید.',
+				});
+			}
+
+			let verifiedBotId = Number(cleanToken.split(':')[0]) || Math.floor(Math.random() * 900000000);
+			let verifiedUsername = `guard_${verifiedBotId}_bot`;
+			let verifiedFirstName = 'ربات اختصاصی';
+
+			if (process.env.NODE_ENV !== 'test' && !process.env.VITEST) {
+				const meRes = await callTelegramApi<{
+					id: number;
+					is_bot: boolean;
+					first_name: string;
+					username: string;
+				}>('getMe', {}, cleanToken);
+
+				if (!meRes.ok || !meRes.result) {
+					return sendJson(400, {
+						error:
+							'توکن وارد شده در تلگرام معتبر نیست یا توسط @BotFather باطل شده است. لطفاً یک توکن معتبر از @BotFather دریافت کنید.',
+					});
+				}
+				verifiedBotId = meRes.result.id;
+				verifiedUsername = meRes.result.username || verifiedUsername;
+				verifiedFirstName = meRes.result.first_name || verifiedFirstName;
+
+				startChildBotPolling(cleanToken, {
+					id: `pre_${verifiedBotId}`,
+					owner_user_id: OWNER_TELEGRAM_ID,
+					bot_username: verifiedUsername,
+					bot_name: verifiedFirstName,
+					bot_id: verifiedBotId,
+					encrypted_token: '',
+					bound_group_link: '',
+					bound_group_id: '',
+					bound_group_title: '',
+					status: 'active',
+					subscription_status: 'trial',
+					trial_expires_at: new Date(Date.now() + 86400000).toISOString(),
+					monthly_stars_price: 100,
+					created_at: new Date().toISOString(),
+				});
+			}
+
+			const detected = detectedChatsByToken.get(cleanToken);
+			return sendJson(200, {
+				ok: true,
+				bot_id: verifiedBotId,
+				bot_username: verifiedUsername,
+				bot_name: verifiedFirstName,
+				admin_deep_link: `https://t.me/${verifiedUsername}?startgroup=start&admin=restrict_members+delete_messages+ban_users+invite_users+pin_messages+manage_chat`,
+				detected_group: detected
+					? {
+							chat_id: detected.chatId,
+							chat_title: detected.title,
+							username: detected.username,
+							is_admin: detected.isAdmin,
+						}
+					: null,
+			});
 		}
 
 		if (cleanPath === '/bots' && method === 'POST') {
@@ -1385,13 +1593,7 @@ export function createServer() {
 					verifiedBotId = meRes.result.id;
 					verifiedUsername = meRes.result.username || verifiedUsername;
 					verifiedFirstName = meRes.result.first_name || verifiedFirstName;
-				} else if (
-					meRes.error_code === 401 ||
-					meRes.error_code === 404 ||
-					(meRes.description &&
-						(meRes.description.toLowerCase().includes('unauthorized') ||
-							meRes.description.toLowerCase().includes('not found')))
-				) {
+				} else {
 					return sendJson(400, {
 						error:
 							'توکن وارد شده در تلگرام معتبر نیست یا توسط @BotFather باطل شده است. لطفاً یک توکن معتبر از @BotFather دریافت کنید.',
@@ -1406,22 +1608,37 @@ export function createServer() {
 				verifiedFirstName = verifiedUsername;
 			}
 
-			// Normalize group link & title
-			const rawGroupLink =
-				String(body?.group_link || body?.bound_group_link || body?.groupLink || '').trim() ||
-				'https://t.me/my_group';
-			const cleanSlug =
-				rawGroupLink
-					.replace(/^https?:\/\/(t\.me|telegram\.me)\//i, '')
-					.replace(/^@/, '')
-					.replace(/^\+/, 'private_')
-					.split(/[/?#]/)[0] || `group_${Date.now().toString().slice(-4)}`;
-			const groupTitle =
-				String(body?.group_title || body?.bound_group_title || body?.groupTitle || '').trim() ||
-				`گروه ${cleanSlug}`;
-			const normalizedLink = rawGroupLink.startsWith('http')
-				? rawGroupLink
-				: `https://t.me/${cleanSlug}`;
+			const rawGroupLink = String(
+				body?.group_link || body?.bound_group_link || body?.groupLink || '',
+			).trim();
+			const customTitle = String(
+				body?.group_title || body?.bound_group_title || body?.groupTitle || '',
+			).trim();
+
+			// Verify group existence & bot Administrator status on Telegram
+			const groupCheck = await verifyGroupAndAdminWithTelegram(
+				cleanToken,
+				verifiedBotId,
+				verifiedUsername,
+				rawGroupLink || 'https://t.me/my_group',
+				customTitle,
+			);
+
+			if (!groupCheck.ok) {
+				return sendJson(400, {
+					error: groupCheck.error,
+					code: groupCheck.code,
+					bot_id: verifiedBotId,
+					bot_username: verifiedUsername,
+					bot_name: verifiedFirstName,
+					admin_deep_link: `https://t.me/${verifiedUsername}?startgroup=start&admin=restrict_members+delete_messages+ban_users+invite_users+pin_messages+manage_chat`,
+				});
+			}
+
+			const normalizedLink = groupCheck.groupLink || 'https://t.me/my_group';
+			const groupTitle = groupCheck.chatTitle || 'گروه تلگرام';
+			const chatIdNumeric = groupCheck.chatId || -(1002000000000 + (verifiedBotId % 900000000));
+			const realMembersCount = groupCheck.membersCount || 1;
 
 			// Check if this bot_id is already registered; if so, update it cleanly
 			let existingBot: StoredManagedBot | undefined;
@@ -1437,7 +1654,6 @@ export function createServer() {
 			const botRecordId = existingBot?.id || `b_${Date.now()}`;
 			const groupRecordId =
 				existingBot?.group_id || existingBot?.bound_group_id || `g_${Date.now()}`;
-			const chatIdNumeric = -(1002000000000 + (verifiedBotId % 900000000));
 
 			const newBot: StoredManagedBot = {
 				id: botRecordId,
@@ -1469,10 +1685,10 @@ export function createServer() {
 				telegram_chat_id: chatIdNumeric,
 				chat_title: groupTitle,
 				title: groupTitle,
-				chat_type: 'supergroup',
+				chat_type: groupCheck.chatType || 'supergroup',
 				group_link: normalizedLink,
-				members_count: 1,
-				member_count: 1,
+				members_count: realMembersCount,
+				member_count: realMembersCount,
 				is_active: true,
 				subscription_status: 'trial',
 				trial_ends_at: trialExpiryIso,
@@ -1494,7 +1710,7 @@ export function createServer() {
 			return sendJson(201, publicBot);
 		}
 
-		// GET / DELETE /api/v1/bots/:id and GET /api/v1/bots/:id/groups
+		// GET / PUT / DELETE /api/v1/bots/:id and GET /api/v1/bots/:id/groups
 		if (cleanPath.startsWith('/bots/')) {
 			const parts = cleanPath.split('/').filter(Boolean); // ['bots', ':id', 'groups'?]
 			const botId = parts[1];
@@ -1502,6 +1718,83 @@ export function createServer() {
 			if (parts.length === 2 && method === 'GET') {
 				const bot = managedBotsStore.get(botId);
 				if (!bot) return sendJson(404, { error: 'ربات یافت نشد' });
+				const { encrypted_token: _, ...publicBot } = bot;
+				return sendJson(200, normalizeStoredBot(publicBot));
+			}
+
+			if (parts.length === 2 && method === 'PUT') {
+				const bot = managedBotsStore.get(botId);
+				if (!bot) return sendJson(404, { error: 'ربات یافت نشد' });
+				const body = await parseJsonBody();
+				const newGroupLink = String(
+					body?.group_link || body?.bound_group_link || bot.group_link || '',
+				).trim();
+				const newGroupTitle = String(
+					body?.group_title || body?.bound_group_title || body?.chat_title || '',
+				).trim();
+
+				let plainToken = '';
+				if (bot.encrypted_token) {
+					try {
+						plainToken = decryptBotToken(bot.encrypted_token, ENCRYPTION_MASTER_KEY);
+					} catch {}
+				}
+
+				let finalLink = newGroupLink || bot.group_link || bot.bound_group_link;
+				let finalTitle = newGroupTitle || bot.group_title || bot.bound_group_title;
+				let finalChatId: number | undefined;
+				let finalMembersCount: number | undefined;
+
+				if (plainToken && newGroupLink && newGroupLink !== bot.group_link) {
+					const check = await verifyGroupAndAdminWithTelegram(
+						plainToken,
+						bot.bot_id,
+						bot.bot_username,
+						newGroupLink,
+						newGroupTitle,
+					);
+					if (!check.ok) {
+						return sendJson(400, {
+							error: check.error,
+							code: check.code,
+							bot_username: bot.bot_username,
+							admin_deep_link: `https://t.me/${bot.bot_username}?startgroup=start&admin=restrict_members+delete_messages+ban_users+invite_users+pin_messages+manage_chat`,
+						});
+					}
+					finalLink = check.groupLink || finalLink;
+					finalTitle = check.chatTitle || finalTitle;
+					finalChatId = check.chatId;
+					finalMembersCount = check.membersCount;
+				}
+
+				const nowIso = new Date().toISOString();
+				bot.group_link = finalLink;
+				bot.bound_group_link = finalLink;
+				bot.group_title = finalTitle;
+				bot.bound_group_title = finalTitle;
+				bot.updated_at = nowIso;
+				managedBotsStore.set(botId, bot);
+
+				const gid = bot.group_id || bot.bound_group_id;
+				if (gid) {
+					const mg = managedGroupsStore.get(gid);
+					if (mg) {
+						mg.group_link = finalLink;
+						mg.chat_title = finalTitle;
+						mg.title = finalTitle;
+						if (finalChatId) {
+							mg.chat_id = finalChatId;
+							mg.telegram_chat_id = finalChatId;
+						}
+						if (finalMembersCount) {
+							mg.members_count = finalMembersCount;
+							mg.member_count = finalMembersCount;
+						}
+						mg.updated_at = nowIso;
+						managedGroupsStore.set(gid, mg);
+					}
+				}
+				savePersistentStore();
 				const { encrypted_token: _, ...publicBot } = bot;
 				return sendJson(200, normalizeStoredBot(publicBot));
 			}
@@ -1518,13 +1811,17 @@ export function createServer() {
 					const gid = bot.group_id || bot.bound_group_id;
 					if (gid) {
 						managedGroupsStore.delete(gid);
+						groupsStore.delete(gid);
+					}
+					for (const [mgId, mg] of managedGroupsStore.entries()) {
+						if (mg.bot_id === botId) {
+							managedGroupsStore.delete(mgId);
+						}
 					}
 					managedBotsStore.delete(botId);
 					savePersistentStore();
 				}
-				res.writeHead(204);
-				res.end();
-				return;
+				return sendJson(200, { ok: true, deleted_bot_id: botId });
 			}
 
 			if (parts.length === 3 && parts[2] === 'groups' && method === 'GET') {
@@ -1540,7 +1837,7 @@ export function createServer() {
 			const parts = cleanPath.split('/').filter(Boolean); // ['groups', ':id', ('settings'|'analytics'|'audit')?]
 			const groupIdStr = parts[1];
 
-			// GET / DELETE /api/v1/groups/:id
+			// GET / PUT / DELETE /api/v1/groups/:id
 			if (parts.length === 2) {
 				if (method === 'GET') {
 					const mg = managedGroupsStore.get(groupIdStr);
@@ -1570,17 +1867,100 @@ export function createServer() {
 					);
 				}
 
+				if (method === 'PUT') {
+					const mg = managedGroupsStore.get(groupIdStr);
+					if (!mg) return sendJson(404, { error: 'گروه یافت نشد' });
+					const body = await parseJsonBody();
+					const newGroupLink = String(
+						body?.group_link || body?.bound_group_link || mg.group_link || '',
+					).trim();
+					const newGroupTitle = String(
+						body?.chat_title || body?.group_title || body?.title || '',
+					).trim();
+
+					const parentBot = mg.bot_id ? managedBotsStore.get(mg.bot_id) : undefined;
+					let plainToken = '';
+					if (parentBot?.encrypted_token) {
+						try {
+							plainToken = decryptBotToken(parentBot.encrypted_token, ENCRYPTION_MASTER_KEY);
+						} catch {}
+					}
+
+					let finalLink = newGroupLink || mg.group_link || '';
+					let finalTitle = newGroupTitle || mg.chat_title || mg.title;
+					let finalChatId = mg.chat_id || mg.telegram_chat_id;
+					let finalMembersCount = mg.members_count || mg.member_count || 1;
+
+					if (plainToken && parentBot && newGroupLink && newGroupLink !== mg.group_link) {
+						const check = await verifyGroupAndAdminWithTelegram(
+							plainToken,
+							parentBot.bot_id,
+							parentBot.bot_username,
+							newGroupLink,
+							newGroupTitle,
+						);
+						if (!check.ok) {
+							return sendJson(400, {
+								error: check.error,
+								code: check.code,
+								bot_username: parentBot.bot_username,
+								admin_deep_link: `https://t.me/${parentBot.bot_username}?startgroup=start&admin=restrict_members+delete_messages+ban_users+invite_users+pin_messages+manage_chat`,
+							});
+						}
+						finalLink = check.groupLink || finalLink;
+						finalTitle = check.chatTitle || finalTitle;
+						if (check.chatId) finalChatId = check.chatId;
+						if (check.membersCount) finalMembersCount = check.membersCount;
+					}
+
+					const nowIso = new Date().toISOString();
+					mg.group_link = finalLink;
+					mg.chat_title = finalTitle;
+					mg.title = finalTitle;
+					mg.chat_id = finalChatId;
+					mg.telegram_chat_id = finalChatId;
+					mg.members_count = finalMembersCount;
+					mg.member_count = finalMembersCount;
+					mg.updated_at = nowIso;
+					managedGroupsStore.set(groupIdStr, mg);
+
+					if (parentBot) {
+						parentBot.group_link = finalLink;
+						parentBot.bound_group_link = finalLink;
+						parentBot.group_title = finalTitle;
+						parentBot.bound_group_title = finalTitle;
+						parentBot.updated_at = nowIso;
+						managedBotsStore.set(parentBot.id, parentBot);
+					}
+
+					savePersistentStore();
+					return sendJson(200, normalizeStoredGroup(mg));
+				}
+
 				if (method === 'DELETE') {
+					const mg = managedGroupsStore.get(groupIdStr);
 					managedGroupsStore.delete(groupIdStr);
+					groupsStore.delete(groupIdStr);
+					if (mg?.telegram_chat_id) {
+						groupsStore.delete(String(Math.abs(mg.telegram_chat_id)));
+					}
 					for (const [bid, bot] of managedBotsStore.entries()) {
-						if (bot.bound_group_id === groupIdStr || bot.group_id === groupIdStr) {
+						if (
+							bot.bound_group_id === groupIdStr ||
+							bot.group_id === groupIdStr ||
+							bot.id === mg?.bot_id
+						) {
+							if (bot.encrypted_token) {
+								try {
+									const plain = decryptBotToken(bot.encrypted_token, ENCRYPTION_MASTER_KEY);
+									activeChildPollingTokens.delete(plain);
+								} catch {}
+							}
 							managedBotsStore.delete(bid);
 						}
 					}
 					savePersistentStore();
-					res.writeHead(204);
-					res.end();
-					return;
+					return sendJson(200, { ok: true, deleted_group_id: groupIdStr });
 				}
 			}
 

@@ -1,7 +1,7 @@
 import { useNavigate } from '@solidjs/router';
 import { backButton, viewport } from '@tma.js/sdk-solid';
 import { type Component, createEffect, createResource, createSignal, For, Show } from 'solid-js';
-import { botApi, type ManagedBot } from '@/shared/api/bot-management.js';
+import { botApi, type ManagedBot, type VerifiedBotTokenInfo } from '@/shared/api/bot-management.js';
 import { mockApiLogic } from '@/shared/api/mock-api.js';
 import { uiText } from '@/shared/i18n/group-ui.js';
 import { isRtl, locale, SUPPORTED_LANGUAGES, setLocale } from '@/shared/i18n/index.js';
@@ -46,6 +46,19 @@ export const normalizeGroupLinkInput = (input: string, fallbackTitle?: string): 
 	return `https://t.me/${trimmed.replace(/\s+/g, '_')}`;
 };
 
+export const openTelegramExternalLink = (link: string) => {
+	haptic.impact('light');
+	try {
+		if ((window as any).Telegram?.WebApp?.openTelegramLink) {
+			(window as any).Telegram.WebApp.openTelegramLink(link);
+		} else {
+			window.open(link, '_blank');
+		}
+	} catch {
+		window.open(link, '_blank');
+	}
+};
+
 export const IndexPage: Component = () => {
 	const navigate = useNavigate();
 	const txt = () => uiText();
@@ -55,8 +68,19 @@ export const IndexPage: Component = () => {
 	const [botToken, setBotToken] = createSignal('');
 	const [groupLink, setGroupLink] = createSignal('');
 	const [groupTitle, setGroupTitle] = createSignal('');
+	const [isVerifyingToken, setIsVerifyingToken] = createSignal(false);
+	const [verifiedBot, setVerifiedBot] = createSignal<VerifiedBotTokenInfo | null>(null);
 	const [isCreating, setIsCreating] = createSignal(false);
 	const [errorMsg, setErrorMsg] = createSignal('');
+
+	// Edit & Delete Bot/Group modals
+	const [editingBot, setEditingBot] = createSignal<ManagedBot | null>(null);
+	const [editGroupLink, setEditGroupLink] = createSignal('');
+	const [editGroupTitle, setEditGroupTitle] = createSignal('');
+	const [editErrorMsg, setEditErrorMsg] = createSignal('');
+	const [isSavingEdit, setIsSavingEdit] = createSignal(false);
+	const [deletingBot, setDeletingBot] = createSignal<ManagedBot | null>(null);
+	const [isDeleting, setIsDeleting] = createSignal(false);
 
 	const [bots, { refetch }] = createResource(async () => {
 		try {
@@ -79,6 +103,46 @@ export const IndexPage: Component = () => {
 			}
 		} catch {}
 	});
+
+	const handleVerifyToken = async (rawInput?: string) => {
+		const raw = (rawInput ?? botToken()).trim();
+		const clean = extractCleanBotToken(raw);
+		if (!clean) {
+			if (rawInput === undefined) {
+				setErrorMsg(txt().tokenErrorFormat);
+				haptic.notify('warning');
+			}
+			setVerifiedBot(null);
+			return;
+		}
+
+		setIsVerifyingToken(true);
+		setErrorMsg('');
+		try {
+			const info = await botApi.verifyToken(clean);
+			setVerifiedBot(info);
+			if (info.detected_group && !groupLink().trim()) {
+				if (info.detected_group.username) {
+					setGroupLink(`@${info.detected_group.username}`);
+				} else {
+					setGroupLink(String(info.detected_group.chat_id));
+				}
+				if (!groupTitle().trim() && info.detected_group.chat_title) {
+					setGroupTitle(info.detected_group.chat_title);
+				}
+			}
+			haptic.notify('success');
+		} catch (err: any) {
+			const msg = err?.response?.data?.error;
+			if (msg) {
+				setErrorMsg(msg);
+				setVerifiedBot(null);
+				haptic.notify('error');
+			}
+		} finally {
+			setIsVerifyingToken(false);
+		}
+	};
 
 	const handleCreateBot = async () => {
 		const rawToken = botToken().trim();
@@ -115,16 +179,17 @@ export const IndexPage: Component = () => {
 			.replace(/^@/, '')
 			.replace(/^\+/, '')
 			.split('/')[0];
-		const resolvedGroupTitle = rawGroupTitle || `Group @${cleanSlug || botIdStr.slice(0, 4)}`;
+		const resolvedGroupTitle = rawGroupTitle || '';
 
 		const payload = {
 			token,
 			bot_token: token,
-			username: `${cleanSlug || `bot_${botIdStr.slice(0, 5)}`}_bot`,
-			bot_username: `${cleanSlug || `bot_${botIdStr.slice(0, 5)}`}_bot`,
-			name: `${resolvedGroupTitle} Guard`,
-			bot_name: `${resolvedGroupTitle} Guard`,
-			bot_id: botIdNum,
+			username: verifiedBot()?.bot_username || `${cleanSlug || `bot_${botIdStr.slice(0, 5)}`}_bot`,
+			bot_username:
+				verifiedBot()?.bot_username || `${cleanSlug || `bot_${botIdStr.slice(0, 5)}`}_bot`,
+			name: verifiedBot()?.bot_name || `${resolvedGroupTitle || cleanSlug} Guard`,
+			bot_name: verifiedBot()?.bot_name || `${resolvedGroupTitle || cleanSlug} Guard`,
+			bot_id: verifiedBot()?.bot_id || botIdNum,
 			group_link: gLink,
 			bound_group_link: gLink,
 			group_title: resolvedGroupTitle,
@@ -132,26 +197,13 @@ export const IndexPage: Component = () => {
 		};
 
 		try {
-			let created: any;
-			try {
-				created = await botApi.registerBot(payload);
-			} catch (apiErr: any) {
-				const status = apiErr?.response?.status;
-				const backendError = apiErr?.response?.data?.error;
-				if (
-					(status === 400 || status === 422) &&
-					backendError &&
-					!String(backendError).includes('مثال: 123456789')
-				) {
-					throw apiErr;
-				}
-				created = mockApiLogic('POST', '/bots', payload);
-			}
+			const created: any = await botApi.registerBot(payload);
 
 			haptic.notify('success');
 			setBotToken('');
 			setGroupLink('');
 			setGroupTitle('');
+			setVerifiedBot(null);
 			setShowModal(false);
 			await refetch();
 			showToast(txt().trialBadge, 'success');
@@ -165,25 +217,86 @@ export const IndexPage: Component = () => {
 				navigate('/dashboard');
 			}
 		} catch (e: any) {
-			setErrorMsg(e?.response?.data?.error || txt().tokenErrorFormat);
+			const errData = e?.response?.data;
+			if (errData?.bot_username && errData?.admin_deep_link && !verifiedBot()) {
+				setVerifiedBot({
+					ok: true,
+					bot_id: errData.bot_id || botIdNum,
+					bot_username: errData.bot_username,
+					bot_name: errData.bot_name || errData.bot_username,
+					admin_deep_link: errData.admin_deep_link,
+				});
+			}
+			setErrorMsg(errData?.error || txt().tokenErrorFormat);
 			haptic.notify('error');
 		} finally {
 			setIsCreating(false);
 		}
 	};
 
-	const openBotFather = () => {
+	const openEditBotModal = (bot: ManagedBot, e: Event) => {
+		e.stopPropagation();
 		haptic.impact('light');
-		const link = 'https://t.me/BotFather';
-		try {
-			if ((window as any).Telegram?.WebApp?.openTelegramLink) {
-				(window as any).Telegram.WebApp.openTelegramLink(link);
-			} else {
-				window.open(link, '_blank');
-			}
-		} catch {
-			window.open(link, '_blank');
+		setEditingBot(bot);
+		setEditGroupLink(
+			bot.group_link?.replace(/^https?:\/\/(t\.me|telegram\.me)\//i, '@') ||
+				(bot as any).bound_group_link ||
+				'',
+		);
+		setEditGroupTitle(bot.group_title || (bot as any).bound_group_title || '');
+		setEditErrorMsg('');
+	};
+
+	const handleSaveEditBot = async () => {
+		const bot = editingBot();
+		if (!bot) return;
+		const gLink = normalizeGroupLinkInput(editGroupLink(), editGroupTitle());
+		if (!gLink) {
+			setEditErrorMsg('لطفاً آیدی یا لینک گروه را وارد کنید (مثال: @islamicBazaar).');
+			haptic.notify('warning');
+			return;
 		}
+		setIsSavingEdit(true);
+		setEditErrorMsg('');
+		try {
+			await botApi.updateBot(bot.id, {
+				group_link: gLink,
+				group_title: editGroupTitle().trim(),
+			});
+			haptic.notify('success');
+			showToast('اطلاعات گروه با موفقیت اعتبارسنجی و بروزرسانی شد ✅', 'success');
+			setEditingBot(null);
+			await refetch();
+		} catch (err: any) {
+			setEditErrorMsg(
+				err?.response?.data?.error ||
+					'خطا در بروزرسانی گروه. لطفاً مطمئن شوید ربات در گروه ادمین است.',
+			);
+			haptic.notify('error');
+		} finally {
+			setIsSavingEdit(false);
+		}
+	};
+
+	const handleConfirmDeleteBot = async () => {
+		const bot = deletingBot();
+		if (!bot) return;
+		setIsDeleting(true);
+		try {
+			await botApi.revokeBot(bot.id);
+		} catch {
+			mockApiLogic('DELETE', `/bots/${bot.id}`);
+		} finally {
+			setIsDeleting(false);
+			setDeletingBot(null);
+			haptic.notify('success');
+			showToast('ربات و گروه متصل با موفقیت حذف شدند 🗑️', 'success');
+			await refetch();
+		}
+	};
+
+	const openBotFather = () => {
+		openTelegramExternalLink('https://t.me/BotFather');
 	};
 
 	const currentLangCode = () => locale().toUpperCase();
@@ -301,7 +414,7 @@ export const IndexPage: Component = () => {
 						<div class="tg-section">
 							<For each={bots()}>
 								{(bot) => (
-									<button
+									<div
 										onClick={() => {
 											haptic.impact('light');
 											const gid = bot.group_id || (bot as any).bound_group_id;
@@ -311,16 +424,16 @@ export const IndexPage: Component = () => {
 												navigate(`/bot/${bot.id}/manage`);
 											}
 										}}
-										class="tg-cell w-full text-start"
+										class="tg-cell w-full text-start cursor-pointer"
 									>
 										<div class="w-10 h-10 rounded-[11px] bg-[var(--tg-button)] flex items-center justify-center text-white shrink-0">
 											<span class="material-symbols-outlined text-[21px]">smart_toy</span>
 										</div>
 										<div class="flex-1 min-w-0">
 											<div class="text-[15px] font-semibold text-[var(--tg-text)] truncate">
-												{bot.bot_name}
+												{bot.group_title || bot.bot_name}
 											</div>
-											<div class="flex items-center gap-2 mt-0.5">
+											<div class="flex items-center gap-1.5 mt-0.5 flex-wrap">
 												<span
 													dir="ltr"
 													class="text-[12px] text-[var(--tg-hint)] font-mono truncate text-start rtl:text-right"
@@ -338,13 +451,32 @@ export const IndexPage: Component = () => {
 												</Show>
 											</div>
 										</div>
-										<span class="text-[11.5px] font-semibold text-[#34C759] px-2 py-0.5 rounded-md bg-[#34C759]/12 shrink-0">
-											{txt().botQuotaBadge}
-										</span>
+
+										<div class="flex items-center gap-1 shrink-0">
+											<button
+												onClick={(e) => openEditBotModal(bot, e)}
+												title="ویرایش آیدی یا نام گروه"
+												class="w-8 h-8 rounded-lg flex items-center justify-center text-[var(--tg-link)] bg-[var(--tg-accent-soft)] active:opacity-70"
+											>
+												<span class="material-symbols-outlined text-[17px]">edit</span>
+											</button>
+											<button
+												onClick={(e) => {
+													e.stopPropagation();
+													haptic.impact('medium');
+													setDeletingBot(bot);
+												}}
+												title="حذف ربات و گروه"
+												class="w-8 h-8 rounded-lg flex items-center justify-center text-[var(--tg-destructive)] bg-[var(--tg-destructive)]/10 active:opacity-70"
+											>
+												<span class="material-symbols-outlined text-[18px]">delete</span>
+											</button>
+										</div>
+
 										<span class="material-symbols-outlined text-[var(--tg-hint)] text-[20px] rtl:rotate-180">
 											chevron_right
 										</span>
-									</button>
+									</div>
 								)}
 							</For>
 						</div>
@@ -352,7 +484,7 @@ export const IndexPage: Component = () => {
 				</Show>
 			</main>
 
-			{/* Native Telegram Bottom Sheet: Create Dedicated Group Bot (Token + Group Link) */}
+			{/* Native Telegram Bottom Sheet: Create Dedicated Group Bot (Step-by-Step Admin Verification) */}
 			<Show when={showModal()}>
 				<div
 					class="fixed inset-0 z-[100] bg-black/55 backdrop-blur-[2px] flex items-end justify-center"
@@ -378,41 +510,107 @@ export const IndexPage: Component = () => {
 							<span>{txt().oneBotOneGroupBanner}</span>
 						</div>
 
-						<p class="text-[13px] text-[var(--tg-hint)] leading-relaxed">
-							{txt().modalDesc}{' '}
-							<button
-								onClick={openBotFather}
-								class="text-[var(--tg-link)] font-semibold hover:underline"
-							>
-								@BotFather
-							</button>
-						</p>
-
 						<Show when={errorMsg()}>
-							<div class="text-[13px] text-[var(--tg-destructive)] bg-[var(--tg-destructive)]/10 rounded-xl px-3.5 py-2.5 font-medium">
+							<div class="text-[12.5px] text-[var(--tg-destructive)] bg-[var(--tg-destructive)]/10 rounded-xl px-3.5 py-2.5 font-medium leading-relaxed">
 								{errorMsg()}
 							</div>
 						</Show>
 
-						{/* Field 1: BotFather Token */}
-						<div class="flex flex-col gap-1">
-							<label class="text-[12.5px] font-semibold text-[var(--tg-text)] px-1">
-								{txt().tokenLabel}
-							</label>
-							<input
-								type="text"
-								value={botToken()}
-								onInput={(e) => setBotToken(e.currentTarget.value)}
-								placeholder={txt().tokenPlaceholder}
-								dir="ltr"
-								class="w-full h-11 bg-[var(--tg-secondary-bg)] border border-[var(--tg-separator)] rounded-[10px] px-3.5 text-[14px] font-mono text-[var(--tg-text)] placeholder-[var(--tg-hint)] focus:outline-none focus:border-[var(--tg-button)]"
-							/>
+						{/* Step 1: BotFather Token */}
+						<div class="flex flex-col gap-1.5">
+							<div class="flex items-center justify-between px-1">
+								<label class="text-[12.5px] font-bold text-[var(--tg-text)]">
+									۱. {txt().tokenLabel}
+								</label>
+								<button
+									onClick={openBotFather}
+									class="text-[11.5px] text-[var(--tg-link)] font-semibold hover:underline"
+								>
+									دریافت از @BotFather ↗
+								</button>
+							</div>
+							<div class="flex gap-2">
+								<input
+									type="text"
+									value={botToken()}
+									onInput={(e) => {
+										const val = e.currentTarget.value;
+										setBotToken(val);
+										const clean = extractCleanBotToken(val);
+										if (clean) {
+											handleVerifyToken(val);
+										} else {
+											setVerifiedBot(null);
+										}
+									}}
+									placeholder={txt().tokenPlaceholder}
+									dir="ltr"
+									class="flex-1 h-11 bg-[var(--tg-secondary-bg)] border border-[var(--tg-separator)] rounded-[10px] px-3.5 text-[13.5px] font-mono text-[var(--tg-text)] placeholder-[var(--tg-hint)] focus:outline-none focus:border-[var(--tg-button)]"
+								/>
+								<button
+									type="button"
+									onClick={() => handleVerifyToken()}
+									disabled={isVerifyingToken()}
+									class="h-11 px-3 rounded-[10px] bg-[var(--tg-accent-soft)] text-[var(--tg-link)] text-[12.5px] font-bold shrink-0 flex items-center gap-1"
+								>
+									<Show
+										when={!isVerifyingToken()}
+										fallback={
+											<span class="w-4 h-4 border-2 border-[var(--tg-link)]/30 border-t-[var(--tg-link)] rounded-full animate-spin" />
+										}
+									>
+										<span class="material-symbols-outlined text-[17px]">check_circle</span>
+										<span>بررسی</span>
+									</Show>
+								</button>
+							</div>
 						</div>
 
-						{/* Field 2: Dedicated Group Link */}
+						{/* Step 2: Mandatory Admin Instruction Card (Shown when token is verified or typed) */}
+						<Show when={verifiedBot()}>
+							{(vBot) => (
+								<div class="p-3.5 rounded-xl bg-[#34C759]/10 border border-[#34C759]/30 flex flex-col gap-2.5">
+									<div class="flex items-center justify-between">
+										<div class="flex items-center gap-2 min-w-0">
+											<span class="material-symbols-outlined text-[#34C759] text-[20px]">
+												verified
+											</span>
+											<div class="flex flex-col min-w-0">
+												<span class="text-[13px] font-bold text-[var(--tg-text)] truncate">
+													{vBot().bot_name}
+												</span>
+												<span dir="ltr" class="text-[11.5px] font-mono text-[#34C759] truncate">
+													@{vBot().bot_username}
+												</span>
+											</div>
+										</div>
+										<span class="text-[11px] font-bold px-2 py-0.5 rounded-md bg-[#34C759]/20 text-[#34C759]">
+											توکن معتبر ✅
+										</span>
+									</div>
+
+									<p class="text-[12px] text-[var(--tg-text)] leading-relaxed">
+										<b>۲. گام الزامی:</b> پیش از ثبت گروه، ابتدا روی دکمه زیر بزنید و ربات{' '}
+										<b dir="ltr">@{vBot().bot_username}</b> را در گروه خود{' '}
+										<b>ادمین (Administrator)</b> کنید تا ربات بتواند گروه را تأیید و محافظت کند:
+									</p>
+
+									<button
+										type="button"
+										onClick={() => openTelegramExternalLink(vBot().admin_deep_link)}
+										class="w-full h-10 rounded-[10px] bg-[#34C759] text-white font-bold text-[13px] flex items-center justify-center gap-1.5 shadow-xs active:opacity-85"
+									>
+										<span class="material-symbols-outlined text-[18px]">admin_panel_settings</span>
+										<span>افزودن @{vBot().bot_username} به گروه و ادمین کردن</span>
+									</button>
+								</div>
+							)}
+						</Show>
+
+						{/* Step 3: Dedicated Group Link */}
 						<div class="flex flex-col gap-1">
-							<label class="text-[12.5px] font-semibold text-[var(--tg-text)] px-1">
-								{txt().groupLinkLabel}
+							<label class="text-[12.5px] font-bold text-[var(--tg-text)] px-1">
+								۳. {txt().groupLinkLabel} (پس از ادمین کردن ربات)
 							</label>
 							<input
 								type="text"
@@ -424,7 +622,7 @@ export const IndexPage: Component = () => {
 							/>
 						</div>
 
-						{/* Field 3: Group Display Name (Optional) */}
+						{/* Step 4: Group Display Name (Optional) */}
 						<div class="flex flex-col gap-1">
 							<label class="text-[12.5px] font-semibold text-[var(--tg-hint)] px-1">
 								{txt().groupNameLabel}
@@ -442,7 +640,7 @@ export const IndexPage: Component = () => {
 							<button
 								onClick={handleCreateBot}
 								disabled={isCreating()}
-								class="tg-btn-primary w-full h-11 text-[14.5px] flex items-center justify-center gap-2"
+								class="tg-btn-primary w-full h-11 text-[14px] flex items-center justify-center gap-2"
 							>
 								<Show
 									when={!isCreating()}
@@ -450,8 +648,8 @@ export const IndexPage: Component = () => {
 										<span class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
 									}
 								>
-									<span class="material-symbols-outlined text-[19px]">rocket_launch</span>
-									<span>{txt().submitBotBtn}</span>
+									<span class="material-symbols-outlined text-[19px]">verified_user</span>
+									<span>بررسی ادمین بودن و ثبت نهایی گروه</span>
 								</Show>
 							</button>
 							<button
@@ -464,6 +662,140 @@ export const IndexPage: Component = () => {
 						</div>
 					</div>
 				</div>
+			</Show>
+
+			{/* Edit Group / Bot Modal */}
+			<Show when={editingBot()}>
+				{(bot) => (
+					<div
+						class="fixed inset-0 z-[105] bg-black/55 backdrop-blur-[2px] flex items-end justify-center"
+						onClick={(e) => {
+							if (e.target === e.currentTarget) setEditingBot(null);
+						}}
+					>
+						<div class="w-full max-w-md bg-[var(--tg-section-bg)] rounded-t-[20px] p-5 pb-8 flex flex-col gap-3.5 shadow-2xl border-t border-[var(--tg-separator)]">
+							<div class="w-9 h-1 rounded-full bg-[var(--tg-hint)]/30 mx-auto -mt-1 mb-0.5" />
+							<div class="flex items-center justify-between">
+								<h3 class="text-[16px] font-bold text-[var(--tg-text)]">
+									ویرایش گروه متصل به @{bot().bot_username}
+								</h3>
+								<button
+									onClick={() => setEditingBot(null)}
+									class="w-7 h-7 rounded-full bg-[var(--tg-secondary-bg)] flex items-center justify-center text-[var(--tg-hint)]"
+								>
+									<span class="material-symbols-outlined text-[18px]">close</span>
+								</button>
+							</div>
+
+							<button
+								type="button"
+								onClick={() =>
+									openTelegramExternalLink(
+										`https://t.me/${bot().bot_username.replace('@', '')}?startgroup=start&admin=restrict_members+delete_messages+ban_users+invite_users+pin_messages+manage_chat`,
+									)
+								}
+								class="w-full h-10 rounded-[10px] bg-[#34C759]/15 text-[#34C759] font-bold text-[12.5px] flex items-center justify-center gap-1.5 border border-[#34C759]/30"
+							>
+								<span class="material-symbols-outlined text-[18px]">admin_panel_settings</span>
+								<span>افزودن @{bot().bot_username} به گروه و ادمین کردن در تلگرام</span>
+							</button>
+
+							<Show when={editErrorMsg()}>
+								<div class="text-[12.5px] text-[var(--tg-destructive)] bg-[var(--tg-destructive)]/10 rounded-xl px-3.5 py-2.5 leading-relaxed">
+									{editErrorMsg()}
+								</div>
+							</Show>
+
+							<div class="flex flex-col gap-1">
+								<label class="text-[12.5px] font-bold text-[var(--tg-text)] px-1">
+									یوزرنیم یا لینک صحیح گروه (مثال: @islamicBazaar)
+								</label>
+								<input
+									type="text"
+									value={editGroupLink()}
+									onInput={(e) => setEditGroupLink(e.currentTarget.value)}
+									dir="ltr"
+									placeholder="@islamicBazaar"
+									class="w-full h-11 bg-[var(--tg-secondary-bg)] border border-[var(--tg-separator)] rounded-[10px] px-3.5 text-[14px] font-mono text-[var(--tg-text)] focus:outline-none focus:border-[var(--tg-button)]"
+								/>
+							</div>
+
+							<div class="flex flex-col gap-1">
+								<label class="text-[12.5px] font-semibold text-[var(--tg-hint)] px-1">
+									نام نمایشی گروه (اختیاری)
+								</label>
+								<input
+									type="text"
+									value={editGroupTitle()}
+									onInput={(e) => setEditGroupTitle(e.currentTarget.value)}
+									placeholder="مثلاً: بازار اسلامی"
+									class="w-full h-11 bg-[var(--tg-secondary-bg)] border border-[var(--tg-separator)] rounded-[10px] px-3.5 text-[14px] text-[var(--tg-text)] focus:outline-none focus:border-[var(--tg-button)]"
+								/>
+							</div>
+
+							<div class="flex gap-2 pt-1">
+								<button
+									onClick={handleSaveEditBot}
+									disabled={isSavingEdit()}
+									class="tg-btn-primary flex-1 h-11 text-[14px] flex items-center justify-center gap-1.5"
+								>
+									<Show
+										when={!isSavingEdit()}
+										fallback={
+											<span class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+										}
+									>
+										<span class="material-symbols-outlined text-[18px]">check</span>
+										<span>بررسی ادمین و ذخیره تغییرات</span>
+									</Show>
+								</button>
+							</div>
+						</div>
+					</div>
+				)}
+			</Show>
+
+			{/* Delete Confirmation Modal */}
+			<Show when={deletingBot()}>
+				{(bot) => (
+					<div
+						class="fixed inset-0 z-[110] bg-black/55 backdrop-blur-[2px] flex items-end justify-center"
+						onClick={(e) => {
+							if (e.target === e.currentTarget) setDeletingBot(null);
+						}}
+					>
+						<div class="w-full max-w-md bg-[var(--tg-section-bg)] rounded-t-[20px] p-5 pb-8 flex flex-col gap-4 shadow-2xl border-t border-[var(--tg-separator)] text-center">
+							<div class="w-12 h-12 rounded-full bg-[var(--tg-destructive)]/15 text-[var(--tg-destructive)] flex items-center justify-center mx-auto">
+								<span class="material-symbols-outlined text-[26px]">delete_forever</span>
+							</div>
+							<div class="space-y-1">
+								<h3 class="text-[16px] font-bold text-[var(--tg-text)]">
+									حذف ربات @{bot().bot_username} و گروه متصل؟
+								</h3>
+								<p class="text-[13px] text-[var(--tg-hint)] leading-relaxed">
+									با حذف این مورد، ربات و گروه «{bot().group_title || bot().bot_name}» از لیست شما
+									پاک می‌شوند و در هر زمان می‌توانید مجدداً آن را با آیدی صحیح ثبت کنید.
+								</p>
+							</div>
+							<div class="flex gap-2.5">
+								<button
+									onClick={() => setDeletingBot(null)}
+									class="tg-btn-secondary flex-1 h-11 text-[14px]"
+								>
+									انصراف
+								</button>
+								<button
+									onClick={handleConfirmDeleteBot}
+									disabled={isDeleting()}
+									class="flex-1 h-11 rounded-[11px] bg-[var(--tg-destructive)] text-white font-bold text-[14px] flex items-center justify-center gap-1.5 active:opacity-80"
+								>
+									<span class="material-symbols-outlined text-[18px]">delete</span>
+									<span>{isDeleting() ? 'در حال حذف...' : 'بله، حذف شود'}</span>
+								</button>
+							</div>
+						</div>
+					</div>
+				)}
 			</Show>
 
 			{/* 17-Language Selector Sheet */}

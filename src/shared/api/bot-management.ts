@@ -141,8 +141,25 @@ interface AuditLog {
 
 // ─── Bot API ──────────────────────────────────────────────
 
+export interface VerifiedBotTokenInfo {
+	ok: boolean;
+	bot_id: number;
+	bot_username: string;
+	bot_name: string;
+	admin_deep_link: string;
+	detected_group?: {
+		chat_id: number;
+		chat_title: string;
+		username?: string;
+		is_admin: boolean;
+	} | null;
+}
+
 export const botApi = {
 	listBots: () => apiClient.get<ManagedBot[]>('/bots').then((r: any) => r.data),
+
+	verifyToken: (token: string) =>
+		apiClient.post<VerifiedBotTokenInfo>('/bots/verify-token', { token }).then((r: any) => r.data),
 
 	registerBot: (data: {
 		token: string;
@@ -155,6 +172,9 @@ export const botApi = {
 
 	getBot: (botId: string) => apiClient.get<ManagedBot>(`/bots/${botId}`).then((r: any) => r.data),
 
+	updateBot: (botId: string, data: { group_link?: string; group_title?: string }) =>
+		apiClient.put<ManagedBot>(`/bots/${botId}`, data).then((r: any) => r.data),
+
 	revokeBot: (botId: string) => apiClient.delete(`/bots/${botId}`).then((r: any) => r.data),
 
 	listGroups: (botId: string) =>
@@ -166,6 +186,11 @@ export const botApi = {
 export const groupApi = {
 	getGroup: (groupId: string) =>
 		apiClient.get<ManagedGroup>(`/groups/${groupId}`).then((r: any) => r.data),
+
+	updateGroup: (
+		groupId: string,
+		data: { group_link?: string; chat_title?: string; group_title?: string },
+	) => apiClient.put<ManagedGroup>(`/groups/${groupId}`, data).then((r: any) => r.data),
 
 	revokeGroup: (groupId: string) => apiClient.delete(`/groups/${groupId}`).then((r: any) => r.data),
 

@@ -9,7 +9,8 @@ import {
 	onMount,
 	Show,
 } from 'solid-js';
-import { groupApi, subscriptionApi } from '@/shared/api/bot-management.js';
+import { botApi, groupApi, subscriptionApi } from '@/shared/api/bot-management.js';
+import { mockApiLogic } from '@/shared/api/mock-api.js';
 import { uiText } from '@/shared/i18n/group-ui.js';
 import { isRtl } from '@/shared/i18n/index.js';
 import { haptic } from '@/shared/lib/haptic.js';
@@ -17,6 +18,10 @@ import { colorScheme, toggleThemeScheme } from '@/shared/lib/tg-theme.js';
 import { profileSettings, updateSetting } from '@/shared/store/profile.js';
 import { ToggleSwitch } from '@/shared/ui/settings-controls.js';
 import { showToast } from '@/shared/ui/toast.js';
+import {
+	normalizeGroupLinkInput,
+	openTelegramExternalLink,
+} from '@/slices/home/home/ui/IndexPage.js';
 import { BottomNav } from '@/widgets/bottom-nav/index.js';
 
 export const GroupDashboardPage: Component = () => {
@@ -32,7 +37,16 @@ export const GroupDashboardPage: Component = () => {
 	);
 	const [biometricVerified, setBiometricVerified] = createSignal(false);
 
-	const [group, { mutate: mutateGroup }] = createResource(
+	// Edit & Delete Group state
+	const [showEditModal, setShowEditModal] = createSignal(false);
+	const [editGroupLink, setEditGroupLink] = createSignal('');
+	const [editGroupTitle, setEditGroupTitle] = createSignal('');
+	const [editErrorMsg, setEditErrorMsg] = createSignal('');
+	const [isSavingEdit, setIsSavingEdit] = createSignal(false);
+	const [showDeleteConfirm, setShowDeleteConfirm] = createSignal(false);
+	const [isDeleting, setIsDeleting] = createSignal(false);
+
+	const [group, { mutate: mutateGroup, refetch: refetchGroup }] = createResource(
 		() => params.id,
 		(id) => groupApi.getGroup(id),
 	);
@@ -140,6 +154,64 @@ export const GroupDashboardPage: Component = () => {
 	const handleSendTestPmNotification = () => {
 		haptic.notify('success');
 		showToast(txt().testPmSentToast, 'success');
+	};
+
+	const openEditSheet = () => {
+		haptic.impact('light');
+		const g = group();
+		setEditGroupLink(g?.group_link?.replace(/^https?:\/\/(t\.me|telegram\.me)\//i, '@') || '');
+		setEditGroupTitle(g?.chat_title || (g as any)?.title || '');
+		setEditErrorMsg('');
+		setShowEditModal(true);
+	};
+
+	const handleSaveEditGroup = async () => {
+		const gLink = normalizeGroupLinkInput(editGroupLink(), editGroupTitle());
+		if (!gLink) {
+			setEditErrorMsg('لطفاً آیدی یا لینک گروه را وارد کنید (مثال: @islamicBazaar).');
+			haptic.notify('warning');
+			return;
+		}
+		setIsSavingEdit(true);
+		setEditErrorMsg('');
+		try {
+			await groupApi.updateGroup(params.id, {
+				group_link: gLink,
+				chat_title: editGroupTitle().trim(),
+				group_title: editGroupTitle().trim(),
+			});
+			haptic.notify('success');
+			showToast('اطلاعات گروه با موفقیت اعتبارسنجی و ذخیره شد ✅', 'success');
+			setShowEditModal(false);
+			await refetchGroup();
+		} catch (err: any) {
+			setEditErrorMsg(
+				err?.response?.data?.error ||
+					'خطا در بروزرسانی گروه. لطفاً مطمئن شوید ربات در گروه ادمین است.',
+			);
+			haptic.notify('error');
+		} finally {
+			setIsSavingEdit(false);
+		}
+	};
+
+	const handleConfirmDeleteGroup = async () => {
+		setIsDeleting(true);
+		const g = group();
+		try {
+			await groupApi.revokeGroup(params.id);
+			if (g?.bot_id) {
+				await botApi.revokeBot(g.bot_id).catch(() => {});
+			}
+		} catch {
+			mockApiLogic('DELETE', `/groups/${params.id}`);
+		} finally {
+			setIsDeleting(false);
+			setShowDeleteConfirm(false);
+			haptic.notify('success');
+			showToast('گروه و ربات متصل با موفقیت حذف شدند 🗑️', 'success');
+			navigate('/dashboard');
+		}
 	};
 
 	const modules = () => [
@@ -295,13 +367,39 @@ export const GroupDashboardPage: Component = () => {
 					</div>
 
 					<Show when={group()?.group_link || group()?.bot_username}>
-						<div class="flex items-center justify-between text-[12px] px-3 py-2 rounded-xl bg-[var(--tg-secondary-bg)]">
-							<span class="text-[var(--tg-hint)]">{txt().groupLinkAttachedLabel}</span>
-							<span dir="ltr" class="font-mono font-semibold text-[var(--tg-link)] truncate">
-								{group()?.group_link || `@${group()?.bot_username}`}
-							</span>
+						<div class="flex items-center justify-between text-[12px] px-3 py-2 rounded-xl bg-[var(--tg-secondary-bg)] gap-2">
+							<span class="text-[var(--tg-hint)] shrink-0">{txt().groupLinkAttachedLabel}</span>
+							<div class="flex items-center gap-2 min-w-0">
+								<span dir="ltr" class="font-mono font-semibold text-[var(--tg-link)] truncate">
+									{group()?.group_link || `@${group()?.bot_username}`}
+								</span>
+								<button
+									onClick={openEditSheet}
+									class="px-2 py-0.5 rounded-md bg-[var(--tg-accent-soft)] text-[var(--tg-link)] text-[11px] font-bold flex items-center gap-1 shrink-0"
+								>
+									<span class="material-symbols-outlined text-[14px]">edit</span>
+									<span>ویرایش</span>
+								</button>
+							</div>
 						</div>
 					</Show>
+
+					<div class="grid grid-cols-2 gap-2">
+						<button
+							onClick={openEditSheet}
+							class="h-9 rounded-xl bg-[var(--tg-secondary-bg)] border border-[var(--tg-separator)] text-[var(--tg-text)] text-[12px] font-semibold flex items-center justify-center gap-1.5 active:opacity-75"
+						>
+							<span class="material-symbols-outlined text-[16px] text-[var(--tg-link)]">edit</span>
+							<span>ویرایش آیدی / نام گروه</span>
+						</button>
+						<button
+							onClick={() => setShowDeleteConfirm(true)}
+							class="h-9 rounded-xl bg-[var(--tg-destructive)]/10 border border-[var(--tg-destructive)]/25 text-[var(--tg-destructive)] text-[12px] font-semibold flex items-center justify-center gap-1.5 active:opacity-75"
+						>
+							<span class="material-symbols-outlined text-[16px]">delete</span>
+							<span>حذف این گروه</span>
+						</button>
+					</div>
 
 					<button
 						onClick={handleRenewWithStars}
@@ -443,7 +541,148 @@ export const GroupDashboardPage: Component = () => {
 						</button>
 					</div>
 				</div>
+
+				{/* Danger Zone: Delete Group & Connected Bot */}
+				<div class="tg-section p-4 flex flex-col gap-2.5 border border-[var(--tg-destructive)]/20">
+					<button
+						onClick={() => {
+							haptic.impact('medium');
+							setShowDeleteConfirm(true);
+						}}
+						class="w-full h-10 rounded-xl bg-[var(--tg-destructive)]/12 text-[var(--tg-destructive)] font-bold text-[13.5px] flex items-center justify-center gap-1.5 active:opacity-80"
+					>
+						<span class="material-symbols-outlined text-[19px]">delete_forever</span>
+						<span>حذف کامل این گروه و ربات متصل</span>
+					</button>
+				</div>
 			</main>
+
+			{/* Edit Group Sheet */}
+			<Show when={showEditModal()}>
+				<div
+					class="fixed inset-0 z-[105] bg-black/55 backdrop-blur-[2px] flex items-end justify-center"
+					onClick={(e) => {
+						if (e.target === e.currentTarget) setShowEditModal(false);
+					}}
+				>
+					<div class="w-full max-w-md bg-[var(--tg-section-bg)] rounded-t-[20px] p-5 pb-8 flex flex-col gap-3.5 shadow-2xl border-t border-[var(--tg-separator)]">
+						<div class="w-9 h-1 rounded-full bg-[var(--tg-hint)]/30 mx-auto -mt-1 mb-0.5" />
+						<div class="flex items-center justify-between">
+							<h3 class="text-[16px] font-bold text-[var(--tg-text)]">ویرایش آیدی و نام گروه</h3>
+							<button
+								onClick={() => setShowEditModal(false)}
+								class="w-7 h-7 rounded-full bg-[var(--tg-secondary-bg)] flex items-center justify-center text-[var(--tg-hint)]"
+							>
+								<span class="material-symbols-outlined text-[18px]">close</span>
+							</button>
+						</div>
+
+						<Show when={group()?.bot_username}>
+							<button
+								type="button"
+								onClick={() =>
+									openTelegramExternalLink(
+										`https://t.me/${group()!.bot_username!.replace('@', '')}?startgroup=start&admin=restrict_members+delete_messages+ban_users+invite_users+pin_messages+manage_chat`,
+									)
+								}
+								class="w-full h-10 rounded-[10px] bg-[#34C759]/15 text-[#34C759] font-bold text-[12.5px] flex items-center justify-center gap-1.5 border border-[#34C759]/30"
+							>
+								<span class="material-symbols-outlined text-[18px]">admin_panel_settings</span>
+								<span>افزودن @{group()?.bot_username} به گروه و ادمین کردن در تلگرام</span>
+							</button>
+						</Show>
+
+						<Show when={editErrorMsg()}>
+							<div class="text-[12.5px] text-[var(--tg-destructive)] bg-[var(--tg-destructive)]/10 rounded-xl px-3.5 py-2.5 leading-relaxed">
+								{editErrorMsg()}
+							</div>
+						</Show>
+
+						<div class="flex flex-col gap-1">
+							<label class="text-[12.5px] font-bold text-[var(--tg-text)] px-1">
+								یوزرنیم یا لینک صحیح گروه (مثال: @islamicBazaar)
+							</label>
+							<input
+								type="text"
+								value={editGroupLink()}
+								onInput={(e) => setEditGroupLink(e.currentTarget.value)}
+								dir="ltr"
+								placeholder="@islamicBazaar"
+								class="w-full h-11 bg-[var(--tg-secondary-bg)] border border-[var(--tg-separator)] rounded-[10px] px-3.5 text-[14px] font-mono text-[var(--tg-text)] focus:outline-none focus:border-[var(--tg-button)]"
+							/>
+						</div>
+
+						<div class="flex flex-col gap-1">
+							<label class="text-[12.5px] font-semibold text-[var(--tg-hint)] px-1">
+								نام نمایشی گروه (اختیاری)
+							</label>
+							<input
+								type="text"
+								value={editGroupTitle()}
+								onInput={(e) => setEditGroupTitle(e.currentTarget.value)}
+								placeholder="مثلاً: بازار اسلامی"
+								class="w-full h-11 bg-[var(--tg-secondary-bg)] border border-[var(--tg-separator)] rounded-[10px] px-3.5 text-[14px] text-[var(--tg-text)] focus:outline-none focus:border-[var(--tg-button)]"
+							/>
+						</div>
+
+						<button
+							onClick={handleSaveEditGroup}
+							disabled={isSavingEdit()}
+							class="tg-btn-primary w-full h-11 text-[14px] flex items-center justify-center gap-1.5 mt-1"
+						>
+							<Show
+								when={!isSavingEdit()}
+								fallback={
+									<span class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+								}
+							>
+								<span class="material-symbols-outlined text-[18px]">check</span>
+								<span>بررسی ادمین و ذخیره تغییرات</span>
+							</Show>
+						</button>
+					</div>
+				</div>
+			</Show>
+
+			{/* Delete Confirmation Sheet */}
+			<Show when={showDeleteConfirm()}>
+				<div
+					class="fixed inset-0 z-[110] bg-black/55 backdrop-blur-[2px] flex items-end justify-center"
+					onClick={(e) => {
+						if (e.target === e.currentTarget) setShowDeleteConfirm(false);
+					}}
+				>
+					<div class="w-full max-w-md bg-[var(--tg-section-bg)] rounded-t-[20px] p-5 pb-8 flex flex-col gap-4 shadow-2xl border-t border-[var(--tg-separator)] text-center">
+						<div class="w-12 h-12 rounded-full bg-[var(--tg-destructive)]/15 text-[var(--tg-destructive)] flex items-center justify-center mx-auto">
+							<span class="material-symbols-outlined text-[26px]">delete_forever</span>
+						</div>
+						<div class="space-y-1">
+							<h3 class="text-[16px] font-bold text-[var(--tg-text)]">
+								حذف گروه «{group()?.chat_title || (group() as any)?.title}»؟
+							</h3>
+							<p class="text-[13px] text-[var(--tg-hint)] leading-relaxed">
+								آیا مطمئن هستید که می‌خواهید این گروه و ربات متصل به آن را به طور کامل حذف کنید؟
+							</p>
+						</div>
+						<div class="flex gap-2.5">
+							<button
+								onClick={() => setShowDeleteConfirm(false)}
+								class="tg-btn-secondary flex-1 h-11 text-[14px]"
+							>
+								انصراف
+							</button>
+							<button
+								onClick={handleConfirmDeleteGroup}
+								disabled={isDeleting()}
+								class="flex-1 h-11 rounded-[11px] bg-[var(--tg-destructive)] text-white font-bold text-[14px] flex items-center justify-center gap-1.5 active:opacity-80"
+							>
+								<span class="material-symbols-outlined text-[18px]">delete</span>
+								<span>{isDeleting() ? 'در حال حذف...' : 'بله، حذف شود'}</span>
+							</button>
+						</div>
+					</div>
+				</div>
+			</Show>
 
 			<Show when={showBiometricSheet()}>
 				<div

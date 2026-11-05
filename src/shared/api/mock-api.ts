@@ -127,6 +127,35 @@ export const mockApiLogic = (method: string = 'GET', url: string = '', _data: an
 				return newBot;
 			}
 
+			if (methodUp === 'PUT') {
+				const botId = path.split('/bots/')[1]?.split('/')[0];
+				win.__mockBots = win.__mockBots.map((b: any) =>
+					b.id === botId
+						? {
+								...b,
+								group_link: _data?.group_link || b.group_link,
+								group_title: _data?.group_title || b.group_title,
+								updated_at: new Date().toISOString(),
+							}
+						: b,
+				);
+				win.__mockGroups = win.__mockGroups.map((g: any) =>
+					g.bot_id === botId
+						? {
+								...g,
+								group_link: _data?.group_link || g.group_link,
+								chat_title: _data?.group_title || g.chat_title,
+								updated_at: new Date().toISOString(),
+							}
+						: g,
+				);
+				try {
+					localStorage.setItem('mg_persisted_bots', JSON.stringify(win.__mockBots));
+					localStorage.setItem('mg_persisted_groups', JSON.stringify(win.__mockGroups));
+				} catch {}
+				return win.__mockBots.find((b: any) => b.id === botId) || {};
+			}
+
 			if (methodUp === 'DELETE') {
 				const botId = path.split('/bots/')[1]?.split('/')[0];
 				win.__mockBots = win.__mockBots.filter((b: any) => b.id !== botId);
@@ -195,8 +224,7 @@ export const mockApiLogic = (method: string = 'GET', url: string = '', _data: an
 				}
 				if (path.includes('/bots/') && path.includes('/groups')) {
 					const botId = path.split('/bots/')[1]?.split('/')[0];
-					const filtered = win.__mockGroups.filter((g: any) => g.bot_id === botId);
-					return filtered.length > 0 ? filtered : [win.__mockGroups[0]].filter(Boolean);
+					return win.__mockGroups.filter((g: any) => g.bot_id === botId);
 				}
 				const groupId = path.split('/groups/')[1]?.split('/')[0];
 				const found = win.__mockGroups.find((g: any) => g.id === groupId);
@@ -220,9 +248,35 @@ export const mockApiLogic = (method: string = 'GET', url: string = '', _data: an
 				};
 			}
 
+			if (methodUp === 'PUT') {
+				const groupId = path.split('/groups/')[1]?.split('/')[0];
+				win.__mockGroups = win.__mockGroups.map((g: any) =>
+					g.id === groupId
+						? {
+								...g,
+								group_link: _data?.group_link || g.group_link,
+								chat_title: _data?.chat_title || _data?.group_title || g.chat_title,
+								updated_at: new Date().toISOString(),
+							}
+						: g,
+				);
+				try {
+					localStorage.setItem('mg_persisted_groups', JSON.stringify(win.__mockGroups));
+				} catch {}
+				return win.__mockGroups.find((g: any) => g.id === groupId) || {};
+			}
+
 			if (methodUp === 'DELETE') {
 				const groupId = path.split('/groups/')[1]?.split('/')[0];
+				const target = win.__mockGroups.find((g: any) => g.id === groupId);
 				win.__mockGroups = win.__mockGroups.filter((g: any) => g.id !== groupId);
+				if (target?.bot_id) {
+					win.__mockBots = win.__mockBots.filter((b: any) => b.id !== target.bot_id);
+				}
+				try {
+					localStorage.setItem('mg_persisted_bots', JSON.stringify(win.__mockBots));
+					localStorage.setItem('mg_persisted_groups', JSON.stringify(win.__mockGroups));
+				} catch {}
 				return { status: 'revoked' };
 			}
 		}
