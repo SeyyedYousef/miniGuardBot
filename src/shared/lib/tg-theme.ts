@@ -76,14 +76,27 @@ export const detectTelegramScheme = (): TgColorScheme => {
 		} catch {}
 
 		const tgWebApp = (window as any).Telegram?.WebApp;
-		if (
-			tgWebApp?.initData &&
-			(tgWebApp?.colorScheme === 'light' || tgWebApp?.colorScheme === 'dark')
-		) {
+		const tgBg = tgWebApp?.themeParams?.bg_color || tgWebApp?.themeParams?.bgColor;
+		if (tgBg) {
+			return isHexDark(tgBg) ? 'dark' : 'light';
+		}
+		if (tgWebApp?.colorScheme === 'light' || tgWebApp?.colorScheme === 'dark') {
 			return tgWebApp.colorScheme;
 		}
+
+		if (typeof document !== 'undefined') {
+			const attr = document.documentElement.getAttribute('data-theme');
+			if (attr === 'light' || attr === 'dark') return attr;
+		}
+
+		if (
+			typeof window !== 'undefined' &&
+			window.matchMedia?.('(prefers-color-scheme: light)').matches
+		) {
+			return 'light';
+		}
 	} catch {}
-	return 'dark';
+	return 'light';
 };
 
 const [colorScheme, setColorSchemeSignal] = createSignal<TgColorScheme>(detectTelegramScheme());

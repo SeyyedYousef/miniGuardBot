@@ -8,71 +8,38 @@ export const mockApiLogic = (method: string = 'GET', url: string = '', _data: an
 			let storedBots: any[] | null = null;
 			try {
 				const raw = localStorage.getItem('mg_persisted_bots');
-				if (raw) storedBots = JSON.parse(raw);
+				if (raw) {
+					const parsed = JSON.parse(raw);
+					if (Array.isArray(parsed)) {
+						storedBots = parsed.filter(
+							(b) =>
+								b &&
+								b.id !== 'mock-bot-1' &&
+								b.id !== 'mock-bot-2' &&
+								b.id !== 'b1' &&
+								b.bot_username?.toLowerCase() !== 'miniguardbot' &&
+								b.bot_username !== 'devs_miniguard_bot',
+						);
+					}
+				}
 			} catch {}
-			win.__mockBots = storedBots || [
-				{
-					id: 'mock-bot-1',
-					owner_user_id: 99281932,
-					bot_username: 'devs_miniguard_bot',
-					bot_name: 'Telegram Devs Guard',
-					bot_id: 719283746,
-					group_id: 'demo-group',
-					group_link: 'https://t.me/TelegramDevelopers',
-					group_title: 'Telegram Developers Community',
-					status: 'active',
-					managed_groups_count: 1,
-					subscription_status: 'trial',
-					created_at: new Date().toISOString(),
-					updated_at: new Date().toISOString(),
-				},
-			];
+			win.__mockBots = storedBots || [];
 		}
 
 		if (!win.__mockGroups) {
 			let storedGroups: any[] | null = null;
 			try {
 				const raw = localStorage.getItem('mg_persisted_groups');
-				if (raw) storedGroups = JSON.parse(raw);
+				if (raw) {
+					const parsed = JSON.parse(raw);
+					if (Array.isArray(parsed)) {
+						storedGroups = parsed.filter(
+							(g) => g && g.id !== 'demo-group' && g.id !== 'ton-builders-group' && g.id !== 'g1',
+						);
+					}
+				}
 			} catch {}
-			win.__mockGroups = storedGroups || [
-				{
-					id: 'demo-group',
-					bot_id: 'mock-bot-1',
-					bot_username: 'devs_miniguard_bot',
-					group_link: 'https://t.me/TelegramDevelopers',
-					chat_id: -100192837465,
-					telegram_chat_id: -100192837465,
-					chat_title: 'Telegram Developers Community',
-					chat_type: 'supergroup',
-					members_count: 14820,
-					photo_url: '',
-					subscription_status: 'trial',
-					trial_ends_at: new Date(Date.now() + 24 * 3600 * 1000).toISOString(),
-					paid_until: '',
-					is_active: true,
-					created_at: new Date().toISOString(),
-					updated_at: new Date().toISOString(),
-				},
-				{
-					id: 'ton-builders-group',
-					bot_id: 'mock-bot-2',
-					bot_username: 'ton_builders_guard_bot',
-					group_link: 'https://t.me/TONBuildersChat',
-					chat_id: -100182736455,
-					telegram_chat_id: -100182736455,
-					chat_title: 'TON Mini Apps Builders',
-					chat_type: 'supergroup',
-					members_count: 6390,
-					photo_url: '',
-					subscription_status: 'paid',
-					trial_ends_at: new Date(Date.now() - 5 * 86400 * 1000).toISOString(),
-					paid_until: new Date(Date.now() + 30 * 86400 * 1000).toISOString(),
-					is_active: true,
-					created_at: new Date().toISOString(),
-					updated_at: new Date().toISOString(),
-				},
-			];
+			win.__mockGroups = storedGroups || [];
 		}
 
 		// /bots endpoints

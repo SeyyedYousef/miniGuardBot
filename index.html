@@ -1,19 +1,115 @@
 <!DOCTYPE html>
-<html lang="fa" dir="rtl" class="dark">
+<html lang="fa" dir="rtl">
   <head>
     <meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover"/>
-    <meta name="theme-color" content="#0b0f17"/>
-    <meta name="description" content="MiniGuard (@MiniGuardBot) — پلتفرم مدیریت پیشرفته گروه تلگرام. هر گروه، یک بات مدیریت گروه اختصاصی."/>
+    <meta name="theme-color" content="#f2f2f7" id="meta-theme-color"/>
+    <meta name="description" content="MiniGuard (@MiniGuardBot) — پلتفرم نسل جدید مدیریت گروه تلگرام. هر گروه، یک ربات مدیریت گروه اختصاصی با نام و برند خودتان."/>
     <meta name="robots" content="index, follow"/>
-    <meta property="og:title" content="MiniGuard — پلتفرم مدیریت پیشرفته گروه تلگرام"/>
-    <meta property="og:description" content="ساخت بات اختصاصی مدیریت گروه تلگرام (۱ بات = ۱ گروه) با ۱۰۰+ قابلیت ضداسپم، فایروال باینری، دستورات چت و پنل شیشه‌ای."/>
+    <meta property="og:title" content="MiniGuard™ — هر گروه، یک ربات مدیریت گروه اختصاصی"/>
+    <meta property="og:description" content="ساخت ربات اختصاصی مدیریت گروه تلگرام (۱ بات = ۱ گروه) با ۱۰۰+ قابلیت ضداسپم، فایروال باینری، دستورات چت و پنل شیشه‌ای."/>
     <meta property="og:type" content="website"/>
-    <title>MiniGuard — پلتفرم مدیریت پیشرفته گروه تلگرام</title>
+    <title>MiniGuard™ — پلتفرم مدیریت پیشرفته گروه تلگرام</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg"/>
     <link rel="manifest" href="/manifest.webmanifest"/>
 
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script>
+      window.__SPLASH_START__ = Date.now();
+      (function () {
+        function isHexDark(hex) {
+          if (!hex || typeof hex !== 'string' || hex.charAt(0) !== '#') return false;
+          var clean = hex.slice(1);
+          if (clean.length === 3) {
+            clean = clean.charAt(0) + clean.charAt(0) + clean.charAt(1) + clean.charAt(1) + clean.charAt(2) + clean.charAt(2);
+          }
+          var num = parseInt(clean, 16);
+          if (isNaN(num)) return false;
+          var r = (num >> 16) & 255;
+          var g = (num >> 8) & 255;
+          var b = num & 255;
+          return (0.299 * r + 0.587 * g + 0.114 * b) / 255 < 0.5;
+        }
+
+        var scheme = 'light';
+        try {
+          var saved = localStorage.getItem('tg_theme_override');
+          if (saved === 'light' || saved === 'dark') {
+            scheme = saved;
+          } else {
+            var tg = window.Telegram && window.Telegram.WebApp;
+            var bg = tg && tg.themeParams && (tg.themeParams.bg_color || tg.themeParams.bgColor);
+            if (bg) {
+              scheme = isHexDark(bg) ? 'dark' : 'light';
+            } else if (tg && (tg.colorScheme === 'light' || tg.colorScheme === 'dark')) {
+              scheme = tg.colorScheme;
+            } else if (window.location.hash && window.location.hash.indexOf('tgWebAppThemeParams') !== -1) {
+              var hashParams = new URLSearchParams(window.location.hash.slice(1));
+              var tpRaw = hashParams.get('tgWebAppThemeParams');
+              if (tpRaw) {
+                var tp = JSON.parse(tpRaw);
+                if (tp && tp.bg_color) {
+                  scheme = isHexDark(tp.bg_color) ? 'dark' : 'light';
+                }
+              }
+            } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+              scheme = 'dark';
+            }
+          }
+        } catch (e) {}
+
+        var root = document.documentElement;
+        root.classList.remove('light', 'dark');
+        root.classList.add(scheme);
+        root.setAttribute('data-theme', scheme);
+        var metaTheme = document.getElementById('meta-theme-color');
+        if (metaTheme) {
+          metaTheme.setAttribute('content', scheme === 'dark' ? '#000000' : '#f2f2f7');
+        }
+      })();
+    </script>
+
     <style>
+      :root, html.light {
+        --splash-bg-start: #f8fafc;
+        --splash-bg-mid: #eff4fb;
+        --splash-bg-end: #e6eef8;
+        --splash-glow: rgba(0, 122, 255, 0.11);
+        --splash-card-bg: rgba(255, 255, 255, 0.9);
+        --splash-card-border: rgba(0, 122, 255, 0.14);
+        --splash-card-shadow: 0 24px 60px rgba(15, 23, 42, 0.08), 0 4px 16px rgba(0, 122, 255, 0.06);
+        --splash-title: #0f172a;
+        --splash-subtitle: #475569;
+        --splash-pill-bg: rgba(0, 122, 255, 0.08);
+        --splash-pill-border: rgba(0, 122, 255, 0.18);
+        --splash-pill-text: #0066dc;
+        --splash-chip-bg: #f1f5f9;
+        --splash-chip-text: #334155;
+        --splash-track: rgba(15, 23, 42, 0.08);
+        --splash-status: #64748b;
+        --splash-ring: rgba(0, 122, 255, 0.16);
+      }
+
+      html.dark {
+        --splash-bg-start: #0f172a;
+        --splash-bg-mid: #070b14;
+        --splash-bg-end: #000000;
+        --splash-glow: rgba(10, 132, 255, 0.22);
+        --splash-card-bg: rgba(28, 28, 32, 0.86);
+        --splash-card-border: rgba(255, 255, 255, 0.1);
+        --splash-card-shadow: 0 24px 60px rgba(0, 0, 0, 0.55), 0 0 40px rgba(10, 132, 255, 0.12);
+        --splash-title: #ffffff;
+        --splash-subtitle: #94a3b8;
+        --splash-pill-bg: rgba(56, 189, 248, 0.12);
+        --splash-pill-border: rgba(56, 189, 248, 0.26);
+        --splash-pill-text: #38bdf8;
+        --splash-chip-bg: rgba(255, 255, 255, 0.06);
+        --splash-chip-text: #cbd5e1;
+        --splash-track: rgba(255, 255, 255, 0.1);
+        --splash-status: #94a3b8;
+        --splash-ring: rgba(56, 189, 248, 0.22);
+      }
+
       #app-splash {
         position: fixed;
         inset: 0;
@@ -22,111 +118,230 @@
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        background: radial-gradient(circle at 50% 35%, #131c2e 0%, #090d16 70%, #05070c 100%);
-        color: #ffffff;
-        font-family: -apple-system, BlinkMacSystemFont, "Vazirmatn", "Segoe UI", Roboto, sans-serif;
+        padding: 20px;
+        background:
+          radial-gradient(circle at 50% 22%, var(--splash-glow) 0%, transparent 55%),
+          linear-gradient(180deg, var(--splash-bg-start) 0%, var(--splash-bg-mid) 55%, var(--splash-bg-end) 100%);
+        color: var(--splash-title);
+        font-family: -apple-system, BlinkMacSystemFont, "Vazirmatn", "Manrope", "Segoe UI", Roboto, sans-serif;
         opacity: 1;
-        transition: opacity 0.32s cubic-bezier(0.22, 1, 0.36, 1), transform 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+        transition: opacity 0.34s cubic-bezier(0.22, 1, 0.36, 1), transform 0.34s cubic-bezier(0.22, 1, 0.36, 1);
         user-select: none;
         -webkit-user-select: none;
       }
+
       #app-splash.splash-hidden {
         opacity: 0;
-        transform: scale(1.03);
+        transform: scale(1.025);
         pointer-events: none;
       }
+
       .splash-card {
+        position: relative;
         display: flex;
         flex-direction: column;
         align-items: center;
         text-align: center;
-        padding: 28px 24px;
-        max-width: 300px;
+        padding: 32px 24px 26px;
+        max-width: 340px;
         width: 100%;
+        border-radius: 28px;
+        background: var(--splash-card-bg);
+        border: 1px solid var(--splash-card-border);
+        box-shadow: var(--splash-card-shadow);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
       }
-      .splash-logo-wrap {
+
+      .splash-emblem-stage {
         position: relative;
-        width: 78px;
-        height: 78px;
-        border-radius: 24px;
-        background: linear-gradient(135deg, #0088cc 0%, #0a84ff 50%, #38bdf8 100%);
+        width: 96px;
+        height: 96px;
         display: flex;
         align-items: center;
         justify-content: center;
-        box-shadow: 0 12px 36px rgba(10, 132, 255, 0.38), inset 0 1px 1px rgba(255, 255, 255, 0.35);
         margin-bottom: 18px;
-        animation: splashPulse 2s ease-in-out infinite;
       }
+
+      .splash-orbit-ring {
+        position: absolute;
+        inset: 0;
+        border-radius: 30px;
+        border: 1.5px dashed var(--splash-ring);
+        animation: splashSpin 14s linear infinite;
+      }
+
+      .splash-orbit-pulse {
+        position: absolute;
+        inset: 6px;
+        border-radius: 26px;
+        background: radial-gradient(circle, rgba(0, 122, 255, 0.18) 0%, transparent 70%);
+        animation: splashBreath 2.4s ease-in-out infinite;
+      }
+
+      .splash-logo-wrap {
+        position: relative;
+        width: 72px;
+        height: 72px;
+        border-radius: 22px;
+        background: linear-gradient(135deg, #007aff 0%, #0099ff 55%, #00c6ff 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 12px 28px rgba(0, 122, 255, 0.34), inset 0 1.5px 1px rgba(255, 255, 255, 0.42);
+      }
+
       .splash-logo-wrap svg {
-        width: 42px;
-        height: 42px;
+        width: 38px;
+        height: 38px;
         fill: #ffffff;
-        filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.2));
+        filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.18));
       }
-      .splash-title {
-        font-size: 22px;
-        font-weight: 800;
-        letter-spacing: -0.02em;
-        color: #ffffff;
-        margin: 0 0 4px 0;
-      }
-      .splash-badge {
-        font-size: 12px;
-        font-family: monospace;
-        color: #38bdf8;
-        background: rgba(56, 189, 248, 0.12);
-        border: 1px solid rgba(56, 189, 248, 0.25);
-        padding: 3px 10px;
+
+      .splash-live-dot {
+        position: absolute;
+        bottom: 6px;
+        right: 6px;
+        width: 16px;
+        height: 16px;
         border-radius: 999px;
-        margin-bottom: 22px;
+        background: #34c759;
+        border: 2.5px solid var(--splash-bg-start);
+        box-shadow: 0 2px 8px rgba(52, 199, 89, 0.5);
+      }
+
+      .splash-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 11.5px;
+        font-weight: 700;
+        color: var(--splash-pill-text);
+        background: var(--splash-pill-bg);
+        border: 1px solid var(--splash-pill-border);
+        padding: 4px 12px;
+        border-radius: 999px;
+        margin-bottom: 10px;
         direction: ltr;
       }
+
+      .splash-title {
+        font-size: 23px;
+        font-weight: 800;
+        letter-spacing: -0.025em;
+        color: var(--splash-title);
+        margin: 0 0 6px 0;
+        line-height: 1.2;
+      }
+
+      .splash-subtitle {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--splash-subtitle);
+        margin: 0 0 18px 0;
+        line-height: 1.55;
+      }
+
+      .splash-chips {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 6px;
+        margin-bottom: 20px;
+      }
+
+      .splash-chip {
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--splash-chip-text);
+        background: var(--splash-chip-bg);
+        padding: 4px 9px;
+        border-radius: 8px;
+      }
+
+      .splash-progress-box {
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .splash-progress-meta {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-size: 11.5px;
+        font-weight: 600;
+        color: var(--splash-status);
+      }
+
+      .splash-percent {
+        font-family: monospace;
+        font-weight: 700;
+        color: var(--splash-pill-text);
+      }
+
       .splash-progress-track {
-        width: 190px;
-        height: 5px;
-        background: rgba(255, 255, 255, 0.1);
+        width: 100%;
+        height: 6px;
+        background: var(--splash-track);
         border-radius: 999px;
         overflow: hidden;
-        margin-bottom: 11px;
       }
+
       .splash-progress-fill {
         height: 100%;
-        width: 18%;
-        background: linear-gradient(90deg, #0a84ff 0%, #38bdf8 100%);
+        width: 20%;
+        background: linear-gradient(90deg, #007aff 0%, #00c6ff 100%);
         border-radius: 999px;
-        transition: width 0.24s cubic-bezier(0.22, 1, 0.36, 1);
+        transition: width 0.25s cubic-bezier(0.22, 1, 0.36, 1);
       }
-      .splash-status {
-        font-size: 12px;
-        color: rgba(255, 255, 255, 0.65);
-        min-height: 18px;
+
+      @keyframes splashSpin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
       }
-      @keyframes splashPulse {
-        0%, 100% { transform: translateY(0) scale(1); }
-        50% { transform: translateY(-3px) scale(1.03); }
+
+      @keyframes splashBreath {
+        0%, 100% { transform: scale(0.96); opacity: 0.7; }
+        50% { transform: scale(1.06); opacity: 1; }
       }
     </style>
-
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <script>
-      window.__SPLASH_START__ = Date.now();
-    </script>
   </head>
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>
     <div id="app-splash" role="status" aria-label="Loading MiniGuard">
       <div class="splash-card">
-        <div class="splash-logo-wrap">
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-2 16l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"/>
-          </svg>
+        <div class="splash-emblem-stage">
+          <div class="splash-orbit-ring"></div>
+          <div class="splash-orbit-pulse"></div>
+          <div class="splash-logo-wrap">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-2 16l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"/>
+            </svg>
+          </div>
+          <div class="splash-live-dot"></div>
         </div>
-        <h1 class="splash-title">MiniGuard</h1>
-        <div class="splash-badge">@MiniGuardBot • Core v2.6</div>
-        <div class="splash-progress-track">
-          <div id="splash-progress-bar" class="splash-progress-fill"></div>
+
+        <div class="splash-badge">@MiniGuardBot • Binary Shield 8.x</div>
+        <h1 class="splash-title">MiniGuard™</h1>
+        <p class="splash-subtitle">هر گروه، یک ربات مدیریت گروه اختصاصی با نام و برند خودتان</p>
+
+        <div class="splash-chips">
+          <span class="splash-chip">🛡️ فایروال باینری</span>
+          <span class="splash-chip">🤖 ۱ ربات = ۱ گروه</span>
+          <span class="splash-chip">🌐 ۱۷ زبان زنده</span>
         </div>
-        <div id="splash-status-text" class="splash-status">در حال بارگذاری هسته امنیتی و رابط کاربری...</div>
+
+        <div class="splash-progress-box">
+          <div class="splash-progress-meta">
+            <span id="splash-status-text">در حال آماده‌سازی رابط گرافیکی...</span>
+            <span id="splash-percent-text" class="splash-percent">20%</span>
+          </div>
+          <div class="splash-progress-track">
+            <div id="splash-progress-bar" class="splash-progress-fill"></div>
+          </div>
+        </div>
       </div>
     </div>
     <div id="root"></div>

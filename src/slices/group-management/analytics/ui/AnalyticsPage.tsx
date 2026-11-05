@@ -83,10 +83,10 @@ export const AnalyticsPage: Component = () => {
 							dir="ltr"
 						>
 							<span class="text-[11px] text-[var(--tg-hint)]">
-								{selectedMetric()?.date.slice(5)}
+								{(selectedMetric()?.date || '').slice(5)}
 							</span>
 							<span class="text-[12px] font-mono font-bold text-[var(--tg-text)]">
-								{selectedMetric()?.value.toLocaleString()}
+								{Number(selectedMetric()?.value ?? 0).toLocaleString()}
 							</span>
 						</div>
 					</Show>

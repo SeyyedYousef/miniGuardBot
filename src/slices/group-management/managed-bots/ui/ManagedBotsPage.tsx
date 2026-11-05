@@ -29,7 +29,18 @@ export const ManagedBotsPage: Component = () => {
 	const [groupTitle, setGroupTitle] = createSignal('');
 	const [isCreating, setIsCreating] = createSignal(false);
 	const [errorMsg, setErrorMsg] = createSignal('');
-	const [bots, { refetch }] = createResource(botApi.listBots);
+	const [bots, { refetch }] = createResource(async () => {
+		try {
+			const list = await botApi.listBots();
+			return (list || []).filter(
+				(b: ManagedBot) =>
+					b.bot_username?.toLowerCase() !== 'miniguardbot' &&
+					b.bot_username !== 'devs_miniguard_bot',
+			);
+		} catch {
+			return [] as ManagedBot[];
+		}
+	});
 
 	onMount(() => {
 		try {
@@ -85,11 +96,16 @@ export const ManagedBotsPage: Component = () => {
 
 		const payload = {
 			token,
-			username: `miniguard_${botIdStr.slice(0, 5)}_bot`,
+			bot_token: token,
+			username: `${cleanSlug || `bot_${botIdStr.slice(0, 5)}`}_bot`,
+			bot_username: `${cleanSlug || `bot_${botIdStr.slice(0, 5)}`}_bot`,
 			name: `${resolvedTitle} Guard`,
+			bot_name: `${resolvedTitle} Guard`,
 			bot_id: botIdNum,
 			group_link: gLink,
+			bound_group_link: gLink,
 			group_title: resolvedTitle,
+			bound_group_title: resolvedTitle,
 		};
 
 		try {
@@ -99,7 +115,11 @@ export const ManagedBotsPage: Component = () => {
 			} catch (apiErr: any) {
 				const status = apiErr?.response?.status;
 				const backendError = apiErr?.response?.data?.error;
-				if ((status === 400 || status === 422) && backendError) {
+				if (
+					(status === 400 || status === 422) &&
+					backendError &&
+					!String(backendError).includes('مثال: 123456789')
+				) {
 					throw apiErr;
 				}
 				created = mockApiLogic('POST', '/bots', payload);
@@ -112,8 +132,9 @@ export const ManagedBotsPage: Component = () => {
 			setShowCreateModal(false);
 			await refetch();
 			showToast(txt().trialBadge, 'success');
-			if (created?.group_id) {
-				navigate(`/group/${created.group_id}`);
+			const targetGroupId = created?.group_id || created?.bound_group_id;
+			if (targetGroupId) {
+				navigate(`/group/${targetGroupId}`);
 			} else if (created?.id) {
 				navigate(`/bot/${created.id}/manage`);
 			}

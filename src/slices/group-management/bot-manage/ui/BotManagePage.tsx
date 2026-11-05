@@ -127,32 +127,38 @@ export const BotManagePage: Component = () => {
 							}
 						>
 							<For each={groups() || []}>
-								{(group: ManagedGroup) => (
-									<button
-										onClick={() => {
-											haptic.impact('light');
-											navigate(`/group/${group.id}`);
-										}}
-										class="tg-cell w-full text-start"
-									>
-										<div class="w-10 h-10 rounded-full bg-[var(--tg-button)] flex items-center justify-center text-white font-bold text-[15px] shrink-0">
-											{group.chat_title?.trim()?.[0]?.toUpperCase() || 'G'}
-										</div>
-
-										<div class="flex-1 min-w-0">
-											<div class="text-[15px] font-semibold text-[var(--tg-text)] truncate">
-												{group.chat_title}
+								{(group: ManagedGroup) => {
+									const title = group.chat_title || (group as any).title || 'Group';
+									const count = Number(
+										group.members_count ?? (group as any).member_count ?? 1,
+									).toLocaleString();
+									return (
+										<button
+											onClick={() => {
+												haptic.impact('light');
+												navigate(`/group/${group.id}`);
+											}}
+											class="tg-cell w-full text-start"
+										>
+											<div class="w-10 h-10 rounded-full bg-[var(--tg-button)] flex items-center justify-center text-white font-bold text-[15px] shrink-0">
+												{title.trim()?.[0]?.toUpperCase() || 'G'}
 											</div>
-											<div class="text-[12px] text-[var(--tg-hint)] font-mono">
-												{group.members_count.toLocaleString()} {txt().membersLabel}
-											</div>
-										</div>
 
-										<span class="material-symbols-outlined text-[var(--tg-hint)] text-[20px] rtl:rotate-180">
-											chevron_right
-										</span>
-									</button>
-								)}
+											<div class="flex-1 min-w-0">
+												<div class="text-[15px] font-semibold text-[var(--tg-text)] truncate">
+													{title}
+												</div>
+												<div class="text-[12px] text-[var(--tg-hint)] font-mono">
+													{count} {txt().membersLabel}
+												</div>
+											</div>
+
+											<span class="material-symbols-outlined text-[var(--tg-hint)] text-[20px] rtl:rotate-180">
+												chevron_right
+											</span>
+										</button>
+									);
+								}}
 							</For>
 						</Show>
 					</div>

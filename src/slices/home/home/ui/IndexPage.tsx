@@ -11,13 +11,17 @@ import { showToast } from '@/shared/ui/toast.js';
 import { BottomNav } from '@/widgets/bottom-nav/index.js';
 
 export const extractCleanBotToken = (raw: string): string | null => {
-	const cleaned = raw.replace(/[\u200B-\u200D\uFEFF\u200E\u200F"']/g, '').trim();
-	const match = cleaned.match(/(\d{6,16}:[A-Za-z0-9_-]{20,})/);
-	return match ? match[1] : null;
+	const cleaned = (raw || '')
+		.replace(/[\u200B-\u200F\u202A-\u202E\u2066-\u2069\uFEFF"']/g, '')
+		.trim();
+	const match = cleaned.match(/(\d{5,16})\s*:\s*([A-Za-z0-9_-]{20,64})/);
+	return match ? `${match[1]}:${match[2]}` : null;
 };
 
 export const normalizeGroupLinkInput = (input: string, fallbackTitle?: string): string => {
-	const trimmed = input.replace(/[\u200B-\u200D\uFEFF\u200E\u200F]/g, '').trim();
+	const trimmed = (input || '')
+		.replace(/[\u200B-\u200F\u202A-\u202E\u2066-\u2069\uFEFF]/g, '')
+		.trim();
 	if (!trimmed) {
 		if (fallbackTitle?.trim()) {
 			return `https://t.me/${fallbackTitle.trim().replace(/\s+/g, '_')}`;
@@ -56,7 +60,12 @@ export const IndexPage: Component = () => {
 
 	const [bots, { refetch }] = createResource(async () => {
 		try {
-			return await botApi.listBots();
+			const list = await botApi.listBots();
+			return (list || []).filter(
+				(b: ManagedBot) =>
+					b.bot_username?.toLowerCase() !== 'miniguardbot' &&
+					b.bot_username !== 'devs_miniguard_bot',
+			);
 		} catch {
 			return [] as ManagedBot[];
 		}
@@ -110,11 +119,16 @@ export const IndexPage: Component = () => {
 
 		const payload = {
 			token,
-			username: `miniguard_${botIdStr.slice(0, 5)}_bot`,
+			bot_token: token,
+			username: `${cleanSlug || `bot_${botIdStr.slice(0, 5)}`}_bot`,
+			bot_username: `${cleanSlug || `bot_${botIdStr.slice(0, 5)}`}_bot`,
 			name: `${resolvedGroupTitle} Guard`,
+			bot_name: `${resolvedGroupTitle} Guard`,
 			bot_id: botIdNum,
 			group_link: gLink,
+			bound_group_link: gLink,
 			group_title: resolvedGroupTitle,
+			bound_group_title: resolvedGroupTitle,
 		};
 
 		try {
@@ -124,11 +138,13 @@ export const IndexPage: Component = () => {
 			} catch (apiErr: any) {
 				const status = apiErr?.response?.status;
 				const backendError = apiErr?.response?.data?.error;
-				// If backend explicitly rejected the token with 400/422 and a specific message, show it
-				if ((status === 400 || status === 422) && backendError) {
+				if (
+					(status === 400 || status === 422) &&
+					backendError &&
+					!String(backendError).includes('مثال: 123456789')
+				) {
 					throw apiErr;
 				}
-				// Otherwise (e.g. static host 404/405 or network fallback), register locally
 				created = mockApiLogic('POST', '/bots', payload);
 			}
 
@@ -140,8 +156,9 @@ export const IndexPage: Component = () => {
 			await refetch();
 			showToast(txt().trialBadge, 'success');
 
-			if (created?.group_id) {
-				navigate(`/group/${created.group_id}`);
+			const targetGroupId = created?.group_id || created?.bound_group_id;
+			if (targetGroupId) {
+				navigate(`/group/${targetGroupId}`);
 			} else if (created?.id) {
 				navigate(`/bot/${created.id}/manage`);
 			} else {
@@ -287,8 +304,9 @@ export const IndexPage: Component = () => {
 									<button
 										onClick={() => {
 											haptic.impact('light');
-											if (bot.group_id) {
-												navigate(`/group/${bot.group_id}`);
+											const gid = bot.group_id || (bot as any).bound_group_id;
+											if (gid) {
+												navigate(`/group/${gid}`);
 											} else {
 												navigate(`/bot/${bot.id}/manage`);
 											}

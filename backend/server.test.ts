@@ -171,9 +171,7 @@ describe('MiniGuard Backend Bot Engine & Firewall Execution', () => {
 	it('extracts valid BotFather tokens even when pasted with extra message text or zero-width chars', () => {
 		const rawPasted =
 			'Done! Congratulations on your new bot. Use this token to access the HTTP API:\n\u200B8463728029:AAFxFFyIQ1gYh16MP1uYk6_xFDcWiMQuEfY\nKeep your token secure!';
-		expect(extractCleanBotToken(rawPasted)).toBe(
-			'8463728029:AAFxFFyIQ1gYh16MP1uYk6_xFDcWiMQuEfY',
-		);
+		expect(extractCleanBotToken(rawPasted)).toBe('8463728029:AAFxFFyIQ1gYh16MP1uYk6_xFDcWiMQuEfY');
 		expect(extractCleanBotToken('invalid-token')).toBeNull();
 	});
 

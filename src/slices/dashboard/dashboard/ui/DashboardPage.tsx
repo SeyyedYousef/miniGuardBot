@@ -21,7 +21,12 @@ export const DashboardPage: Component = () => {
 
 	const [groups, { refetch }] = createResource(async () => {
 		try {
-			const bots = await botApi.listBots();
+			const allBots = await botApi.listBots();
+			const bots = (allBots || []).filter(
+				(b: ManagedBot) =>
+					b.bot_username?.toLowerCase() !== 'miniguardbot' &&
+					b.bot_username !== 'devs_miniguard_bot',
+			);
 			const mockGroups = ((window as any).__mockGroups || []) as ManagedGroup[];
 			if (!bots || bots.length === 0) return mockGroups;
 			const lists = await Promise.all(
@@ -30,7 +35,7 @@ export const DashboardPage: Component = () => {
 			const combined = [...lists.flat(), ...mockGroups];
 			const seen = new Set<string>();
 			return combined.filter((g) => {
-				if (seen.has(g.id)) return false;
+				if (!g?.id || g.id === 'g1' || seen.has(g.id)) return false;
 				seen.add(g.id);
 				return true;
 			});
@@ -154,7 +159,12 @@ export const DashboardPage: Component = () => {
 							<div class="tg-section">
 								<For each={groups()}>
 									{(group) => {
-										const isTrial = () => group.subscription_status === 'trial';
+										const isTrial = () => (group.subscription_status || 'trial') === 'trial';
+										const title = () => group.chat_title || (group as any).title || 'Group';
+										const count = () =>
+											Number(
+												group.members_count ?? (group as any).member_count ?? 1,
+											).toLocaleString();
 										return (
 											<button
 												onClick={() => {
@@ -164,16 +174,16 @@ export const DashboardPage: Component = () => {
 												class="tg-cell w-full text-start"
 											>
 												<div class="w-11 h-11 rounded-full bg-[var(--tg-button)] flex items-center justify-center text-white font-bold text-[16px] shrink-0">
-													{group.chat_title?.trim()?.[0]?.toUpperCase() || 'G'}
+													{title().trim()?.[0]?.toUpperCase() || 'G'}
 												</div>
 
 												<div class="flex-1 min-w-0">
 													<div class="text-[15px] font-semibold text-[var(--tg-text)] truncate">
-														{group.chat_title}
+														{title()}
 													</div>
 													<div class="text-[12px] text-[var(--tg-hint)] flex items-center gap-1.5 mt-0.5 flex-wrap">
 														<span class="font-mono tabular-nums">
-															{group.members_count.toLocaleString()} {txt().membersLabel}
+															{count()} {txt().membersLabel}
 														</span>
 														<span>•</span>
 														<span

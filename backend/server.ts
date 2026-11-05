@@ -29,6 +29,7 @@ import path from 'node:path';
 try {
 	dns.setDefaultResultOrder('ipv4first');
 } catch {}
+
 import {
 	evaluateCallbackQueryRbac,
 	parseGroupCommand,
@@ -118,10 +119,14 @@ export interface GroupRuntimeSettings {
 
 export interface StoredManagedBot {
 	id: string;
+	owner_user_id?: number;
 	bot_username: string;
 	bot_name: string;
 	bot_id: number;
 	encrypted_token?: string;
+	group_id?: string;
+	group_link?: string;
+	group_title?: string;
 	bound_group_link?: string;
 	bound_group_id?: string;
 	bound_group_title?: string;
@@ -138,11 +143,18 @@ export interface StoredManagedBot {
 export interface StoredManagedGroup {
 	id: string;
 	bot_id: string;
+	bot_username?: string;
+	chat_id: number;
 	telegram_chat_id: number;
+	chat_title: string;
 	title: string;
+	chat_type: 'group' | 'supergroup' | 'channel';
 	group_link?: string;
+	members_count: number;
 	member_count: number;
 	is_active: boolean;
+	subscription_status: 'trial' | 'paid' | 'expired' | 'cancelled';
+	trial_ends_at: string;
 	subscription_expires_at: string;
 	trial_used: boolean;
 	created_at: string;
@@ -315,56 +327,77 @@ let ownerSystemSettings = {
 const DATA_DIR = path.resolve(process.cwd(), 'data');
 const STORE_FILE = path.join(DATA_DIR, 'store.json');
 
-function loadPersistentStore() {
-	// Seed default master bot if store is empty
-	const defaultBot: StoredManagedBot = {
-		id: 'b1',
-		bot_username: 'MiniGuardBot',
-		bot_name: 'MiniGuard Official Bot',
-		bot_id: 8463728029,
-		bound_group_link: 'https://t.me/miniguard_demo',
-		bound_group_id: 'g1',
-		bound_group_title: 'گروه رسمی MiniGuard',
-		status: 'active',
-		managed_groups_count: 1,
-		subscription_status: 'trial',
-		trial_expires_at: new Date(Date.now() + 24 * 3600 * 1000).toISOString(),
-		monthly_stars_price: 100,
-		created_at: new Date().toISOString(),
-		updated_at: new Date().toISOString(),
+function normalizeStoredGroup(g: any): StoredManagedGroup {
+	const chatId = Number(g.chat_id ?? g.telegram_chat_id ?? -1002000000001);
+	const title = String(g.chat_title || g.title || 'Supergroup');
+	const membersCount = Number(g.members_count ?? g.member_count ?? 1);
+	const expiresAt = String(
+		g.subscription_expires_at ||
+			g.trial_ends_at ||
+			new Date(Date.now() + 24 * 3600 * 1000).toISOString(),
+	);
+	return {
+		...g,
+		id: String(g.id),
+		bot_id: String(g.bot_id || ''),
+		chat_id: chatId,
+		telegram_chat_id: chatId,
+		chat_title: title,
+		title,
+		chat_type: g.chat_type || 'supergroup',
+		members_count: membersCount,
+		member_count: membersCount,
+		is_active: g.is_active !== false,
+		subscription_status: g.subscription_status || 'trial',
+		trial_ends_at: expiresAt,
+		subscription_expires_at: expiresAt,
+		trial_used: Boolean(g.trial_used ?? true),
+		created_at: g.created_at || new Date().toISOString(),
+		updated_at: g.updated_at || new Date().toISOString(),
 	};
-	const defaultManagedGroup: StoredManagedGroup = {
-		id: 'g1',
-		bot_id: 'b1',
-		telegram_chat_id: -1002000000001,
-		title: 'گروه رسمی MiniGuard',
-		group_link: 'https://t.me/miniguard_demo',
-		member_count: 1450,
-		is_active: true,
-		subscription_expires_at: new Date(Date.now() + 24 * 3600 * 1000).toISOString(),
-		trial_used: true,
-		created_at: new Date().toISOString(),
-		updated_at: new Date().toISOString(),
-	};
+}
 
-	managedBotsStore.set(defaultBot.id, defaultBot);
-	managedGroupsStore.set(defaultManagedGroup.id, defaultManagedGroup);
-	groupsStore.set(-1002000000001, defaultGroupConfig(-1002000000001, defaultManagedGroup.title));
+function normalizeStoredBot(b: any): StoredManagedBot {
+	const gid = b.group_id || b.bound_group_id || '';
+	const glink = b.group_link || b.bound_group_link || '';
+	const gtitle = b.group_title || b.bound_group_title || '';
+	return {
+		...b,
+		id: String(b.id),
+		owner_user_id: b.owner_user_id || OWNER_TELEGRAM_ID,
+		group_id: gid,
+		bound_group_id: gid,
+		group_link: glink,
+		bound_group_link: glink,
+		group_title: gtitle,
+		bound_group_title: gtitle,
+	};
+}
+
+function loadPersistentStore() {
+	managedBotsStore.clear();
+	managedGroupsStore.clear();
 
 	if (!fs.existsSync(STORE_FILE)) return;
 	try {
 		const raw = fs.readFileSync(STORE_FILE, 'utf8');
 		const parsed = JSON.parse(raw);
 		if (Array.isArray(parsed.bots)) {
-			managedBotsStore.clear();
 			for (const b of parsed.bots) {
-				if (b?.id) managedBotsStore.set(b.id, b);
+				if (
+					b?.id &&
+					b.id !== 'b1' &&
+					String(b.bot_username || '').toLowerCase() !== 'miniguardbot'
+				) {
+					managedBotsStore.set(b.id, normalizeStoredBot(b));
+				}
 			}
 		}
 		if (Array.isArray(parsed.managedGroups)) {
-			managedGroupsStore.clear();
 			for (const g of parsed.managedGroups) {
-				if (g?.id) managedGroupsStore.set(g.id, g);
+				if (g?.id && g.id !== 'g1' && g.bot_id !== 'b1') {
+					managedGroupsStore.set(g.id, normalizeStoredGroup(g));
+				}
 			}
 		}
 		if (Array.isArray(parsed.runtimeGroups)) {
@@ -466,9 +499,11 @@ function syncRuntimeFromFullSettings(s: GroupRuntimeSettings) {
 
 // ─── Clean Bot Token Extractor ──────────────────────────────────────────────
 export function extractCleanBotToken(rawInput: string): string | null {
-	const cleaned = (rawInput || '').replace(/[\u200B-\u200D\uFEFF\u200E\u200F]/g, '').trim();
-	const match = cleaned.match(/(\d{6,16}:[A-Za-z0-9_-]{20,})/);
-	return match ? match[1] : null;
+	const cleaned = (rawInput || '')
+		.replace(/[\u200B-\u200F\u202A-\u202E\u2066-\u2069\uFEFF"']/g, '')
+		.trim();
+	const match = cleaned.match(/(\d{5,16})\s*:\s*([A-Za-z0-9_-]{20,64})/);
+	return match ? `${match[1]}:${match[2]}` : null;
 }
 
 // ─── Telegram Bot API 8.x Client (IPv4-Forced for Docker Reliability) ───────
@@ -1314,15 +1349,16 @@ export function createServer() {
 
 		// ─── 3. Bots CRUD Endpoints (Fixes Bot Token Registration!) ──────────────
 		if (cleanPath === '/bots' && method === 'GET') {
-			const list = Array.from(managedBotsStore.values()).map(
-				({ encrypted_token: _, ...rest }) => rest,
-			);
+			const list = Array.from(managedBotsStore.values())
+				.filter((b) => b.id !== 'b1' && b.bot_username?.toLowerCase() !== 'miniguardbot')
+				.map(({ encrypted_token: _, ...rest }) => normalizeStoredBot(rest));
 			return sendJson(200, list);
 		}
 
 		if (cleanPath === '/bots' && method === 'POST') {
 			const body = await parseJsonBody();
-			const cleanToken = extractCleanBotToken(body?.bot_token || '');
+			const rawTokenInput = body?.token || body?.bot_token || body?.botToken || '';
+			const cleanToken = extractCleanBotToken(rawTokenInput);
 			if (!cleanToken) {
 				return sendJson(400, {
 					error:
@@ -1332,8 +1368,10 @@ export function createServer() {
 
 			// Verify token against live Telegram API (getMe)
 			let verifiedBotId = Number(cleanToken.split(':')[0]) || Math.floor(Math.random() * 900000000);
-			let verifiedUsername = (body?.bot_username || '').replace('@', '').trim();
-			let verifiedFirstName = (body?.bot_name || '').trim();
+			let verifiedUsername = String(body?.bot_username || body?.username || '')
+				.replace('@', '')
+				.trim();
+			let verifiedFirstName = String(body?.bot_name || body?.name || '').trim();
 
 			if (process.env.NODE_ENV !== 'test' && !process.env.VITEST) {
 				const meRes = await callTelegramApi<{
@@ -1369,14 +1407,21 @@ export function createServer() {
 			}
 
 			// Normalize group link & title
-			const rawGroupLink = (body?.bound_group_link || '').trim() || 'https://t.me/my_group';
+			const rawGroupLink =
+				String(body?.group_link || body?.bound_group_link || body?.groupLink || '').trim() ||
+				'https://t.me/my_group';
 			const cleanSlug =
 				rawGroupLink
 					.replace(/^https?:\/\/(t\.me|telegram\.me)\//i, '')
 					.replace(/^@/, '')
 					.replace(/^\+/, 'private_')
 					.split(/[/?#]/)[0] || `group_${Date.now().toString().slice(-4)}`;
-			const groupTitle = (body?.bound_group_title || '').trim() || `گروه ${cleanSlug}`;
+			const groupTitle =
+				String(body?.group_title || body?.bound_group_title || body?.groupTitle || '').trim() ||
+				`گروه ${cleanSlug}`;
+			const normalizedLink = rawGroupLink.startsWith('http')
+				? rawGroupLink
+				: `https://t.me/${cleanSlug}`;
 
 			// Check if this bot_id is already registered; if so, update it cleanly
 			let existingBot: StoredManagedBot | undefined;
@@ -1390,18 +1435,21 @@ export function createServer() {
 			const nowIso = new Date().toISOString();
 			const trialExpiryIso = new Date(Date.now() + 24 * 3600 * 1000).toISOString();
 			const botRecordId = existingBot?.id || `b_${Date.now()}`;
-			const groupRecordId = existingBot?.bound_group_id || `g_${Date.now()}`;
+			const groupRecordId =
+				existingBot?.group_id || existingBot?.bound_group_id || `g_${Date.now()}`;
 			const chatIdNumeric = -(1002000000000 + (verifiedBotId % 900000000));
 
 			const newBot: StoredManagedBot = {
 				id: botRecordId,
+				owner_user_id: OWNER_TELEGRAM_ID,
 				bot_username: verifiedUsername,
 				bot_name: verifiedFirstName,
 				bot_id: verifiedBotId,
 				encrypted_token: encryptBotToken(cleanToken, ENCRYPTION_MASTER_KEY),
-				bound_group_link: rawGroupLink.startsWith('http')
-					? rawGroupLink
-					: `https://t.me/${cleanSlug}`,
+				group_id: groupRecordId,
+				group_link: normalizedLink,
+				group_title: groupTitle,
+				bound_group_link: normalizedLink,
 				bound_group_id: groupRecordId,
 				bound_group_title: groupTitle,
 				status: 'active',
@@ -1416,11 +1464,18 @@ export function createServer() {
 			const newGroup: StoredManagedGroup = {
 				id: groupRecordId,
 				bot_id: botRecordId,
+				bot_username: verifiedUsername,
+				chat_id: chatIdNumeric,
 				telegram_chat_id: chatIdNumeric,
+				chat_title: groupTitle,
 				title: groupTitle,
-				group_link: newBot.bound_group_link,
+				chat_type: 'supergroup',
+				group_link: normalizedLink,
+				members_count: 1,
 				member_count: 1,
 				is_active: true,
+				subscription_status: 'trial',
+				trial_ends_at: trialExpiryIso,
 				subscription_expires_at: trialExpiryIso,
 				trial_used: true,
 				created_at: nowIso,
@@ -1448,7 +1503,7 @@ export function createServer() {
 				const bot = managedBotsStore.get(botId);
 				if (!bot) return sendJson(404, { error: 'ربات یافت نشد' });
 				const { encrypted_token: _, ...publicBot } = bot;
-				return sendJson(200, publicBot);
+				return sendJson(200, normalizeStoredBot(publicBot));
 			}
 
 			if (parts.length === 2 && method === 'DELETE') {
@@ -1460,8 +1515,9 @@ export function createServer() {
 							activeChildPollingTokens.delete(plain);
 						} catch {}
 					}
-					if (bot.bound_group_id) {
-						managedGroupsStore.delete(bot.bound_group_id);
+					const gid = bot.group_id || bot.bound_group_id;
+					if (gid) {
+						managedGroupsStore.delete(gid);
 					}
 					managedBotsStore.delete(botId);
 					savePersistentStore();
@@ -1472,7 +1528,9 @@ export function createServer() {
 			}
 
 			if (parts.length === 3 && parts[2] === 'groups' && method === 'GET') {
-				const groups = Array.from(managedGroupsStore.values()).filter((g) => g.bot_id === botId);
+				const groups = Array.from(managedGroupsStore.values())
+					.filter((g) => g.bot_id === botId)
+					.map((g) => normalizeStoredGroup(g));
 				return sendJson(200, groups);
 			}
 		}
@@ -1486,26 +1544,36 @@ export function createServer() {
 			if (parts.length === 2) {
 				if (method === 'GET') {
 					const mg = managedGroupsStore.get(groupIdStr);
-					if (mg) return sendJson(200, mg);
+					if (mg) return sendJson(200, normalizeStoredGroup(mg));
 					const rt = findRuntimeGroupByIdOrChatId(groupIdStr);
-					return sendJson(200, {
-						id: groupIdStr,
-						bot_id: 'b1',
-						telegram_chat_id: rt.chatId,
-						title: rt.chatTitle,
-						member_count: 120,
-						is_active: true,
-						subscription_expires_at: new Date(Date.now() + 24 * 3600 * 1000).toISOString(),
-						trial_used: true,
-						created_at: new Date().toISOString(),
-						updated_at: new Date().toISOString(),
-					});
+					const exp = new Date(Date.now() + 24 * 3600 * 1000).toISOString();
+					return sendJson(
+						200,
+						normalizeStoredGroup({
+							id: groupIdStr,
+							bot_id: '',
+							chat_id: rt.chatId,
+							telegram_chat_id: rt.chatId,
+							chat_title: rt.chatTitle,
+							title: rt.chatTitle,
+							chat_type: 'supergroup',
+							members_count: 1,
+							member_count: 1,
+							is_active: true,
+							subscription_status: 'trial',
+							trial_ends_at: exp,
+							subscription_expires_at: exp,
+							trial_used: true,
+							created_at: new Date().toISOString(),
+							updated_at: new Date().toISOString(),
+						}),
+					);
 				}
 
 				if (method === 'DELETE') {
 					managedGroupsStore.delete(groupIdStr);
 					for (const [bid, bot] of managedBotsStore.entries()) {
-						if (bot.bound_group_id === groupIdStr) {
+						if (bot.bound_group_id === groupIdStr || bot.group_id === groupIdStr) {
 							managedBotsStore.delete(bid);
 						}
 					}
@@ -1593,10 +1661,34 @@ export function createServer() {
 						banned_users: 1,
 					};
 				});
+				const totalMsgs = dailyStats.reduce((a, b) => a + b.total_messages, 0);
+				const totalSpam = dailyStats.reduce((a, b) => a + b.spam_blocked, 0);
+				const totalNew = dailyStats.reduce((a, b) => a + b.new_members, 0);
+				const totalLeft = dailyStats.reduce((a, b) => a + b.left_members, 0);
 				return sendJson(200, {
 					group_id: groupIdStr,
-					total_messages_7d: dailyStats.reduce((a, b) => a + b.total_messages, 0),
-					total_spam_blocked_7d: dailyStats.reduce((a, b) => a + b.spam_blocked, 0),
+					summary: {
+						total_members: 120 + totalNew,
+						members_change: totalNew - totalLeft,
+						total_messages: totalMsgs,
+						messages_change_pct: 14.2,
+						spam_blocked: totalSpam,
+						new_members: totalNew,
+						members_left: totalLeft,
+						active_users: 94,
+						join_requests_approved: 48,
+						join_requests_declined: 11,
+					},
+					growth: dailyStats.map((d, i) => ({
+						date: d.date,
+						value: 100 + i * 12 + d.new_members,
+					})),
+					activity: dailyStats.map((d) => ({
+						date: d.date,
+						value: d.total_messages,
+					})),
+					total_messages_7d: totalMsgs,
+					total_spam_blocked_7d: totalSpam,
 					active_members_rate: 79,
 					security_score: 98,
 					daily_stats: dailyStats,

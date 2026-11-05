@@ -90,20 +90,22 @@ export function buildChildBotStartMessage(params: {
 		return {
 			text:
 				`🛡️ سلام <b>${userFirstName}</b> عزیز!\n` +
-				`من ربات اختصاصی حفاظت و مدیریت هوشمند گروه <b>«${groupTitle}»</b> هستم.\n\n` +
-				`⚡ <b>این ربات توسط @MiniGuardBot ساخته شده است!</b>\n` +
-				`اگر شما هم می‌خواهید یک ربات مدیریت گروه اختصاصی با نام و پروفایل دلخواه و بیش از ۱۰۰ قابلیت پیشرفته ضداسپم، فایروال، محدودیت محتوا و آمار روزانه داشته باشید، همین حالا آن را رایگان امتحان کنید 👇`,
+				`من <b>نگهبان و مدیر هوشمند اختصاصی</b> گروه <b>«${groupTitle}»</b> هستم.\n\n` +
+				`<blockquote>✨ <b>هر گروه، یک ربات مدیریت گروه اختصاصی!</b>\n` +
+				`این ربات با معماری ایزوله <b>@MiniGuardBot</b> ساخته شده است؛ بدون تبلیغات مزاحم، بدون کندی و با فایروال باینری ۱۲ میلی‌ثانیه‌ای.</blockquote>\n\n` +
+				`🔥 <b>شما هم گروه تلگرامی دارید؟</b>\n` +
+				`در کمتر از ۳۰ ثانیه، یک ربات مدیریت گروه با <b>نام، عکس پروفایل و برند اختصاصی خودتان</b> بسازید و از بیش از ۱۰۰ قابلیت ضداسپم، قفل هوشمند، ساعات سکوت و پنل شیشه‌ای لذت ببرید (۲۴ ساعت تست رایگان) 👇`,
 			reply_markup: {
 				inline_keyboard: [
 					[
 						{
-							text: '🚀 ساخت ربات مدیریت گروه با @MiniGuardBot',
+							text: '🚀 ساخت ربات اختصاصی گروه شما با @MiniGuardBot',
 							url: 'https://t.me/MiniGuardBot',
 						},
 					],
 					[
 						{
-							text: `👥 ورود به گروه ${groupTitle}`,
+							text: `👥 ورود به گروه «${groupTitle}»`,
 							url: groupLink.startsWith('http')
 								? groupLink
 								: `https://t.me/${groupLink.replace('@', '')}`,
@@ -118,9 +120,11 @@ export function buildChildBotStartMessage(params: {
 		return {
 			text:
 				`🛡️ Привет, <b>${userFirstName}</b>!\n` +
-				`Я персональный бот защиты и управления группой <b>«${groupTitle}»</b>.\n\n` +
-				`⚡ <b>Этот бот создан на платформе @MiniGuardBot!</b>\n` +
-				`Хотите создать собственного бота управления группой со своим именем и более чем 100 функциями антиспама, файрвола и аналитики? Попробуйте 24 часа бесплатно прямо сейчас 👇`,
+				`Я персональный ИИ-страж и администратор группы <b>«${groupTitle}»</b>.\n\n` +
+				`<blockquote>✨ <b>Каждой группе — свой персональный бот управления!</b>\n` +
+				`Этот бот работает на изолированном ядре <b>@MiniGuardBot</b> без рекламы и задержек.</blockquote>\n\n` +
+				`🔥 <b>У вас тоже есть группа в Telegram?</b>\n` +
+				`Создайте собственного бота управления со своим именем, аватаркой и 100+ функциями файрвола за 30 секунд (24 часа бесплатно) 👇`,
 			reply_markup: {
 				inline_keyboard: [
 					[
@@ -131,7 +135,7 @@ export function buildChildBotStartMessage(params: {
 					],
 					[
 						{
-							text: `👥 Перейти в группу ${groupTitle}`,
+							text: `👥 Перейти в группу «${groupTitle}»`,
 							url: groupLink.startsWith('http')
 								? groupLink
 								: `https://t.me/${groupLink.replace('@', '')}`,
@@ -146,9 +150,11 @@ export function buildChildBotStartMessage(params: {
 		return {
 			text:
 				`🛡️ 您好，<b>${userFirstName}</b>！\n` +
-				`我是 <b>「${groupTitle}」</b> 群组的专属智能管理机器人。\n\n` +
-				`⚡ <b>本机器人由 @MiniGuardBot 强力驱动！</b>\n` +
-				`如果您也想为自己的群组打造一款自定义名称、拥有 100+ 项反垃圾、防火墙与自动统计功能的专属管理机器人，立即免费试用 24 小时 👇`,
+				`我是 <b>「${groupTitle}」</b> 群组的专属安全与管理机器人。\n\n` +
+				`<blockquote>✨ <b>每个群组，专属一个独立管理机器人！</b>\n` +
+				`本机器人由 <b>@MiniGuardBot</b> 独享内核驱动，零广告、毫秒级反垃圾拦截。</blockquote>\n\n` +
+				`🔥 <b>您也拥有 Telegram 群组吗？</b>\n` +
+				`只需 30 秒即可打造冠以您自己品牌名称的专属群管机器人，解锁 100+ 项防火墙与自动管理功能（24 小时免费试用）👇`,
 			reply_markup: {
 				inline_keyboard: [
 					[
@@ -159,7 +165,7 @@ export function buildChildBotStartMessage(params: {
 					],
 					[
 						{
-							text: `👥 加入群组 ${groupTitle}`,
+							text: `👥 加入群组「${groupTitle}」`,
 							url: groupLink.startsWith('http')
 								? groupLink
 								: `https://t.me/${groupLink.replace('@', '')}`,
@@ -174,19 +180,21 @@ export function buildChildBotStartMessage(params: {
 		text:
 			`🛡️ Hello <b>${userFirstName}</b>!\n` +
 			`I am the dedicated security & management bot for <b>"${groupTitle}"</b>.\n\n` +
-			`⚡ <b>This bot was created by @MiniGuardBot!</b>\n` +
-			`Want your own custom-named group management bot with 100+ advanced anti-spam, firewall, and automation features? Try it free for 24 hours right now 👇`,
+			`<blockquote>✨ <b>Every Group, Its Own Dedicated Management Bot!</b>\n` +
+			`Powered by the isolated <b>@MiniGuardBot</b> binary firewall engine — zero ads, zero lag, sub-12ms protection.</blockquote>\n\n` +
+			`🔥 <b>Own a Telegram group?</b>\n` +
+			`Build your own custom-named, custom-branded group management bot with 100+ anti-spam, firewall, and analytics features in 30 seconds (24h Free Trial) 👇`,
 		reply_markup: {
 			inline_keyboard: [
 				[
 					{
-						text: '🚀 Create Your Group Bot via @MiniGuardBot',
+						text: '🚀 Create Your Own Group Bot via @MiniGuardBot',
 						url: 'https://t.me/MiniGuardBot',
 					},
 				],
 				[
 					{
-						text: `👥 Join ${groupTitle}`,
+						text: `👥 Join "${groupTitle}"`,
 						url: groupLink.startsWith('http')
 							? groupLink
 							: `https://t.me/${groupLink.replace('@', '')}`,
@@ -202,17 +210,26 @@ export function buildMasterBotStartMessage(lang: BotLang, miniAppUrl: string) {
 	if (lang === 'fa') {
 		return {
 			text:
-				`🛡️ <b>به MiniGuard (@MiniGuardBot) خوش آمدید!</b>\n` +
-				`<i>هر گروه، یک ربات مدیریت گروه پیشرفته و اختصاصی</i>\n\n` +
-				`✨ <b>چرا MiniGuard بی‌نظیر است؟</b>\n` +
-				`• ساخت ربات اختصاصی با نام و توکن خودتان برای هر گروه\n` +
-				`• بیش از ۱۰۰ قابلیت فایروال، ضدلینک، ضدفلود، ساعات سکوت و عضویت اجباری\n` +
-				`• گزارش آمار روزانه گروه و هشدار فوری خطرات در پیوی شما\n` +
-				`• <b>۲۴ ساعت تست کاملاً رایگان</b> و سپس تنها <b>۱۰۰ استارز (⭐) ماهانه</b>!\n\n` +
-				`همین حالا روی دکمه زیر بزنید و ربات گروه خود را بسازید 👇`,
+				`🛡️ <b>MiniGuard™ | هر گروه، یک ربات مدیریت گروه اختصاصی!</b>\n\n` +
+				`دیگر نیازی نیست به ربات‌های عمومی، شلوغ، کند و پر از تبلیغات التماس کنید!\n` +
+				`در <b>@MiniGuardBot</b>، هر گروه تلگرامی <b>ربات مدیریت گروه اختصاصی خودش</b> را با نام، عکس پروفایل و یوزرنیم دلخواه شما دارد.\n\n` +
+				`<blockquote>⚡ <b>معماری ایزوله ۱ به ۱ (۱ ربات = ۱ گروه)</b>\n` +
+				`ربات شما فقط و فقط برای گروه خودتان کار می‌کند؛ یعنی <b>سرعت واکنش زیر ۱۲ میلی‌ثانیه</b>، <b>بدون هیچ تبلیغ اجباری</b> و <b>پرستیژ ۱۰۰٪ اختصاصی</b> برای اعضای گروه‌تان!</blockquote>\n\n` +
+				`💎 <b>چرا مدیران حرفه‌ای MiniGuard را انتخاب می‌کنند؟</b>\n` +
+				`• 🤖 <b>برندینگ شخصی شما:</b> ربات با نام و لوگوی گروه خودتان در لیست ادمین‌ها می‌درخشد.\n` +
+				`• 🛡️ <b>فایروال باینری نسل ۸:</b> شکار آنی لینک‌ها، کاراکترهای مخفی، جعل نام ادمین، ریپلای کانال‌ها و حملات فلود.\n` +
+				`• 🎛 <b>مینی‌اپ و پنل شیشه‌ای ۱۷ زبانه:</b> بیش از ۱۰۰ قفل محتوا، ساعات سکوت، عضویت اجباری، تایید بیومتریک و ۴۰+ دستور چت (<code>بن</code>، <code>سکوت</code>، <code>پنل</code>).\n` +
+				`• 📊 <b>گزارش هوشمند در پیوی:</b> ارسال آمار شبانه گروه و هشدار فوری خطرات مستقیم به پیوی شما.\n\n` +
+				`🎁 <b>۲۴ ساعت تست کاملاً رایگان</b> (با تمام قابلیت‌ها) و سپس تنها <b>۱۰۰ استارز (⭐) ماهانه</b>!\n\n` +
+				`👇 <b>همین حالا دکمه زیر را بزنید و در ۳۰ ثانیه ربات اختصاصی گروهتان را روشن کنید:</b>`,
 			reply_markup: {
 				inline_keyboard: [
-					[{ text: '🚀 ورود به پلتفرم MiniGuard (ساخت ربات)', web_app: { url: miniAppUrl } }],
+					[
+						{
+							text: '🚀 ساخت ربات اختصاصی و ورود به پلتفرم MiniGuard',
+							web_app: { url: miniAppUrl },
+						},
+					],
 				],
 			},
 		};
@@ -221,14 +238,21 @@ export function buildMasterBotStartMessage(lang: BotLang, miniAppUrl: string) {
 	if (lang === 'ru') {
 		return {
 			text:
-				`🛡️ <b>Добро пожаловать в MiniGuard (@MiniGuardBot)!</b>\n` +
-				`<i>Каждой группе — свой продвинутый персональный бот</i>\n\n` +
-				`• Персональный бот с вашим токеном строго для 1 группы\n` +
-				`• 100+ функций защиты, антиспама, тихих часов и аналитики\n` +
-				`• <b>24 часа бесплатно</b>, далее всего <b>100 Stars (⭐) / месяц</b>!\n\n` +
-				`Откройте Mini App ниже, чтобы создать бота 👇`,
+				`🛡️ <b>MiniGuard™ | Каждой группе — свой персональный бот управления!</b>\n\n` +
+				`Забудьте о медленных общих ботах с навязчивой рекламой!\n` +
+				`В <b>@MiniGuardBot</b> каждая группа получает <b>собственного изолированного бота</b> с вашим именем, логотипом и юзернеймом.\n\n` +
+				`<blockquote>⚡ <b>Архитектура 1 Бот = 1 Группа</b>\n` +
+				`Реакция файрвола быстрее 12 мс, 0% спам-рекламы и 100% престиж вашего сообщества.</blockquote>\n\n` +
+				`💎 <b>Преимущества MiniGuard:</b>\n` +
+				`• 🤖 <b>Ваш личный бренд:</b> бот работает под именем и аватаром вашей группы.\n` +
+				`• 🛡️ <b>Бинарный файрвол Bot API 8.x:</b> мгновенная блокировка ссылок, невидимых символов, клонов админов и рейдов.\n` +
+				`• 🎛 <b>Mini App на 17 языках:</b> 100+ блокировок контента, тихие часы, обязательная подписка и команды в чате.\n` +
+				`• 🎁 <b>24 часа бесплатно</b>, далее всего <b>100 Stars (⭐) / месяц</b>!\n\n` +
+				`👇 <b>Нажмите кнопку ниже и запустите своего бота за 30 секунд:</b>`,
 			reply_markup: {
-				inline_keyboard: [[{ text: '🚀 Открыть панель MiniGuard', web_app: { url: miniAppUrl } }]],
+				inline_keyboard: [
+					[{ text: '🚀 Создать своего бота (MiniGuard App)', web_app: { url: miniAppUrl } }],
+				],
 			},
 		};
 	}
@@ -236,27 +260,41 @@ export function buildMasterBotStartMessage(lang: BotLang, miniAppUrl: string) {
 	if (lang === 'zh') {
 		return {
 			text:
-				`🛡️ <b>欢迎使用 MiniGuard (@MiniGuardBot)！</b>\n` +
-				`<i>每个群组，专属一个高级管理机器人</i>\n\n` +
-				`• 1 个机器人严格绑定 1 个群组，零延迟隔离防护\n` +
-				`• 100+ 项反垃圾、链接过滤、夜间宵禁与私聊日报功能\n` +
-				`• <b>24 小时免费试用</b>，之后仅需 <b>100 Stars (⭐) / 月</b>！`,
+				`🛡️ <b>MiniGuard™ | 每个群组，专属一个独立管理机器人！</b>\n\n` +
+				`告别拥挤、缓慢且充满广告的公共群管机器人！\n` +
+				`在 <b>@MiniGuardBot</b>，每个群组都拥有<b>完全属于自己品牌名称与头像的专属管理机器人</b>。\n\n` +
+				`<blockquote>⚡ <b>1 机器人 = 1 群组 独享隔离架构</b>\n` +
+				`12 毫秒级二进制防火墙拦截、零强制广告、彰显群组尊贵品牌形象。</blockquote>\n\n` +
+				`• 🤖 <b>专属品牌定制：</b> 使用您自己的 BotFather Token 与头像名称。\n` +
+				`• 🛡️ <b>100+ 项安全策略：</b> 防链接、防刷屏、零宽字符检测、夜间宵禁、强制关注与私聊统计日报。\n` +
+				`• 🎁 <b>24 小时全功能免费试用</b>，之后仅需 <b>100 Stars (⭐) / 月</b>！\n\n` +
+				`👇 <b>点击下方按钮，30 秒开启您的专属群管机器人：</b>`,
 			reply_markup: {
-				inline_keyboard: [[{ text: '🚀 打开 MiniGuard 控制台', web_app: { url: miniAppUrl } }]],
+				inline_keyboard: [
+					[{ text: '🚀 打开 MiniGuard 创建专属群管机器人', web_app: { url: miniAppUrl } }],
+				],
 			},
 		};
 	}
 
 	return {
 		text:
-			`🛡️ <b>Welcome to MiniGuard (@MiniGuardBot)!</b>\n` +
-			`<i>Every Group, One Advanced Management Bot</i>\n\n` +
-			`• Dedicated isolated bot with your own token per group\n` +
-			`• 100+ anti-spam, firewall, quiet hours & daily PM analytics features\n` +
-			`• <b>24-Hour Free Trial</b>, then just <b>100 Telegram Stars (⭐) / month</b>!\n\n` +
-			`Tap below to launch MiniGuard and create your group bot 👇`,
+			`🛡️ <b>MiniGuard™ | Every Group, Its Own Dedicated Management Bot!</b>\n\n` +
+			`Stop relying on crowded, slow, ad-filled public bots!\n` +
+			`With <b>@MiniGuardBot</b>, your Telegram group gets <b>its own dedicated, custom-branded management bot</b> with your own name, avatar, and username.\n\n` +
+			`<blockquote>⚡ <b>1 Bot = 1 Group Isolated Architecture</b>\n` +
+			`Sub-12ms binary firewall response, zero forced ads, and 100% exclusive brand prestige for your community.</blockquote>\n\n` +
+			`💎 <b>Why Top Communities Choose MiniGuard:</b>\n` +
+			`• 🤖 <b>Your Own Brand:</b> Runs under your own @BotFather token, name & profile photo.\n` +
+			`• 🛡️ <b>Bot API 8.x Binary Firewall:</b> Instantly blocks spam links, zero-width obfuscation, admin homograph impersonators & flood raids.\n` +
+			`• 🎛 <b>17-Language Mini App & In-Chat Panel:</b> 100+ content locks, quiet hours, mandatory channel join, biometric verification & 40+ chat commands.\n` +
+			`• 📊 <b>Smart PM Reports:</b> Nightly analytics & real-time threat alerts delivered to your PM.\n\n` +
+			`🎁 <b>24-Hour Free Trial</b> (all features unlocked), then just <b>100 Telegram Stars (⭐) / month</b>!\n\n` +
+			`👇 <b>Tap below to launch your dedicated group bot in 30 seconds:</b>`,
 		reply_markup: {
-			inline_keyboard: [[{ text: '🚀 Launch MiniGuard Platform', web_app: { url: miniAppUrl } }]],
+			inline_keyboard: [
+				[{ text: '🚀 Create Your Group Bot (MiniGuard App)', web_app: { url: miniAppUrl } }],
+			],
 		},
 	};
 }

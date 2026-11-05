@@ -226,15 +226,19 @@ export const GroupDashboardPage: Component = () => {
 						</button>
 
 						<div class="w-8 h-8 rounded-full bg-[var(--tg-button)] flex items-center justify-center text-white font-bold text-[14px] shrink-0">
-							{group()?.chat_title?.trim()?.[0]?.toUpperCase() || 'G'}
+							{(group()?.chat_title || (group() as any)?.title || 'G').trim()?.[0]?.toUpperCase() ||
+								'G'}
 						</div>
 
 						<div class="flex flex-col min-w-0">
 							<h1 class="text-[15px] font-bold text-[var(--tg-text)] truncate leading-tight">
-								{group()?.chat_title || txt().groupControlTitle}
+								{group()?.chat_title || (group() as any)?.title || txt().groupControlTitle}
 							</h1>
 							<span class="text-[11px] text-[var(--tg-hint)] font-mono truncate">
-								{(group()?.members_count || 0).toLocaleString()} {txt().membersLabel}
+								{Number(
+									group()?.members_count ?? (group() as any)?.member_count ?? 1,
+								).toLocaleString()}{' '}
+								{txt().membersLabel}
 							</span>
 						</div>
 					</div>
