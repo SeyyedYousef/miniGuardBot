@@ -424,43 +424,85 @@ export const mockApiLogic = (method: string = 'GET', url: string = '', _data: an
 			}
 		}
 
+		// /groups/:id/profile
+		if (path.includes('/groups/') && path.includes('/profile')) {
+			const groupId = path.split('/groups/')[1]?.split('/')[0] || 'demo-group';
+			const found = win.__mockGroups.find((g: any) => g.id === groupId);
+			if (methodUp === 'PUT' || methodUp === 'POST') {
+				if (found && _data?.current_title) {
+					found.chat_title = _data.current_title;
+					found.title = _data.current_title;
+				}
+				return {
+					ok: true,
+					group_id: groupId,
+					current_title: _data?.current_title || found?.chat_title || 'گروه تلگرام',
+					current_description: _data?.current_description || '',
+					members_count: found?.members_count || 1,
+					dynamic_bio: _data?.dynamic_bio || {
+						enabled: false,
+						title_template: _data?.current_title || found?.chat_title || '',
+						bio_template: _data?.current_description || '',
+					},
+				};
+			}
+			return {
+				group_id: groupId,
+				current_title: found?.chat_title || 'گروه تلگرام',
+				current_description: '',
+				members_count: found?.members_count || 1,
+				dynamic_bio: {
+					enabled: false,
+					title_template: found?.chat_title || '',
+					bio_template: '',
+				},
+			};
+		}
+
 		// /groups/:id/analytics
 		if (path.includes('/analytics')) {
-			const growthData = [
-				{ date: '2026-10-27', value: 14120, members_count: 14120 },
-				{ date: '2026-10-28', value: 14250, members_count: 14250 },
-				{ date: '2026-10-29', value: 14390, members_count: 14390 },
-				{ date: '2026-10-30', value: 14510, members_count: 14510 },
-				{ date: '2026-10-31', value: 14630, members_count: 14630 },
-				{ date: '2026-11-01', value: 14740, members_count: 14740 },
-				{ date: '2026-11-02', value: 14820, members_count: 14820 },
-			];
-			const activityData = [
-				{ date: '2026-10-27', value: 2140, messages_count: 2140, active_users: 510 },
-				{ date: '2026-10-28', value: 2490, messages_count: 2490, active_users: 545 },
-				{ date: '2026-10-29', value: 2310, messages_count: 2310, active_users: 530 },
-				{ date: '2026-10-30', value: 2890, messages_count: 2890, active_users: 610 },
-				{ date: '2026-10-31', value: 3120, messages_count: 3120, active_users: 670 },
-				{ date: '2026-11-01', value: 2980, messages_count: 2980, active_users: 640 },
-				{ date: '2026-11-02', value: 3490, messages_count: 3490, active_users: 720 },
-			];
+			const groupId = path.split('/groups/')[1]?.split('/')[0] || 'demo-group';
+			const found = win.__mockGroups.find((g: any) => g.id === groupId);
+			const membersCount = found?.members_count || 1;
+			const today = new Date();
+			const dailyStats = Array.from({ length: 7 }, (_, idx) => {
+				const d = new Date(today.getTime() - (6 - idx) * 86400 * 1000);
+				return {
+					date: d.toISOString().slice(0, 10),
+					total_messages: 0,
+					active_users: 0,
+					new_members: 0,
+					left_members: 0,
+					spam_blocked: 0,
+					warnings_issued: 0,
+					muted_users: 0,
+					banned_users: 0,
+				};
+			});
 			return {
+				group_id: groupId,
+				group_title: found?.chat_title || 'گروه تلگرام',
 				summary: {
-					total_messages: 19420,
-					active_users: 720,
-					new_members: 700,
-					removed_members: 24,
-					deleted_messages: 418,
-					warnings_issued: 52,
-					bans_issued: 11,
-					spam_blocked: 1240,
-					total_members: 14820,
-					members_change: 700,
-					messages_change_pct: 22.4,
-					members_left: 24,
+					total_messages: 0,
+					active_users: 0,
+					new_members: 0,
+					removed_members: 0,
+					deleted_messages: 0,
+					warnings_issued: 0,
+					bans_issued: 0,
+					spam_blocked: 0,
+					total_members: membersCount,
+					members_change: 0,
+					messages_change_pct: 0,
+					members_left: 0,
 				},
-				growth: growthData,
-				activity: activityData,
+				growth: dailyStats.map((d) => ({ date: d.date, value: membersCount })),
+				activity: dailyStats.map((d) => ({ date: d.date, value: 0 })),
+				hourly_messages: Array.from({ length: 24 }, () => 0),
+				daily_stats: dailyStats,
+				top_violated_rules: [],
+				top_users: [],
+				forum_topics: [],
 			};
 		}
 

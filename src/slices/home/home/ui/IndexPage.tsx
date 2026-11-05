@@ -2,7 +2,6 @@ import { useNavigate } from '@solidjs/router';
 import { backButton, viewport } from '@tma.js/sdk-solid';
 import { type Component, createEffect, createResource, createSignal, For, Show } from 'solid-js';
 import { botApi, type ManagedBot, type VerifiedBotTokenInfo } from '@/shared/api/bot-management.js';
-import { mockApiLogic } from '@/shared/api/mock-api.js';
 import { uiText } from '@/shared/i18n/group-ui.js';
 import { isRtl, locale, SUPPORTED_LANGUAGES, setLocale } from '@/shared/i18n/index.js';
 import { haptic } from '@/shared/lib/haptic.js';
@@ -72,15 +71,6 @@ export const IndexPage: Component = () => {
 	const [verifiedBot, setVerifiedBot] = createSignal<VerifiedBotTokenInfo | null>(null);
 	const [isCreating, setIsCreating] = createSignal(false);
 	const [errorMsg, setErrorMsg] = createSignal('');
-
-	// Edit & Delete Bot/Group modals
-	const [editingBot, setEditingBot] = createSignal<ManagedBot | null>(null);
-	const [editGroupLink, setEditGroupLink] = createSignal('');
-	const [editGroupTitle, setEditGroupTitle] = createSignal('');
-	const [editErrorMsg, setEditErrorMsg] = createSignal('');
-	const [isSavingEdit, setIsSavingEdit] = createSignal(false);
-	const [deletingBot, setDeletingBot] = createSignal<ManagedBot | null>(null);
-	const [isDeleting, setIsDeleting] = createSignal(false);
 
 	const [bots, { refetch }] = createResource(async () => {
 		try {
@@ -231,67 +221,6 @@ export const IndexPage: Component = () => {
 			haptic.notify('error');
 		} finally {
 			setIsCreating(false);
-		}
-	};
-
-	const openEditBotModal = (bot: ManagedBot, e: Event) => {
-		e.stopPropagation();
-		haptic.impact('light');
-		setEditingBot(bot);
-		setEditGroupLink(
-			bot.group_link?.replace(/^https?:\/\/(t\.me|telegram\.me)\//i, '@') ||
-				(bot as any).bound_group_link ||
-				'',
-		);
-		setEditGroupTitle(bot.group_title || (bot as any).bound_group_title || '');
-		setEditErrorMsg('');
-	};
-
-	const handleSaveEditBot = async () => {
-		const bot = editingBot();
-		if (!bot) return;
-		const gLink = normalizeGroupLinkInput(editGroupLink(), editGroupTitle());
-		if (!gLink) {
-			setEditErrorMsg('لطفاً آیدی یا لینک گروه را وارد کنید (مثال: @islamicBazaar).');
-			haptic.notify('warning');
-			return;
-		}
-		setIsSavingEdit(true);
-		setEditErrorMsg('');
-		try {
-			await botApi.updateBot(bot.id, {
-				group_link: gLink,
-				group_title: editGroupTitle().trim(),
-			});
-			haptic.notify('success');
-			showToast('اطلاعات گروه با موفقیت اعتبارسنجی و بروزرسانی شد ✅', 'success');
-			setEditingBot(null);
-			await refetch();
-		} catch (err: any) {
-			setEditErrorMsg(
-				err?.response?.data?.error ||
-					'خطا در بروزرسانی گروه. لطفاً مطمئن شوید ربات در گروه ادمین است.',
-			);
-			haptic.notify('error');
-		} finally {
-			setIsSavingEdit(false);
-		}
-	};
-
-	const handleConfirmDeleteBot = async () => {
-		const bot = deletingBot();
-		if (!bot) return;
-		setIsDeleting(true);
-		try {
-			await botApi.revokeBot(bot.id);
-		} catch {
-			mockApiLogic('DELETE', `/bots/${bot.id}`);
-		} finally {
-			setIsDeleting(false);
-			setDeletingBot(null);
-			haptic.notify('success');
-			showToast('ربات و گروه متصل با موفقیت حذف شدند 🗑️', 'success');
-			await refetch();
 		}
 	};
 
@@ -450,27 +379,6 @@ export const IndexPage: Component = () => {
 													</span>
 												</Show>
 											</div>
-										</div>
-
-										<div class="flex items-center gap-1 shrink-0">
-											<button
-												onClick={(e) => openEditBotModal(bot, e)}
-												title="ویرایش آیدی یا نام گروه"
-												class="w-8 h-8 rounded-lg flex items-center justify-center text-[var(--tg-link)] bg-[var(--tg-accent-soft)] active:opacity-70"
-											>
-												<span class="material-symbols-outlined text-[17px]">edit</span>
-											</button>
-											<button
-												onClick={(e) => {
-													e.stopPropagation();
-													haptic.impact('medium');
-													setDeletingBot(bot);
-												}}
-												title="حذف ربات و گروه"
-												class="w-8 h-8 rounded-lg flex items-center justify-center text-[var(--tg-destructive)] bg-[var(--tg-destructive)]/10 active:opacity-70"
-											>
-												<span class="material-symbols-outlined text-[18px]">delete</span>
-											</button>
 										</div>
 
 										<span class="material-symbols-outlined text-[var(--tg-hint)] text-[20px] rtl:rotate-180">
@@ -662,140 +570,6 @@ export const IndexPage: Component = () => {
 						</div>
 					</div>
 				</div>
-			</Show>
-
-			{/* Edit Group / Bot Modal */}
-			<Show when={editingBot()}>
-				{(bot) => (
-					<div
-						class="fixed inset-0 z-[105] bg-black/55 backdrop-blur-[2px] flex items-end justify-center"
-						onClick={(e) => {
-							if (e.target === e.currentTarget) setEditingBot(null);
-						}}
-					>
-						<div class="w-full max-w-md bg-[var(--tg-section-bg)] rounded-t-[20px] p-5 pb-8 flex flex-col gap-3.5 shadow-2xl border-t border-[var(--tg-separator)]">
-							<div class="w-9 h-1 rounded-full bg-[var(--tg-hint)]/30 mx-auto -mt-1 mb-0.5" />
-							<div class="flex items-center justify-between">
-								<h3 class="text-[16px] font-bold text-[var(--tg-text)]">
-									ویرایش گروه متصل به @{bot().bot_username}
-								</h3>
-								<button
-									onClick={() => setEditingBot(null)}
-									class="w-7 h-7 rounded-full bg-[var(--tg-secondary-bg)] flex items-center justify-center text-[var(--tg-hint)]"
-								>
-									<span class="material-symbols-outlined text-[18px]">close</span>
-								</button>
-							</div>
-
-							<button
-								type="button"
-								onClick={() =>
-									openTelegramExternalLink(
-										`https://t.me/${bot().bot_username.replace('@', '')}?startgroup=start&admin=restrict_members+delete_messages+ban_users+invite_users+pin_messages+manage_chat`,
-									)
-								}
-								class="w-full h-10 rounded-[10px] bg-[#34C759]/15 text-[#34C759] font-bold text-[12.5px] flex items-center justify-center gap-1.5 border border-[#34C759]/30"
-							>
-								<span class="material-symbols-outlined text-[18px]">admin_panel_settings</span>
-								<span>افزودن @{bot().bot_username} به گروه و ادمین کردن در تلگرام</span>
-							</button>
-
-							<Show when={editErrorMsg()}>
-								<div class="text-[12.5px] text-[var(--tg-destructive)] bg-[var(--tg-destructive)]/10 rounded-xl px-3.5 py-2.5 leading-relaxed">
-									{editErrorMsg()}
-								</div>
-							</Show>
-
-							<div class="flex flex-col gap-1">
-								<label class="text-[12.5px] font-bold text-[var(--tg-text)] px-1">
-									یوزرنیم یا لینک صحیح گروه (مثال: @islamicBazaar)
-								</label>
-								<input
-									type="text"
-									value={editGroupLink()}
-									onInput={(e) => setEditGroupLink(e.currentTarget.value)}
-									dir="ltr"
-									placeholder="@islamicBazaar"
-									class="w-full h-11 bg-[var(--tg-secondary-bg)] border border-[var(--tg-separator)] rounded-[10px] px-3.5 text-[14px] font-mono text-[var(--tg-text)] focus:outline-none focus:border-[var(--tg-button)]"
-								/>
-							</div>
-
-							<div class="flex flex-col gap-1">
-								<label class="text-[12.5px] font-semibold text-[var(--tg-hint)] px-1">
-									نام نمایشی گروه (اختیاری)
-								</label>
-								<input
-									type="text"
-									value={editGroupTitle()}
-									onInput={(e) => setEditGroupTitle(e.currentTarget.value)}
-									placeholder="مثلاً: بازار اسلامی"
-									class="w-full h-11 bg-[var(--tg-secondary-bg)] border border-[var(--tg-separator)] rounded-[10px] px-3.5 text-[14px] text-[var(--tg-text)] focus:outline-none focus:border-[var(--tg-button)]"
-								/>
-							</div>
-
-							<div class="flex gap-2 pt-1">
-								<button
-									onClick={handleSaveEditBot}
-									disabled={isSavingEdit()}
-									class="tg-btn-primary flex-1 h-11 text-[14px] flex items-center justify-center gap-1.5"
-								>
-									<Show
-										when={!isSavingEdit()}
-										fallback={
-											<span class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-										}
-									>
-										<span class="material-symbols-outlined text-[18px]">check</span>
-										<span>بررسی ادمین و ذخیره تغییرات</span>
-									</Show>
-								</button>
-							</div>
-						</div>
-					</div>
-				)}
-			</Show>
-
-			{/* Delete Confirmation Modal */}
-			<Show when={deletingBot()}>
-				{(bot) => (
-					<div
-						class="fixed inset-0 z-[110] bg-black/55 backdrop-blur-[2px] flex items-end justify-center"
-						onClick={(e) => {
-							if (e.target === e.currentTarget) setDeletingBot(null);
-						}}
-					>
-						<div class="w-full max-w-md bg-[var(--tg-section-bg)] rounded-t-[20px] p-5 pb-8 flex flex-col gap-4 shadow-2xl border-t border-[var(--tg-separator)] text-center">
-							<div class="w-12 h-12 rounded-full bg-[var(--tg-destructive)]/15 text-[var(--tg-destructive)] flex items-center justify-center mx-auto">
-								<span class="material-symbols-outlined text-[26px]">delete_forever</span>
-							</div>
-							<div class="space-y-1">
-								<h3 class="text-[16px] font-bold text-[var(--tg-text)]">
-									حذف ربات @{bot().bot_username} و گروه متصل؟
-								</h3>
-								<p class="text-[13px] text-[var(--tg-hint)] leading-relaxed">
-									با حذف این مورد، ربات و گروه «{bot().group_title || bot().bot_name}» از لیست شما
-									پاک می‌شوند و در هر زمان می‌توانید مجدداً آن را با آیدی صحیح ثبت کنید.
-								</p>
-							</div>
-							<div class="flex gap-2.5">
-								<button
-									onClick={() => setDeletingBot(null)}
-									class="tg-btn-secondary flex-1 h-11 text-[14px]"
-								>
-									انصراف
-								</button>
-								<button
-									onClick={handleConfirmDeleteBot}
-									disabled={isDeleting()}
-									class="flex-1 h-11 rounded-[11px] bg-[var(--tg-destructive)] text-white font-bold text-[14px] flex items-center justify-center gap-1.5 active:opacity-80"
-								>
-									<span class="material-symbols-outlined text-[18px]">delete</span>
-									<span>{isDeleting() ? 'در حال حذف...' : 'بله، حذف شود'}</span>
-								</button>
-							</div>
-						</div>
-					</div>
-				)}
 			</Show>
 
 			{/* 17-Language Selector Sheet */}

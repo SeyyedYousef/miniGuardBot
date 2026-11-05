@@ -67,11 +67,6 @@ const GroupDynamicBioPage = lazy(() =>
 		default: m.GroupDynamicBioPage,
 	})),
 );
-const CommandsAndInlinePage = lazy(() =>
-	import('@/slices/group-management/commands/index.js').then((m) => ({
-		default: m.CommandsAndInlinePage,
-	})),
-);
 
 // Profile Vertical Slice
 const ProfilePage = lazy(() =>
@@ -140,7 +135,7 @@ export const routes: Route[] = [
 	{ path: '/managed-bots', Component: ManagedBotsPage },
 	{ path: '/bot/:botId/manage', Component: BotManagePage },
 	{ path: '/group/:id', Component: GroupDashboardPage },
-	{ path: '/group/:id/commands', Component: CommandsAndInlinePage },
+	{ path: '/group/:id/commands', Component: AirdropPage },
 	{ path: '/group/:id/settings', Component: GeneralSettingsPage },
 	{ path: '/group/:id/content', Component: ContentRestrictionsPage },
 	{ path: '/group/:id/limits', Component: LimitsPage },

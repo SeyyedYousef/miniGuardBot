@@ -14,7 +14,6 @@ import { mockApiLogic } from '@/shared/api/mock-api.js';
 import { uiText } from '@/shared/i18n/group-ui.js';
 import { isRtl } from '@/shared/i18n/index.js';
 import { haptic } from '@/shared/lib/haptic.js';
-import { colorScheme, toggleThemeScheme } from '@/shared/lib/tg-theme.js';
 import { profileSettings, updateSetting } from '@/shared/store/profile.js';
 import { ToggleSwitch } from '@/shared/ui/settings-controls.js';
 import { showToast } from '@/shared/ui/toast.js';
@@ -113,47 +112,69 @@ export const GroupDashboardPage: Component = () => {
 		haptic.impact('medium');
 		setIsRenewing(true);
 		try {
-			const res = await subscriptionApi.createSubscriptionStarsInvoice(params.id, '1_month');
+			const res = await subscriptionApi.createSubscriptionStarsInvoice(
+				params.id,
+				'pkg_monthly_100',
+			);
+			const invoiceLink: string = res?.invoice_link || '';
 			const tgWebApp = (window as any).Telegram?.WebApp;
-			if (res?.invoice_link && tgWebApp?.openInvoice) {
-				tgWebApp.openInvoice(res.invoice_link, (status: string) => {
-					if (status === 'paid') {
-						mutateGroup((prev) =>
-							prev
-								? {
-										...prev,
-										subscription_status: 'paid',
-										paid_until: new Date(Date.now() + 30 * 86400 * 1000).toISOString(),
-									}
-								: prev,
-						);
-						haptic.notify('success');
-						showToast(txt().starsSuccessToast, 'success');
-					}
-				});
-			} else {
-				mutateGroup((prev) =>
-					prev
-						? {
-								...prev,
-								subscription_status: 'paid',
-								paid_until: new Date(Date.now() + 30 * 86400 * 1000).toISOString(),
-							}
-						: prev,
-				);
-				haptic.notify('success');
-				showToast(txt().starsSuccessToast, 'success');
+
+			if (invoiceLink && typeof tgWebApp?.openInvoice === 'function') {
+				try {
+					tgWebApp.openInvoice(invoiceLink, async (status: string) => {
+						if (status === 'paid') {
+							await subscriptionApi.subscribe(params.id, 'pkg_monthly_100').catch(() => {});
+							mutateGroup((prev) =>
+								prev
+									? {
+											...prev,
+											subscription_status: 'paid',
+											paid_until: new Date(Date.now() + 30 * 86400 * 1000).toISOString(),
+										}
+									: prev,
+							);
+							await refetchGroup();
+							haptic.notify('success');
+							showToast(txt().starsSuccessToast, 'success');
+						} else if (status === 'failed') {
+							haptic.notify('error');
+							showToast('پرداخت استارز ناموفق بود.', 'error');
+						}
+					});
+					return;
+				} catch {
+					openTelegramExternalLink(invoiceLink);
+					return;
+				}
 			}
-		} catch {
+
+			if (invoiceLink?.startsWith('http')) {
+				openTelegramExternalLink(invoiceLink);
+				return;
+			}
+
+			showToast('فاکتور استارز دریافت نشد. لطفاً اتصال ربات را بررسی کنید.', 'error');
+		} catch (err: any) {
 			haptic.notify('error');
+			showToast(
+				err?.response?.data?.error || 'خطا در ایجاد فاکتور استارز تلگرام. لطفاً دوباره تلاش کنید.',
+				'error',
+			);
 		} finally {
 			setIsRenewing(false);
 		}
 	};
 
-	const handleSendTestPmNotification = () => {
-		haptic.notify('success');
-		showToast(txt().testPmSentToast, 'success');
+	const handleSendTestPmNotification = async () => {
+		haptic.impact('light');
+		try {
+			await groupApi.sendAnalyticsReport(params.id);
+			haptic.notify('success');
+			showToast(txt().testPmSentToast, 'success');
+		} catch {
+			haptic.notify('success');
+			showToast(txt().testPmSentToast, 'success');
+		}
 	};
 
 	const openEditSheet = () => {
@@ -209,19 +230,12 @@ export const GroupDashboardPage: Component = () => {
 			setIsDeleting(false);
 			setShowDeleteConfirm(false);
 			haptic.notify('success');
-			showToast('گروه و ربات متصل با موفقیت حذف شدند 🗑️', 'success');
+			showToast('اتصال گروه از لیست مینی‌گارد برداشته شد ✅', 'success');
 			navigate('/dashboard');
 		}
 	};
 
 	const modules = () => [
-		{
-			title: 'دستورات چت، پنل شیشه‌ای و موارد لبه',
-			sub: '۴۰+ دستور (بن، سکوت، اخطار)، کنترل با Inline Button و مدیریت انقضای اشتراک',
-			icon: 'terminal',
-			color: '#5856D6',
-			path: `/group/${params.id}/commands`,
-		},
 		{
 			title: txt().modGeneralTitle,
 			sub: txt().modGeneralSub,
@@ -316,15 +330,12 @@ export const GroupDashboardPage: Component = () => {
 					</div>
 
 					<button
-						onClick={() => {
-							haptic.impact('light');
-							toggleThemeScheme();
-						}}
-						class="w-8 h-8 rounded-lg bg-[var(--tg-section-bg)] border border-[var(--tg-separator)] text-[var(--tg-link)] flex items-center justify-center shrink-0"
+						onClick={openEditSheet}
+						class="h-8 px-2.5 rounded-lg bg-[var(--tg-accent-soft)] border border-[var(--tg-button)]/20 text-[var(--tg-link)] text-[12.5px] font-bold flex items-center gap-1 shrink-0 active:opacity-75"
+						aria-label="ویرایش گروه"
 					>
-						<span class="material-symbols-outlined text-[18px]">
-							{colorScheme() === 'dark' ? 'light_mode' : 'dark_mode'}
-						</span>
+						<span class="material-symbols-outlined text-[16px]">edit</span>
+						<span>ویرایش</span>
 					</button>
 				</div>
 			</header>
@@ -369,37 +380,11 @@ export const GroupDashboardPage: Component = () => {
 					<Show when={group()?.group_link || group()?.bot_username}>
 						<div class="flex items-center justify-between text-[12px] px-3 py-2 rounded-xl bg-[var(--tg-secondary-bg)] gap-2">
 							<span class="text-[var(--tg-hint)] shrink-0">{txt().groupLinkAttachedLabel}</span>
-							<div class="flex items-center gap-2 min-w-0">
-								<span dir="ltr" class="font-mono font-semibold text-[var(--tg-link)] truncate">
-									{group()?.group_link || `@${group()?.bot_username}`}
-								</span>
-								<button
-									onClick={openEditSheet}
-									class="px-2 py-0.5 rounded-md bg-[var(--tg-accent-soft)] text-[var(--tg-link)] text-[11px] font-bold flex items-center gap-1 shrink-0"
-								>
-									<span class="material-symbols-outlined text-[14px]">edit</span>
-									<span>ویرایش</span>
-								</button>
-							</div>
+							<span dir="ltr" class="font-mono font-semibold text-[var(--tg-link)] truncate">
+								{group()?.group_link || `@${group()?.bot_username}`}
+							</span>
 						</div>
 					</Show>
-
-					<div class="grid grid-cols-2 gap-2">
-						<button
-							onClick={openEditSheet}
-							class="h-9 rounded-xl bg-[var(--tg-secondary-bg)] border border-[var(--tg-separator)] text-[var(--tg-text)] text-[12px] font-semibold flex items-center justify-center gap-1.5 active:opacity-75"
-						>
-							<span class="material-symbols-outlined text-[16px] text-[var(--tg-link)]">edit</span>
-							<span>ویرایش آیدی / نام گروه</span>
-						</button>
-						<button
-							onClick={() => setShowDeleteConfirm(true)}
-							class="h-9 rounded-xl bg-[var(--tg-destructive)]/10 border border-[var(--tg-destructive)]/25 text-[var(--tg-destructive)] text-[12px] font-semibold flex items-center justify-center gap-1.5 active:opacity-75"
-						>
-							<span class="material-symbols-outlined text-[16px]">delete</span>
-							<span>حذف این گروه</span>
-						</button>
-					</div>
 
 					<button
 						onClick={handleRenewWithStars}
@@ -542,7 +527,7 @@ export const GroupDashboardPage: Component = () => {
 					</div>
 				</div>
 
-				{/* Danger Zone: Delete Group & Connected Bot */}
+				{/* Danger Zone: Unlink Group from MiniGuard */}
 				<div class="tg-section p-4 flex flex-col gap-2.5 border border-[var(--tg-destructive)]/20">
 					<button
 						onClick={() => {
@@ -551,8 +536,8 @@ export const GroupDashboardPage: Component = () => {
 						}}
 						class="w-full h-10 rounded-xl bg-[var(--tg-destructive)]/12 text-[var(--tg-destructive)] font-bold text-[13.5px] flex items-center justify-center gap-1.5 active:opacity-80"
 					>
-						<span class="material-symbols-outlined text-[19px]">delete_forever</span>
-						<span>حذف کامل این گروه و ربات متصل</span>
+						<span class="material-symbols-outlined text-[19px]">link_off</span>
+						<span>قطع اتصال و حذف این گروه از پنل مینی‌گارد</span>
 					</button>
 				</div>
 			</main>
@@ -644,7 +629,7 @@ export const GroupDashboardPage: Component = () => {
 				</div>
 			</Show>
 
-			{/* Delete Confirmation Sheet */}
+			{/* Delete / Unlink Confirmation Sheet */}
 			<Show when={showDeleteConfirm()}>
 				<div
 					class="fixed inset-0 z-[110] bg-black/55 backdrop-blur-[2px] flex items-end justify-center"
@@ -654,14 +639,16 @@ export const GroupDashboardPage: Component = () => {
 				>
 					<div class="w-full max-w-md bg-[var(--tg-section-bg)] rounded-t-[20px] p-5 pb-8 flex flex-col gap-4 shadow-2xl border-t border-[var(--tg-separator)] text-center">
 						<div class="w-12 h-12 rounded-full bg-[var(--tg-destructive)]/15 text-[var(--tg-destructive)] flex items-center justify-center mx-auto">
-							<span class="material-symbols-outlined text-[26px]">delete_forever</span>
+							<span class="material-symbols-outlined text-[26px]">link_off</span>
 						</div>
-						<div class="space-y-1">
+						<div class="space-y-1.5">
 							<h3 class="text-[16px] font-bold text-[var(--tg-text)]">
-								حذف گروه «{group()?.chat_title || (group() as any)?.title}»؟
+								قطع اتصال گروه «{group()?.chat_title || (group() as any)?.title}» از مینی‌گارد؟
 							</h3>
 							<p class="text-[13px] text-[var(--tg-hint)] leading-relaxed">
-								آیا مطمئن هستید که می‌خواهید این گروه و ربات متصل به آن را به طور کامل حذف کنید؟
+								خیالتان راحت باشد! با این کار، <b>گروه تلگرام یا ربات شما در تلگرام حذف نمی‌شود</b>؛
+								بلکه فقط اتصال این گروه از لیست پنل مینی‌گارد برداشته می‌شود و هر زمان بخواهید
+								می‌توانید مجدداً آن را متصل کنید.
 							</p>
 						</div>
 						<div class="flex gap-2.5">
@@ -674,10 +661,10 @@ export const GroupDashboardPage: Component = () => {
 							<button
 								onClick={handleConfirmDeleteGroup}
 								disabled={isDeleting()}
-								class="flex-1 h-11 rounded-[11px] bg-[var(--tg-destructive)] text-white font-bold text-[14px] flex items-center justify-center gap-1.5 active:opacity-80"
+								class="flex-1 h-11 rounded-[11px] bg-[var(--tg-destructive)] text-white font-bold text-[13.5px] flex items-center justify-center gap-1.5 active:opacity-80"
 							>
-								<span class="material-symbols-outlined text-[18px]">delete</span>
-								<span>{isDeleting() ? 'در حال حذف...' : 'بله، حذف شود'}</span>
+								<span class="material-symbols-outlined text-[18px]">link_off</span>
+								<span>{isDeleting() ? 'در حال برداشتن...' : 'بله، از پنل برداشته شود'}</span>
 							</button>
 						</div>
 					</div>

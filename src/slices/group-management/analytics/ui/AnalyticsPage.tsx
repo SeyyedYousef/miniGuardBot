@@ -131,155 +131,125 @@ export const AnalyticsPage: Component = () => {
 
 	const statCards = () => {
 		const s = (data()?.summary || {}) as any;
-		const newM = s.new_members ?? 164;
-		const leftM = s.members_left ?? 24;
-		const retentionPct = newM > 0 ? Math.max(70, Math.round(((newM - leftM) / newM) * 100)) : 92;
+		const totalMembers = Number(s.total_members ?? 1);
+		const newM = Number(s.new_members ?? 0);
+		const leftM = Number(s.members_left ?? 0);
+		const totalMsgs = Number(s.total_messages ?? 0);
+		const spamBlocked = Number(s.spam_blocked ?? 0);
+		const activeUsers = Number(s.active_users ?? 0);
+		const mutedUsers = Number(s.muted_users ?? 0);
+		const bannedUsers = Number(s.banned_users ?? 0);
 
 		return [
 			{
-				icon: 'person_add',
-				label: t('analyticsSettings.newMembers'),
-				value: newM.toLocaleString(),
-				sub: isFa() ? `خروج: ${leftM} نفر` : `Left: ${leftM}`,
+				icon: 'groups',
+				label: isFa() ? 'کل اعضای گروه' : 'Total Members',
+				value: totalMembers.toLocaleString(),
+				sub: isFa() ? `ورودی: ${newM} | خروجی: ${leftM}` : `In: ${newM} | Out: ${leftM}`,
 				color: '#34C759',
 			},
 			{
 				icon: 'chat_bubble',
 				label: t('analyticsSettings.totalMessages'),
-				value: (s.total_messages ?? 7420).toLocaleString(),
-				sub: isFa() ? '+۱۴.۲٪ نسبت به دوره قبل' : '+14.2% vs prev period',
+				value: totalMsgs.toLocaleString(),
+				sub: isFa() ? 'پیام‌های واقعی ثبت‌شده' : 'Recorded group messages',
 				color: '#007AFF',
 			},
 			{
 				icon: 'shield_lock',
 				label: t('analyticsSettings.spamBlocked'),
-				value: (s.spam_blocked ?? 318).toLocaleString(),
-				sub: isFa() ? 'فایروال باینری زیر ۱۲ms' : 'Sub-12ms interception',
+				value: spamBlocked.toLocaleString(),
+				sub: isFa() ? 'حذف‌شده توسط فایروال' : 'Blocked by firewall',
 				color: '#FF3B30',
 			},
 			{
 				icon: 'people',
 				label: t('analyticsSettings.activeUsers'),
-				value: (s.active_users ?? 362).toLocaleString(),
-				sub: isFa() ? `نرخ نگهداشت: ${retentionPct}%` : `Retention: ${retentionPct}%`,
+				value: activeUsers.toLocaleString(),
+				sub: isFa() ? 'اعضای مشارکت‌کننده' : 'Participating members',
 				color: '#5856D6',
 			},
 			{
-				icon: 'fingerprint',
-				label: isFa() ? 'ورود بیومتریک' : 'Approved Joins',
-				value: (s.join_requests_approved ?? 148).toLocaleString(),
-				sub: 'approveChatJoinRequest',
-				color: '#00C7BE',
+				icon: 'volume_off',
+				label: isFa() ? 'سکوت‌های اعمال‌شده' : 'Muted Users',
+				value: mutedUsers.toLocaleString(),
+				sub: 'restrictChatMember',
+				color: '#FF9500',
 			},
 			{
 				icon: 'person_off',
-				label: isFa() ? 'بات و فیک ردشده' : 'Declined Fake/Bot Joins',
-				value: (s.join_requests_declined ?? 39).toLocaleString(),
-				sub: 'declineChatJoinRequest',
-				color: '#FF9500',
+				label: isFa() ? 'اخراج‌های دائمی (Ban)' : 'Banned Users',
+				value: bannedUsers.toLocaleString(),
+				sub: 'banChatMember',
+				color: '#AF52DE',
 			},
 		];
 	};
 
-	const violationBreakdown = () => [
-		{
-			label: isFa()
-				? 'لینک‌ها و ابرلینک‌های مخفی (url / text_link)'
-				: 'URLs & Hidden Entity Links (text_link)',
-			count: 146,
-			pct: 46,
-			color: '#FF3B30',
-		},
-		{
-			label: isFa()
-				? 'حملات رگباری و پیام تکراری (Anti-Flood)'
-				: 'Rapid Flood & Duplicate Messages',
-			count: 70,
-			pct: 22,
-			color: '#FF9500',
-		},
-		{
-			label: isFa()
-				? 'کاراکترهای نامرئی باینری و جعل نام ادمین (Zero-Width / Homograph)'
-				: 'Binary Zero-Width & Admin Homograph Spoofing',
-			count: 45,
-			pct: 14,
-			color: '#AF52DE',
-		},
-		{
-			label: isFa()
-				? 'ریپلای خارجی، استوری و ایموجی تبلیغاتی (Bot API 8.x)'
-				: 'External Replies, Stories & Custom Emoji Ads',
-			count: 32,
-			pct: 10,
-			color: '#5856D6',
-		},
-		{
-			label: isFa()
-				? 'عدم عضویت در کانال اجباری (Mandatory Join)'
-				: 'Unverified Mandatory Channel Membership',
-			count: 25,
-			pct: 8,
-			color: '#34C759',
-		},
-	];
+	const violationBreakdown = () => {
+		const rules: Array<{ rule: string; count: number }> = data()?.top_violated_rules || [];
+		const total = rules.reduce((acc: number, r) => acc + (r.count || 0), 0);
+		const colors = ['#FF3B30', '#FF9500', '#AF52DE', '#5856D6', '#34C759', '#007AFF'];
+		return rules.map((r, idx: number) => ({
+			label: r.rule,
+			count: r.count,
+			pct: total > 0 ? Math.round((r.count / total) * 100) : 0,
+			color: colors[idx % colors.length],
+		}));
+	};
 
-	const hourlyPeak = [
-		{ hour: '00', pct: 22 },
-		{ hour: '03', pct: 10 },
-		{ hour: '06', pct: 18 },
-		{ hour: '09', pct: 48 },
-		{ hour: '12', pct: 74 },
-		{ hour: '15', pct: 68 },
-		{ hour: '18', pct: 86 },
-		{ hour: '21', pct: 100 },
-		{ hour: '23', pct: 54 },
-	];
+	const hourlyPeak = () => {
+		const rawHours: number[] = data()?.hourly_messages || Array.from({ length: 24 }, () => 0);
+		const slots = ['00', '03', '06', '09', '12', '15', '18', '21', '23'];
+		const values = slots.map((h) => {
+			const hr = Number(h);
+			return (rawHours[hr] || 0) + (rawHours[(hr + 1) % 24] || 0);
+		});
+		const maxVal = Math.max(...values, 1);
+		return slots.map((hour, i) => ({
+			hour,
+			count: values[i],
+			pct: values[i] > 0 ? Math.max(10, Math.round((values[i] / maxVal) * 100)) : 0,
+		}));
+	};
 
-	const forumTopicsStats = () => [
-		{
-			id: '#1',
-			title: isFa() ? 'گفتگوی عمومی (General)' : 'General Discussion',
-			msgs: 4120,
-			spam: 210,
-			whitelisted: false,
-		},
-		{
-			id: '#42',
-			title: isFa() ? 'معرفی پروژه‌ها و لینک (Whitelisted)' : 'Project Showcase & Links',
-			msgs: 1890,
-			spam: 4,
-			whitelisted: true,
-		},
-		{
-			id: '#108',
-			title: isFa() ? 'پرسش و پاسخ فنی' : 'Technical Q&A',
-			msgs: 1410,
-			spam: 19,
-			whitelisted: true,
-		},
-	];
+	const forumTopicsStats = () => {
+		const topics: Array<{ id: number; title: string; messages: number }> =
+			data()?.forum_topics || [];
+		return topics.map((tp) => ({
+			id: `#${tp.id}`,
+			title: tp.title,
+			msgs: tp.messages,
+		}));
+	};
 
-	const topMembers = () => [
-		{ rank: 1, name: 'Ali Rezaei', msgs: 412, badge: isFa() ? 'مشارکت عالی' : 'Top Contributor' },
-		{
-			rank: 2,
-			name: 'Sina Dev',
-			msgs: 305,
-			badge: isFa() ? 'تایید بیومتریک' : 'Biometric Verified',
-		},
-		{ rank: 3, name: 'Maryam K.', msgs: 288, badge: isFa() ? 'فعال روزانه' : 'Daily Active' },
-		{ rank: 4, name: 'Reza T.', msgs: 214, badge: isFa() ? 'دعوت‌کننده برتر' : 'Top Inviter' },
-	];
+	const topMembers = () => {
+		const users: Array<{ name: string; username: string; messages: number; warns: number }> =
+			data()?.top_users || [];
+		return users.map((u, idx: number) => ({
+			rank: idx + 1,
+			name: u.name,
+			username: u.username,
+			msgs: u.messages,
+			warns: u.warns,
+		}));
+	};
 
-	const handleSendInstantPmReport = () => {
-		haptic.notify('success');
-		showToast(
-			isFa()
-				? '📊 گزارش جامع آمار و تخلفات به پیوی شما در @MiniGuardBot ارسال شد!'
-				: '📊 Full analytics report sent to your @MiniGuardBot PM!',
-			'success',
-		);
+	const handleSendInstantPmReport = async () => {
+		haptic.impact('light');
+		try {
+			await groupApi.sendAnalyticsReport(params.id);
+			haptic.notify('success');
+			showToast(
+				isFa()
+					? '📊 گزارش واقعی عملکرد گروه به تلگرام شما ارسال شد!'
+					: '📊 Real analytics report sent to your Telegram!',
+				'success',
+			);
+		} catch {
+			haptic.notify('error');
+			showToast('خطا در ارسال گزارش به تلگرام', 'error');
+		}
 	};
 
 	const handleExportCsv = () => {
@@ -403,52 +373,61 @@ export const AnalyticsPage: Component = () => {
 							: 'Firewall Violation Breakdown by Category'}
 					</div>
 					<div class="tg-section p-4 space-y-3">
-						<For each={violationBreakdown()}>
-							{(item) => (
-								<div class="space-y-1.5">
-									<div class="flex items-center justify-between text-[12px]">
-										<span class="font-medium text-[var(--tg-text)] truncate max-w-[75%]">
-											{item.label}
-										</span>
-										<span class="font-mono font-bold text-[var(--tg-hint)]" dir="ltr">
-											{item.count} ({item.pct}%)
-										</span>
-									</div>
-									<div class="w-full h-2 rounded-full bg-[var(--tg-secondary-bg)] overflow-hidden">
-										<div
-											class="h-full rounded-full transition-all"
-											style={{
-												width: `${item.pct}%`,
-												'background-color': item.color,
-											}}
-										/>
-									</div>
+						<Show
+							when={violationBreakdown().length > 0}
+							fallback={
+								<div class="py-3 text-center text-[12.5px] text-[var(--tg-hint)]">
+									{isFa()
+										? 'هنوز هیچ تخلفی در این گروه ثبت نشده است. به محض مسدودسازی لینک یا اسپم، آمار واقعی در اینجا نمایش داده می‌شود.'
+										: 'No violations recorded yet in this group.'}
 								</div>
-							)}
-						</For>
+							}
+						>
+							<For each={violationBreakdown()}>
+								{(item) => (
+									<div class="space-y-1.5">
+										<div class="flex items-center justify-between text-[12px]">
+											<span class="font-medium text-[var(--tg-text)] truncate max-w-[75%]">
+												{item.label}
+											</span>
+											<span class="font-mono font-bold text-[var(--tg-hint)]" dir="ltr">
+												{item.count} ({item.pct}%)
+											</span>
+										</div>
+										<div class="w-full h-2 rounded-full bg-[var(--tg-secondary-bg)] overflow-hidden">
+											<div
+												class="h-full rounded-full transition-all"
+												style={{
+													width: `${item.pct}%`,
+													'background-color': item.color,
+												}}
+											/>
+										</div>
+									</div>
+								)}
+							</For>
+						</Show>
 					</div>
 				</div>
 
 				{/* 24-Hour Peak Activity Heatmap */}
 				<div>
 					<div class="tg-section-header">
-						{isFa()
-							? 'ساعات اوج فعالیت ۲۴ ساعته (Peak Hours)'
-							: '24-Hour Peak Activity Distribution'}
+						{isFa() ? 'ساعات فعالیت ۲۴ ساعته گروه (Peak Hours)' : '24-Hour Activity Distribution'}
 					</div>
 					<div class="tg-section p-4 space-y-3">
 						<div
 							class="flex items-end justify-between gap-1.5 h-24 pt-2 border-b border-[var(--tg-separator)] pb-1"
 							dir="ltr"
 						>
-							<For each={hourlyPeak}>
+							<For each={hourlyPeak()}>
 								{(slot) => (
 									<div class="flex-1 flex flex-col items-center justify-end h-full gap-1">
 										<div
 											class="w-full rounded-t bg-[var(--tg-button)] transition-all"
 											style={{
-												height: `${Math.max(12, Math.round((slot.pct / 100) * 76))}px`,
-												opacity: Math.max(0.4, slot.pct / 100),
+												height: `${Math.max(8, Math.round((slot.pct / 100) * 76))}px`,
+												opacity: slot.count > 0 ? Math.max(0.45, slot.pct / 100) : 0.2,
 											}}
 										/>
 									</div>
@@ -459,63 +438,47 @@ export const AnalyticsPage: Component = () => {
 							class="flex items-center justify-between text-[10.5px] font-mono text-[var(--tg-hint)]"
 							dir="ltr"
 						>
-							<For each={hourlyPeak}>{(slot) => <span>{slot.hour}:00</span>}</For>
-						</div>
-						<div class="text-[11.5px] text-[var(--tg-hint)] flex items-center justify-between pt-1">
-							<span>
-								{isFa() ? '🔥 شلوغ‌ترین ساعت: ۱۹:۰۰ الی ۲۲:۳۰ شب' : '🔥 Peak Window: 19:00 – 22:30'}
-							</span>
-							<span class="text-[var(--tg-link)] font-semibold">
-								{isFa() ? 'پیشنهاد سکوت: ۰۰:۳۰ تا ۰۷:۰۰' : 'Quiet: 00:30–07:00'}
-							</span>
+							<For each={hourlyPeak()}>{(slot) => <span>{slot.hour}:00</span>}</For>
 						</div>
 					</div>
 				</div>
 
-				{/* Forum Supergroup Topics Breakdown */}
-				<div>
-					<div class="tg-section-header">
-						{isFa()
-							? 'آمار تفکیکی تاپیک‌های فروم (message_thread_id)'
-							: 'Per-Topic Activity (Forum Supergroup)'}
-					</div>
-					<div class="tg-section divide-y divide-[var(--tg-separator)]">
-						<For each={forumTopicsStats()}>
-							{(tp) => (
-								<div class="p-3.5 flex items-center justify-between gap-2">
-									<div class="flex items-center gap-2.5 min-w-0">
-										<span
-											dir="ltr"
-											class="px-2 py-0.5 rounded-md bg-[var(--tg-secondary-bg)] text-[11px] font-mono font-bold text-[var(--tg-link)] shrink-0"
-										>
-											{tp.id}
-										</span>
-										<div class="min-w-0">
-											<div class="text-[13px] font-semibold text-[var(--tg-text)] truncate">
-												{tp.title}
+				{/* Forum Supergroup Topics Breakdown (Only shown if topics exist or clean message) */}
+				<Show when={forumTopicsStats().length > 0}>
+					<div>
+						<div class="tg-section-header">
+							{isFa()
+								? 'آمار تفکیکی تاپیک‌های فروم (message_thread_id)'
+								: 'Per-Topic Activity (Forum Supergroup)'}
+						</div>
+						<div class="tg-section divide-y divide-[var(--tg-separator)]">
+							<For each={forumTopicsStats()}>
+								{(tp) => (
+									<div class="p-3.5 flex items-center justify-between gap-2">
+										<div class="flex items-center gap-2.5 min-w-0">
+											<span
+												dir="ltr"
+												class="px-2 py-0.5 rounded-md bg-[var(--tg-secondary-bg)] text-[11px] font-mono font-bold text-[var(--tg-link)] shrink-0"
+											>
+												{tp.id}
+											</span>
+											<div class="min-w-0">
+												<div class="text-[13px] font-semibold text-[var(--tg-text)] truncate">
+													{tp.title}
+												</div>
 											</div>
-											<div class="text-[11px] text-[var(--tg-hint)]">
-												{tp.whitelisted
-													? isFa()
-														? 'معاف از قفل لینک (Whitelisted)'
-														: 'Whitelisted Topic'
-													: isFa()
-														? 'فایروال کامل فعال'
-														: 'Full Firewall Active'}
+										</div>
+										<div class="text-end shrink-0" dir="ltr">
+											<div class="text-[13px] font-mono font-bold text-[var(--tg-text)]">
+												{tp.msgs.toLocaleString()} msgs
 											</div>
 										</div>
 									</div>
-									<div class="text-end shrink-0" dir="ltr">
-										<div class="text-[13px] font-mono font-bold text-[var(--tg-text)]">
-											{tp.msgs.toLocaleString()} msgs
-										</div>
-										<div class="text-[11px] font-mono text-[#FF3B30]">{tp.spam} blocked</div>
-									</div>
-								</div>
-							)}
-						</For>
+								)}
+							</For>
+						</div>
 					</div>
-				</div>
+				</Show>
 
 				{/* Top Active Members Leaderboard */}
 				<div>
@@ -523,26 +486,41 @@ export const AnalyticsPage: Component = () => {
 						{isFa() ? 'برترین اعضای فعال گروه' : 'Top Active Group Members'}
 					</div>
 					<div class="tg-section divide-y divide-[var(--tg-separator)]">
-						<For each={topMembers()}>
-							{(member) => (
-								<div class="p-3.5 flex items-center justify-between gap-3">
-									<div class="flex items-center gap-2.5 min-w-0">
-										<div class="w-7 h-7 rounded-full bg-[var(--tg-accent-soft)] text-[var(--tg-button)] font-mono font-bold text-[12px] flex items-center justify-center shrink-0">
-											{member.rank}
-										</div>
-										<div class="min-w-0">
-											<div class="text-[13.5px] font-bold text-[var(--tg-text)] truncate">
-												{member.name}
-											</div>
-											<div class="text-[11px] text-[#34C759] font-medium">{member.badge}</div>
-										</div>
-									</div>
-									<span dir="ltr" class="text-[13px] font-mono font-bold text-[var(--tg-text)]">
-										{member.msgs} msgs
-									</span>
+						<Show
+							when={topMembers().length > 0}
+							fallback={
+								<div class="p-4 text-center text-[12.5px] text-[var(--tg-hint)]">
+									{isFa()
+										? 'با ارسال پیام توسط اعضا در گروه، لیست فعال‌ترین اعضای واقعی گروه در این بخش ثبت می‌شود.'
+										: 'Active group members will appear here once messages are sent in the group.'}
 								</div>
-							)}
-						</For>
+							}
+						>
+							<For each={topMembers()}>
+								{(member) => (
+									<div class="p-3.5 flex items-center justify-between gap-3">
+										<div class="flex items-center gap-2.5 min-w-0">
+											<div class="w-7 h-7 rounded-full bg-[var(--tg-accent-soft)] text-[var(--tg-button)] font-mono font-bold text-[12px] flex items-center justify-center shrink-0">
+												{member.rank}
+											</div>
+											<div class="min-w-0">
+												<div class="text-[13.5px] font-bold text-[var(--tg-text)] truncate">
+													{member.name}
+												</div>
+												<Show when={member.username}>
+													<div dir="ltr" class="text-[11px] text-[var(--tg-link)] font-mono">
+														@{member.username}
+													</div>
+												</Show>
+											</div>
+										</div>
+										<span dir="ltr" class="text-[13px] font-mono font-bold text-[var(--tg-text)]">
+											{member.msgs} msgs
+										</span>
+									</div>
+								)}
+							</For>
+						</Show>
 					</div>
 				</div>
 
@@ -554,8 +532,8 @@ export const AnalyticsPage: Component = () => {
 					<span class="material-symbols-outlined text-[19px]">send</span>
 					<span>
 						{isFa()
-							? 'ارسال فوری این گزارش به پیوی من در @MiniGuardBot'
-							: 'Send Full Report to My @MiniGuardBot PM'}
+							? 'ارسال فوری این گزارش واقعی به تلگرام من'
+							: 'Send Real Group Report to My Telegram'}
 					</span>
 				</button>
 			</main>

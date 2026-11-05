@@ -20,8 +20,12 @@ export const ProfilePage: Component = () => {
 	const navigate = useNavigate();
 	const txt = () => uiText();
 	const [showLangMenu, setShowLangMenu] = createSignal(false);
+	const [avatarFallbackStage, setAvatarFallbackStage] = createSignal<'tg' | 'api' | 'initials'>(
+		'tg',
+	);
 
-	const tgUser = () => initData.user() as any;
+	const tgUser = () =>
+		(initData.user() as any) || (window as any)?.Telegram?.WebApp?.initDataUnsafe?.user;
 
 	onMount(() => {
 		try {
@@ -47,6 +51,30 @@ export const ProfilePage: Component = () => {
 	const displayUsername = () => {
 		const u = tgUser();
 		return u?.username || 'admin';
+	};
+
+	const userAvatarUrl = () => {
+		const u = tgUser();
+		const stage = avatarFallbackStage();
+		if (stage === 'initials') return '';
+		const directUrl = u?.photo_url || u?.photoUrl || '';
+		if (stage === 'tg' && directUrl) {
+			return directUrl;
+		}
+		const uid = u?.id;
+		if (uid) {
+			const baseUrl = (import.meta.env.VITE_API_URL || '/api/v1').replace(/\/$/, '');
+			return `${baseUrl}/profile/avatar/${uid}`;
+		}
+		return '';
+	};
+
+	const handleAvatarError = () => {
+		if (avatarFallbackStage() === 'tg') {
+			setAvatarFallbackStage('api');
+		} else {
+			setAvatarFallbackStage('initials');
+		}
 	};
 
 	const currentLanguageLabel = () => getLanguageLabel(locale());
@@ -77,8 +105,18 @@ export const ProfilePage: Component = () => {
 					onMouseLeave={secretTrigger.onLogoPressEnd}
 					class="tg-section p-4 flex items-center gap-3.5 cursor-pointer"
 				>
-					<div class="w-14 h-14 rounded-full bg-[var(--tg-button)] flex items-center justify-center text-white font-bold text-[22px] shrink-0">
-						{displayName().charAt(0).toUpperCase()}
+					<div class="w-14 h-14 rounded-full bg-[var(--tg-button)] flex items-center justify-center text-white font-bold text-[22px] shrink-0 overflow-hidden shadow-sm">
+						<Show
+							when={userAvatarUrl()}
+							fallback={<span>{displayName().charAt(0).toUpperCase()}</span>}
+						>
+							<img
+								src={userAvatarUrl()}
+								alt={displayName()}
+								onError={handleAvatarError}
+								class="w-full h-full object-cover"
+							/>
+						</Show>
 					</div>
 					<div class="flex flex-col min-w-0">
 						<h2 class="text-[17px] font-bold text-[var(--tg-text)] truncate">{displayName()}</h2>

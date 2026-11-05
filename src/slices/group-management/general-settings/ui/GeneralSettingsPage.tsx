@@ -40,6 +40,11 @@ interface GeneralConfig {
 	joinRequestTimeoutSec: number;
 	blockZeroWidthChars: boolean;
 	blockHomographImpersonation: boolean;
+	// In-Chat Command Engine & Inline Buttons
+	enablePersianNaturalCommands: boolean;
+	autoDeleteAdminCommands: boolean;
+	inlineActionButtons: boolean;
+	publicReportCommand: boolean;
 }
 
 const defaultConfig: GeneralConfig = {
@@ -72,6 +77,10 @@ const defaultConfig: GeneralConfig = {
 	joinRequestTimeoutSec: 120,
 	blockZeroWidthChars: true,
 	blockHomographImpersonation: true,
+	enablePersianNaturalCommands: true,
+	autoDeleteAdminCommands: true,
+	inlineActionButtons: true,
+	publicReportCommand: true,
 };
 
 export const GeneralSettingsPage: Component = () => {
@@ -339,6 +348,72 @@ export const GeneralSettingsPage: Component = () => {
 							description={t('generalSettings.casProtectionDesc')}
 							enabled={config.casEnabled}
 							onToggle={(v) => updateField('casEnabled', v)}
+						/>
+					</div>
+				</div>
+
+				{/* In-Chat Commands & Inline Action Buttons Section */}
+				<div>
+					<div class="tg-section-header">
+						{isRtl()
+							? 'تنظیمات موتور دستورات داخل چت و دکمه‌های شیشه‌ای'
+							: 'In-Chat Commands & Inline Action Buttons'}
+					</div>
+					<div class="tg-section p-4 flex flex-col gap-3.5">
+						<SettingsSection
+							title={
+								isRtl()
+									? 'دستورات فارسی بدون اسلش (Natural Triggers)'
+									: 'Persian Natural Language Commands'
+							}
+							description={
+								isRtl()
+									? 'تشخیص هوشمند دستوراتی مانند «بن»، «سکوت ۲ ساعت»، «اخطار»، «معاف» و «پنل» با ریپلای ادمین در گروه'
+									: 'Recognize natural reply commands without requiring a leading slash'
+							}
+							enabled={config.enablePersianNaturalCommands}
+							onToggle={(v) => updateField('enablePersianNaturalCommands', v)}
+						/>
+
+						<SettingsSection
+							title={isRtl() ? 'حذف خودکار پیام دستور ادمین' : 'Auto-Delete Admin Command Message'}
+							description={
+								isRtl()
+									? 'تمیز ماندن چت گروه با حذف آنی پیام دستور ادمین پس از اجرای بن، سکوت یا پاکسازی'
+									: 'Keep group chat clean by deleting the admin command message after execution'
+							}
+							enabled={config.autoDeleteAdminCommands}
+							onToggle={(v) => updateField('autoDeleteAdminCommands', v)}
+						/>
+
+						<SettingsSection
+							title={
+								isRtl()
+									? 'دکمه‌های شیشه‌ای واکنش سریع زیر پیام‌های ربات'
+									: 'Quick-Action Inline Buttons Below Bot Alerts'
+							}
+							description={
+								isRtl()
+									? 'افزودن دکمه شیشه‌ای «🔊 لغو سکوت» و «🚫 اخراج کامل» زیر پیام‌های برخورد ربات (مخصوص ادمین‌ها)'
+									: 'Attach 1-tap Unmute and Ban inline buttons below bot moderation messages'
+							}
+							enabled={config.inlineActionButtons}
+							onToggle={(v) => updateField('inlineActionButtons', v)}
+						/>
+
+						<SettingsSection
+							title={
+								isRtl()
+									? 'دستور عمومی «گزارش» (/report) برای اعضا'
+									: 'Public Member Report Command (/report)'
+							}
+							description={
+								isRtl()
+									? 'امکان ریپلای اعضا روی پیام متخلف با «گزارش» یا /report جهت اطلاع‌رسانی سریع به مدیران گروه'
+									: 'Allow members to reply with /report to alert group administrators'
+							}
+							enabled={config.publicReportCommand}
+							onToggle={(v) => updateField('publicReportCommand', v)}
 						/>
 					</div>
 				</div>

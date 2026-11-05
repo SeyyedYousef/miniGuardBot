@@ -74,10 +74,11 @@ describe('MiniGuard Bot Commands, Inline Callbacks & Edge-Case Engine', () => {
 		expect(regularMemberClick.showAlertModal).toBe(true);
 	});
 
-	it('resolves subscription expiry and critical edge cases with zero data loss', () => {
+	it('resolves subscription expiry (7-day retention) and critical edge cases', () => {
 		const expired = resolveEdgeCaseScenario('subscription_expired_unpaid');
 		expect(expired.dataLost).toBe(false);
-		expect(expired.botActionCode).toContain('SAFE_HIBERNATION_MODE');
+		expect(expired.botActionCode).toContain('SAFE_HIBERNATION_7_DAYS');
+		expect(expired.systemBehaviorFa).toContain('۱ هفته');
 
 		const migration = resolveEdgeCaseScenario('supergroup_chat_id_migration');
 		expect(migration.dataLost).toBe(false);

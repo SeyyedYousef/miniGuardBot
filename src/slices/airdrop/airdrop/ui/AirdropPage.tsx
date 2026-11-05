@@ -2,6 +2,7 @@ import { useNavigate } from '@solidjs/router';
 import { backButton } from '@tma.js/sdk-solid';
 import { type Component, createSignal, For, onMount, Show } from 'solid-js';
 import { isRtl, locale } from '@/shared/i18n/index.js';
+import { BOT_COMMANDS_CATALOG, type CommandCategory } from '@/shared/lib/bot-commands-engine.js';
 import { haptic } from '@/shared/lib/haptic.js';
 import { showToast } from '@/shared/ui/toast.js';
 import { BottomNav } from '@/widgets/bottom-nav/index.js';
@@ -13,6 +14,9 @@ export const AirdropPage: Component = () => {
 	const isFa = () => locale() === 'fa' || locale() === 'ps';
 
 	const [activeTab, setActiveTab] = createSignal<GuideTab>('setup');
+	const [selectedCmdCategory, setSelectedCmdCategory] = createSignal<CommandCategory | 'all'>(
+		'all',
+	);
 	const [openFaqId, setOpenFaqId] = createSignal<string>('faq-1');
 
 	onMount(() => {
@@ -84,43 +88,24 @@ export const AirdropPage: Component = () => {
 		},
 	];
 
-	const quickCommands = () => [
-		{
-			fa: 'بن',
-			slash: '/ban',
-			title: isFa() ? 'اخراج دائم کاربر (با ریپلای)' : 'Permanent Ban (Reply)',
-		},
-		{
-			fa: 'سکوت ۲ ساعت',
-			slash: '/mute 2h',
-			title: isFa() ? 'سکوت زمان‌دار کاربر (با ریپلای)' : 'Timed Mute (Reply)',
-		},
-		{
-			fa: 'حذف سکوت',
-			slash: '/unmute',
-			title: isFa() ? 'باز کردن صدای کاربر' : 'Unmute User',
-		},
-		{
-			fa: 'اخطار',
-			slash: '/warn',
-			title: isFa() ? 'ثبت اخطار پلکانی با دکمه بخشش' : 'Issue Warning',
-		},
-		{
-			fa: 'پاکسازی ۵۰',
-			slash: '/purge 50',
-			title: isFa() ? 'حذف دسته‌جمعی پیام‌های اخیر' : 'Batch Delete Messages',
-		},
-		{
-			fa: 'معاف',
-			slash: '/vip',
-			title: isFa() ? 'معاف کردن عضو از تمام قفل‌ها' : 'Whitelist VIP Member',
-		},
-		{
-			fa: 'پنل',
-			slash: '/panel',
-			title: isFa() ? 'باز کردن پنل شیشه‌ای داخل چت' : 'Open In-Chat Inline Panel',
-		},
+	const commandCategories: Array<{
+		key: CommandCategory | 'all';
+		labelFa: string;
+		labelEn: string;
+	}> = [
+		{ key: 'all', labelFa: `همه (${BOT_COMMANDS_CATALOG.length})`, labelEn: 'All' },
+		{ key: 'punishment', labelFa: 'برخورد و جریمه', labelEn: 'Moderation' },
+		{ key: 'cleanup', labelFa: 'پاکسازی چت', labelEn: 'Cleanup' },
+		{ key: 'locks', labelFa: 'قفل‌های سریع', labelEn: 'Quick Locks' },
+		{ key: 'users', labelFa: 'کاربران و گزارش', labelEn: 'Users & Report' },
+		{ key: 'panel', labelFa: 'پنل شیشه‌ای', labelEn: 'Inline Panel' },
 	];
+
+	const filteredCommands = () => {
+		const cat = selectedCmdCategory();
+		if (cat === 'all') return BOT_COMMANDS_CATALOG;
+		return BOT_COMMANDS_CATALOG.filter((c) => c.category === cat);
+	};
 
 	const faqs = () => [
 		{
@@ -135,11 +120,11 @@ export const AirdropPage: Component = () => {
 		{
 			id: 'faq-2',
 			q: isFa()
-				? 'اگر مهلت ۲۴ ساعت رایگان تمام شود و پرداخت نکنم چه می‌شود؟'
-				: 'What happens if the 24h trial expires without payment?',
+				? 'اگر اعتبار ۲۴ ساعت رایگان یا اشتراک ماهانه تمام شود، اطلاعات تا چه زمانی نگه داشته می‌شود؟'
+				: 'How long is group data retained if the subscription expires?',
 			a: isFa()
-				? 'هیچ‌کدام از تنظیمات، قفل‌ها و آمار گروه شما پاک نمی‌شود. ربات از گروه خارج نمی‌شود و در حالت خواب ایمن می‌ماند تا هر زمان با ۱۰۰ استارز (⭐) تمدید کردید، در لحظه روشن شود.'
-				: 'Zero data is lost. Your bot stays in Safe Hibernation Mode and resumes instantly whenever you renew for 100 ⭐.',
+				? 'پس از پایان اعتبار یک گروه، اطلاعات، تنظیمات و آمار آن تنها به مدت ۱ هفته (۷ روز) در سیستم ذخیره و نگهداری می‌شود و ربات در این مدت در حالت تعلیق ایمن می‌ماند. اگر ظرف این ۱ هفته اشتراک را تمدید کنید، ربات بلافاصله با همان تنظیمات قبلی روشن می‌شود؛ اما در صورت عدم تمدید پس از ۱ هفته، اطلاعات گروه به صورت خودکار از دیتابیس پاکسازی خواهد شد.'
+				: 'When a group subscription expires, its settings and data are retained for 1 week (7 days) only. If not renewed within 7 days, the data is automatically purged from our database.',
 		},
 		{
 			id: 'faq-3',
@@ -282,52 +267,88 @@ export const AirdropPage: Component = () => {
 					</div>
 				</Show>
 
-				{/* TAB 2: MINIMAL CHAT COMMANDS CHEAT SHEET */}
+				{/* TAB 2: COMPLETE CHAT COMMANDS GUIDE (Native Guide Style) */}
 				<Show when={activeTab() === 'commands'}>
-					<div class="tg-section divide-y divide-[var(--tg-separator)]">
-						<For each={quickCommands()}>
-							{(cmd) => (
-								<div class="p-3.5 flex items-center justify-between gap-3">
-									<div class="min-w-0">
-										<div class="text-[14px] font-bold text-[var(--tg-text)]">{cmd.title}</div>
-										<div class="flex items-center gap-1.5 mt-1">
-											<span class="px-2 py-0.5 rounded-md bg-[#34C759]/12 text-[#34C759] text-[11.5px] font-bold">
-												{cmd.fa}
-											</span>
-											<span
-												dir="ltr"
-												class="px-2 py-0.5 rounded-md bg-[var(--tg-secondary-bg)] text-[var(--tg-link)] font-mono text-[11.5px] font-semibold"
-											>
-												{cmd.slash}
-											</span>
-										</div>
-									</div>
-
-									<button
-										type="button"
-										onClick={() => copyText(cmd.fa)}
-										class="h-8 px-3 rounded-lg bg-[var(--tg-secondary-bg)] text-[var(--tg-link)] text-[12px] font-semibold shrink-0 active:scale-95 transition-transform"
-									>
-										{isFa() ? 'کپی' : 'Copy'}
-									</button>
-								</div>
+					{/* Category Filter Pills */}
+					<div class="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+						<For each={commandCategories}>
+							{(cat) => (
+								<button
+									type="button"
+									onClick={() => {
+										haptic.selection();
+										setSelectedCmdCategory(cat.key);
+									}}
+									class={`px-3 py-1.5 rounded-full text-[12px] font-bold whitespace-nowrap transition-all ${
+										selectedCmdCategory() === cat.key
+											? 'bg-[var(--tg-button)] text-white shadow-xs'
+											: 'bg-[var(--tg-section-bg)] text-[var(--tg-hint)] border border-[var(--tg-separator)]'
+									}`}
+								>
+									{isFa() ? cat.labelFa : cat.labelEn}
+								</button>
 							)}
 						</For>
 					</div>
 
-					<button
-						type="button"
-						onClick={() => {
-							haptic.impact('light');
-							navigate('/group/demo-group/commands');
-						}}
-						class="tg-btn-primary w-full h-11 text-[14px] flex items-center justify-center gap-2"
-					>
-						<span class="material-symbols-outlined text-[19px]">terminal</span>
-						<span>
-							{isFa() ? 'تست زنده دستورات و پنل شیشه‌ای' : 'Open Live Commands & Inline Panel'}
-						</span>
-					</button>
+					<div class="tg-section divide-y divide-[var(--tg-separator)]">
+						<For each={filteredCommands()}>
+							{(cmd) => (
+								<div class="p-3.5 flex flex-col gap-2">
+									<div class="flex items-start justify-between gap-3">
+										<div class="min-w-0">
+											<div class="text-[14px] font-bold text-[var(--tg-text)]">
+												{isFa() ? cmd.titleFa : cmd.titleEn}
+											</div>
+											<p class="text-[12px] text-[var(--tg-hint)] leading-relaxed mt-0.5">
+												{isFa() ? cmd.descFa : cmd.descEn}
+											</p>
+										</div>
+
+										<button
+											type="button"
+											onClick={() => copyText(cmd.persianTriggers[0] || cmd.slashTriggers[0])}
+											class="h-7 px-2.5 rounded-lg bg-[var(--tg-secondary-bg)] text-[var(--tg-link)] text-[11.5px] font-semibold shrink-0 active:scale-95 transition-transform"
+										>
+											{isFa() ? 'کپی' : 'Copy'}
+										</button>
+									</div>
+
+									{/* Persian & Slash Triggers */}
+									<div class="flex flex-wrap gap-1.5">
+										<For each={cmd.persianTriggers}>
+											{(pt) => (
+												<button
+													type="button"
+													onClick={() => copyText(pt)}
+													class="px-2 py-0.5 rounded-md bg-[#34C759]/12 text-[#34C759] text-[11.5px] font-bold"
+												>
+													{pt}
+												</button>
+											)}
+										</For>
+										<For each={cmd.slashTriggers}>
+											{(st) => (
+												<button
+													type="button"
+													onClick={() => copyText(st)}
+													dir="ltr"
+													class="px-2 py-0.5 rounded-md bg-[var(--tg-secondary-bg)] text-[var(--tg-link)] font-mono text-[11.5px] font-semibold"
+												>
+													{st}
+												</button>
+											)}
+										</For>
+									</div>
+
+									<div class="text-[11px] text-[var(--tg-hint)] bg-[var(--tg-secondary-bg)]/60 rounded-lg px-2.5 py-1.5">
+										<b class="text-[var(--tg-text)]">{isFa() ? 'نحوه استفاده:' : 'Example:'}</b>{' '}
+										{isFa() ? cmd.exampleFa : cmd.exampleEn}
+									</div>
+								</div>
+							)}
+						</For>
+					</div>
 				</Show>
 
 				{/* TAB 3: MINIMAL ACCORDION FAQ */}

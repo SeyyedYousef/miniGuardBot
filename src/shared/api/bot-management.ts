@@ -120,10 +120,65 @@ export interface DailyMetric {
 	value: number;
 }
 
-interface AnalyticsData {
-	summary: AnalyticsSummary;
+export interface AnalyticsData {
+	group_id?: string;
+	group_title?: string;
+	summary: AnalyticsSummary & {
+		join_requests_approved?: number;
+		join_requests_declined?: number;
+		warnings_issued?: number;
+		muted_users?: number;
+		banned_users?: number;
+	};
 	growth: DailyMetric[];
 	activity: DailyMetric[];
+	hourly_messages?: number[];
+	total_messages_7d?: number;
+	total_spam_blocked_7d?: number;
+	active_members_rate?: number;
+	security_score?: number;
+	daily_stats?: Array<{
+		date: string;
+		total_messages: number;
+		active_users: number;
+		new_members: number;
+		left_members: number;
+		spam_blocked: number;
+		warnings_issued: number;
+		muted_users: number;
+		banned_users: number;
+	}>;
+	top_violated_rules?: Array<{ rule: string; count: number }>;
+	top_users?: Array<{
+		id: number;
+		name: string;
+		username?: string;
+		messages: number;
+		warns: number;
+	}>;
+	forum_topics?: Array<{ id: number; title: string; messages: number }>;
+}
+
+export interface GroupProfileData {
+	ok?: boolean;
+	group_id: string;
+	chat_id?: number;
+	current_title: string;
+	current_description: string;
+	members_count: number;
+	warning?: string;
+	dynamic_bio: {
+		enabled: boolean;
+		title_template: string;
+		bio_template: string;
+		append_time_to_title?: boolean;
+		variables_enabled?: {
+			members: boolean;
+			time: boolean;
+			date: boolean;
+			day_name: boolean;
+		};
+	};
 }
 
 interface AuditLog {
@@ -206,6 +261,25 @@ export const groupApi = {
 		apiClient
 			.get<AnalyticsData>(`/groups/${groupId}/analytics`, { params: { days } })
 			.then((r: any) => r.data),
+
+	sendAnalyticsReport: (groupId: string, userId?: number) =>
+		apiClient
+			.post<{ ok: boolean; message: string }>(`/groups/${groupId}/send-report`, {
+				user_id: userId,
+			})
+			.then((r: any) => r.data),
+
+	getGroupProfile: (groupId: string) =>
+		apiClient.get<GroupProfileData>(`/groups/${groupId}/profile`).then((r: any) => r.data),
+
+	updateGroupProfile: (
+		groupId: string,
+		data: {
+			current_title?: string;
+			current_description?: string;
+			dynamic_bio?: Partial<GroupProfileData['dynamic_bio']>;
+		},
+	) => apiClient.put<GroupProfileData>(`/groups/${groupId}/profile`, data).then((r: any) => r.data),
 
 	getAuditLogs: (groupId: string, limit = 50, offset = 0) =>
 		apiClient

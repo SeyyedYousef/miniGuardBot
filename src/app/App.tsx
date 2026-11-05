@@ -61,8 +61,7 @@ const DeepLinkHandler = () => {
 			if (!startParam) return;
 
 			if (startParam.startsWith('commands_')) {
-				const groupId = startParam.substring('commands_'.length);
-				if (groupId) navigate(`/group/${groupId}/commands`, { replace: true });
+				navigate('/airdrop', { replace: true });
 			} else if (startParam.startsWith('verify_')) {
 				const groupId = startParam.substring('verify_'.length);
 				if (groupId) navigate(`/group/${groupId}?verify_join=1&biometric=1`, { replace: true });
