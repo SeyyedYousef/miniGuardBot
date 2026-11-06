@@ -25,6 +25,7 @@ import fs from 'node:fs';
 import http from 'node:http';
 import https from 'node:https';
 import path from 'node:path';
+import zlib from 'node:zlib';
 
 try {
 	dns.setDefaultResultOrder('ipv4first');
@@ -796,23 +797,61 @@ function loadPersistentStore() {
 	}
 }
 
+let saveTimer: NodeJS.Timeout | null = null;
+let isSaving = false;
+let pendingSave = false;
+
+export function flushPersistentStore(): Promise<void> {
+	if (process.env.NODE_ENV === 'test' || process.env.VITEST) return Promise.resolve();
+	return new Promise((resolve) => {
+		if (saveTimer) {
+			clearTimeout(saveTimer);
+			saveTimer = null;
+		}
+		const performWrite = async () => {
+			if (isSaving) {
+				pendingSave = true;
+				resolve();
+				return;
+			}
+			isSaving = true;
+			try {
+				if (!fs.existsSync(DATA_DIR)) {
+					await fs.promises.mkdir(DATA_DIR, { recursive: true });
+				}
+				const payload = {
+					bots: Array.from(managedBotsStore.values()),
+					managedGroups: Array.from(managedGroupsStore.values()),
+					runtimeGroups: Array.from(groupsStore.entries()),
+					ownerSystemSettings,
+					savedAt: new Date().toISOString(),
+				};
+				const tempFile = `${STORE_FILE}.tmp`;
+				await fs.promises.writeFile(tempFile, JSON.stringify(payload), 'utf8');
+				await fs.promises.rename(tempFile, STORE_FILE);
+			} catch (err: any) {
+				console.warn('[Store Save Warning]:', err?.message || err);
+			} finally {
+				isSaving = false;
+				if (pendingSave) {
+					pendingSave = false;
+					performWrite().then(resolve);
+				} else {
+					resolve();
+				}
+			}
+		};
+		performWrite();
+	});
+}
+
 function savePersistentStore() {
 	if (process.env.NODE_ENV === 'test' || process.env.VITEST) return;
-	try {
-		if (!fs.existsSync(DATA_DIR)) {
-			fs.mkdirSync(DATA_DIR, { recursive: true });
-		}
-		const payload = {
-			bots: Array.from(managedBotsStore.values()),
-			managedGroups: Array.from(managedGroupsStore.values()),
-			runtimeGroups: Array.from(groupsStore.entries()),
-			ownerSystemSettings,
-			savedAt: new Date().toISOString(),
-		};
-		fs.writeFileSync(STORE_FILE, JSON.stringify(payload, null, 2), 'utf8');
-	} catch (err: any) {
-		console.warn('[Store Save Warning]:', err?.message || err);
-	}
+	if (saveTimer) return;
+	saveTimer = setTimeout(() => {
+		saveTimer = null;
+		flushPersistentStore();
+	}, 150);
 }
 
 loadPersistentStore();
@@ -955,6 +994,13 @@ export function extractCleanBotToken(rawInput: string): string | null {
 }
 
 // ─── Telegram Bot API 8.x Client (IPv4-Forced for Docker Reliability) ───────
+const telegramAgent = new https.Agent({
+	keepAlive: true,
+	keepAliveMsecs: 30000,
+	maxSockets: 64,
+	maxFreeSockets: 32,
+	timeout: 35000,
+});
 
 export async function callTelegramApi<T = any>(
 	method: string,
@@ -975,6 +1021,7 @@ export async function callTelegramApi<T = any>(
 				path: `/bot${token}/${method}`,
 				method: 'POST',
 				family: 4, // Force IPv4 so Docker bridge networks without IPv6 never fail
+				agent: telegramAgent,
 				headers: {
 					'Content-Type': 'application/json',
 					'Content-Length': Buffer.byteLength(bodyStr, 'utf8'),
@@ -2135,6 +2182,9 @@ export async function startLongPolling(token: string = BOT_TOKEN): Promise<void>
 		}
 	}
 
+	// Remove any existing webhook so getUpdates works cleanly
+	await callTelegramApi('deleteWebhook', { drop_pending_updates: false }, token).catch(() => {});
+
 	let offset = 0;
 	while (isPollingActive) {
 		try {
@@ -2159,6 +2209,12 @@ export async function startLongPolling(token: string = BOT_TOKEN): Promise<void>
 					offset = update.update_id + 1;
 					await processTelegramUpdate(update, token);
 				}
+			} else {
+				if (res.error_code === 409) {
+					await new Promise((r) => setTimeout(r, 8000));
+				} else {
+					await new Promise((r) => setTimeout(r, 3000));
+				}
 			}
 		} catch (e: any) {
 			console.error('[Polling Loop Error]:', e?.message || e);
@@ -2172,6 +2228,8 @@ const MAX_BODY_BYTES = 1024 * 1024; // 1 MB max body size
 
 export function createServer() {
 	const server = http.createServer(async (req, res) => {
+		const startTime = process.hrtime.bigint();
+		const acceptEncoding = (req.headers['accept-encoding'] as string) || '';
 		try {
 			const url = req.url || '/';
 		const method = req.method || 'GET';
@@ -2209,8 +2267,44 @@ export function createServer() {
 		};
 
 		const sendJson = (status: number, data: any) => {
-			res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });
-			res.end(JSON.stringify(data));
+			const elapsedMs = Number(process.hrtime.bigint() - startTime) / 1e6;
+			res.setHeader('Server-Timing', `total;dur=${elapsedMs.toFixed(2)}`);
+			if (elapsedMs > 600 && process.env.NODE_ENV !== 'test') {
+				console.warn(`[Perf Warning] Slow API ${method} ${url}: ${elapsedMs.toFixed(2)}ms`);
+			}
+			const jsonStr = JSON.stringify(data);
+			const buf = Buffer.from(jsonStr, 'utf8');
+
+			// Fast Compression for JSON payloads > 1KB
+			if (buf.length > 1024) {
+				if (acceptEncoding.includes('gzip')) {
+					const compressed = zlib.gzipSync(buf);
+					res.writeHead(status, {
+						'Content-Type': 'application/json; charset=utf-8',
+						'Content-Encoding': 'gzip',
+						'Content-Length': compressed.length,
+						Vary: 'Accept-Encoding, Origin',
+					});
+					res.end(compressed);
+					return;
+				} else if (acceptEncoding.includes('deflate')) {
+					const compressed = zlib.deflateSync(buf);
+					res.writeHead(status, {
+						'Content-Type': 'application/json; charset=utf-8',
+						'Content-Encoding': 'deflate',
+						'Content-Length': compressed.length,
+						Vary: 'Accept-Encoding, Origin',
+					});
+					res.end(compressed);
+					return;
+				}
+			}
+
+			res.writeHead(status, {
+				'Content-Type': 'application/json; charset=utf-8',
+				'Content-Length': buf.length,
+			});
+			res.end(buf);
 		};
 
 		// ─── Security Headers & Strict CORS ─────────────────────────────────────
@@ -3022,6 +3116,18 @@ export function createServer() {
 		}
 
 		// ─── 4. Groups, Settings, Analytics & Audit Endpoints ────────────────────
+		if (cleanPath === '/groups' && method === 'GET') {
+			const authUser = extractAuthUser(req);
+			const list = Array.from(managedGroupsStore.values())
+				.filter((g) => g.id !== 'g1' && g.bot_id !== 'b1')
+				.filter((g) => {
+					if (!authUser || authUser.role === 'owner') return true;
+					return g.owner_user_id === authUser.userId;
+				})
+				.map((g) => normalizeStoredGroup(g));
+			return sendJson(200, list);
+		}
+
 		if (cleanPath.startsWith('/groups/')) {
 			const parts = cleanPath.split('/').filter(Boolean); // ['groups', ':id', ('settings'|'analytics'|'audit')?]
 			const groupIdStr = parts[1];
@@ -3746,7 +3852,7 @@ export function createServer() {
 			});
 		}
 
-		// ─── 7. Serve Static Frontend (dist) with Path Traversal Guard ───────────
+		// ─── 7. Serve Static Frontend (dist) with Path Traversal Guard, Caching & Compression ───
 		const distPath = path.resolve(process.cwd(), 'dist');
 		const safeRelative = path.normalize(rawPath).replace(/^(\.\.(\/|\\|$))+/, '');
 		let filePath = path.resolve(distPath, `.${safeRelative}`);
@@ -3761,7 +3867,7 @@ export function createServer() {
 		}
 
 		if (fs.existsSync(filePath)) {
-			const ext = path.extname(filePath);
+			const ext = path.extname(filePath).toLowerCase();
 			const mimeTypes: Record<string, string> = {
 				'.html': 'text/html; charset=utf-8',
 				'.js': 'application/javascript; charset=utf-8',
@@ -3769,11 +3875,60 @@ export function createServer() {
 				'.json': 'application/json; charset=utf-8',
 				'.png': 'image/png',
 				'.jpg': 'image/jpeg',
+				'.jpeg': 'image/jpeg',
+				'.webp': 'image/webp',
 				'.svg': 'image/svg+xml',
 				'.woff2': 'font/woff2',
 				'.woff': 'font/woff',
+				'.ico': 'image/x-icon',
+				'.webmanifest': 'application/manifest+json',
 			};
-			res.writeHead(200, { 'Content-Type': mimeTypes[ext] || 'application/octet-stream' });
+
+			const stat = fs.statSync(filePath);
+			const etag = `W/"${stat.size}-${stat.mtimeMs.toString(16)}"`;
+			const isHashedAsset = rawPath.startsWith('/assets/');
+
+			// 1-year immutable caching for fingerprinted assets; immediate revalidation for index.html
+			const cacheControl = isHashedAsset
+				? 'public, max-age=31536000, immutable'
+				: 'public, max-age=0, must-revalidate';
+
+			res.setHeader('Cache-Control', cacheControl);
+			res.setHeader('ETag', etag);
+
+			if (req.headers['if-none-match'] === etag) {
+				res.writeHead(304);
+				res.end();
+				return;
+			}
+
+			const contentType = mimeTypes[ext] || 'application/octet-stream';
+			const isCompressible = ['.html', '.js', '.css', '.json', '.svg'].includes(ext);
+
+			if (isCompressible && stat.size > 1024) {
+				if (acceptEncoding.includes('gzip')) {
+					res.writeHead(200, {
+						'Content-Type': contentType,
+						'Content-Encoding': 'gzip',
+						Vary: 'Accept-Encoding',
+					});
+					fs.createReadStream(filePath).pipe(zlib.createGzip()).pipe(res);
+					return;
+				} else if (acceptEncoding.includes('deflate')) {
+					res.writeHead(200, {
+						'Content-Type': contentType,
+						'Content-Encoding': 'deflate',
+						Vary: 'Accept-Encoding',
+					});
+					fs.createReadStream(filePath).pipe(zlib.createDeflate()).pipe(res);
+					return;
+				}
+			}
+
+			res.writeHead(200, {
+				'Content-Type': contentType,
+				'Content-Length': stat.size,
+			});
 			fs.createReadStream(filePath).pipe(res);
 			return;
 		}
