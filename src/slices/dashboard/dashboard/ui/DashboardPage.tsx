@@ -2,11 +2,12 @@ import { useNavigate } from '@solidjs/router';
 import { backButton } from '@tma.js/sdk-solid';
 import { type Component, createResource, For, onMount, Show } from 'solid-js';
 import type { ManagedBot, ManagedGroup } from '@/shared/api/bot-management.js';
-import { botApi } from '@/shared/api/bot-management.js';
+import { botApi, groupApi } from '@/shared/api/bot-management.js';
 import { uiText } from '@/shared/i18n/group-ui.js';
 import { isRtl } from '@/shared/i18n/index.js';
 import { haptic } from '@/shared/lib/haptic.js';
 import { colorScheme, toggleThemeScheme } from '@/shared/lib/tg-theme.js';
+import { GroupCardSkeleton } from '@/shared/ui/Skeleton.js';
 import { BottomNav } from '@/widgets/bottom-nav/index.js';
 
 export const DashboardPage: Component = () => {
@@ -21,18 +22,28 @@ export const DashboardPage: Component = () => {
 
 	const [groups] = createResource(async () => {
 		try {
-			const allBots = await botApi.listBots();
-			const bots = (allBots || []).filter(
-				(b: ManagedBot) =>
-					b.bot_username?.toLowerCase() !== 'miniguardbot' &&
-					b.bot_username !== 'devs_miniguard_bot',
-			);
 			const mockGroups = ((window as any).__mockGroups || []) as ManagedGroup[];
-			if (!bots || bots.length === 0) return mockGroups;
-			const lists = await Promise.all(
-				bots.map((b: ManagedBot) => botApi.listGroups(b.id).catch(() => [] as ManagedGroup[])),
-			);
-			const combined = [...lists.flat(), ...mockGroups];
+			let fetchedGroups: ManagedGroup[] = [];
+			try {
+				fetchedGroups = await groupApi.listGroups();
+			} catch {}
+
+			if (!fetchedGroups || fetchedGroups.length === 0) {
+				const allBots = await botApi.listBots().catch(() => []);
+				const bots = (allBots || []).filter(
+					(b: ManagedBot) =>
+						b.bot_username?.toLowerCase() !== 'miniguardbot' &&
+						b.bot_username !== 'devs_miniguard_bot',
+				);
+				if (bots.length > 0) {
+					const lists = await Promise.all(
+						bots.map((b: ManagedBot) => botApi.listGroups(b.id).catch(() => [] as ManagedGroup[])),
+					);
+					fetchedGroups = lists.flat();
+				}
+			}
+
+			const combined = [...fetchedGroups, ...mockGroups];
 			const seen = new Set<string>();
 			return combined.filter((g) => {
 				if (!g?.id || g.id === 'g1' || seen.has(g.id)) return false;
@@ -85,8 +96,12 @@ export const DashboardPage: Component = () => {
 				<Show
 					when={!groups.loading}
 					fallback={
-						<div class="flex-1 flex items-center justify-center py-20">
-							<div class="w-6 h-6 border-2 border-[var(--tg-button)] border-t-transparent rounded-full animate-spin" />
+						<div class="space-y-3">
+							<div class="tg-section">
+								<GroupCardSkeleton />
+								<GroupCardSkeleton />
+								<GroupCardSkeleton />
+							</div>
 						</div>
 					}
 				>

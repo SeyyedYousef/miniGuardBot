@@ -7,6 +7,7 @@ import { isRtl, locale, SUPPORTED_LANGUAGES, setLocale } from '@/shared/i18n/ind
 import { haptic } from '@/shared/lib/haptic.js';
 import { colorScheme, toggleThemeScheme } from '@/shared/lib/tg-theme.js';
 import { showToast } from '@/shared/ui/toast.js';
+import { BotCardSkeleton } from '@/shared/ui/Skeleton.js';
 import { BottomNav } from '@/widgets/bottom-nav/index.js';
 
 export const extractCleanBotToken = (raw: string): string | null => {
@@ -337,58 +338,71 @@ export const IndexPage: Component = () => {
 				</div>
 
 				{/* Connected Dedicated Bots Section */}
-				<Show when={(bots()?.length || 0) > 0}>
-					<div>
-						<div class="tg-section-header">{txt().myBotsTitle}</div>
-						<div class="tg-section">
-							<For each={bots()}>
-								{(bot) => (
-									<div
-										onClick={() => {
-											haptic.impact('light');
-											const gid = bot.group_id || (bot as any).bound_group_id;
-											if (gid) {
-												navigate(`/group/${gid}`);
-											} else {
-												navigate(`/bot/${bot.id}/manage`);
-											}
-										}}
-										class="tg-cell w-full text-start cursor-pointer"
-									>
-										<div class="w-10 h-10 rounded-[11px] bg-[var(--tg-button)] flex items-center justify-center text-white shrink-0">
-											<span class="material-symbols-outlined text-[21px]">smart_toy</span>
-										</div>
-										<div class="flex-1 min-w-0">
-											<div class="text-[15px] font-semibold text-[var(--tg-text)] truncate">
-												{bot.group_title || bot.bot_name}
+				<Show
+					when={!bots.loading}
+					fallback={
+						<div>
+							<div class="tg-section-header">{txt().myBotsTitle}</div>
+							<div class="tg-section">
+								<BotCardSkeleton />
+								<BotCardSkeleton />
+							</div>
+						</div>
+					}
+				>
+					<Show when={(bots()?.length || 0) > 0}>
+						<div>
+							<div class="tg-section-header">{txt().myBotsTitle}</div>
+							<div class="tg-section">
+								<For each={bots()}>
+									{(bot) => (
+										<div
+											onClick={() => {
+												haptic.impact('light');
+												const gid = bot.group_id || (bot as any).bound_group_id;
+												if (gid) {
+													navigate(`/group/${gid}`);
+												} else {
+													navigate(`/bot/${bot.id}/manage`);
+												}
+											}}
+											class="tg-cell w-full text-start cursor-pointer"
+										>
+											<div class="w-10 h-10 rounded-[11px] bg-[var(--tg-button)] flex items-center justify-center text-white shrink-0">
+												<span class="material-symbols-outlined text-[21px]">smart_toy</span>
 											</div>
-											<div class="flex items-center gap-1.5 mt-0.5 flex-wrap">
-												<span
-													dir="ltr"
-													class="text-[12px] text-[var(--tg-hint)] font-mono truncate text-start rtl:text-right"
-												>
-													@{bot.bot_username}
-												</span>
-												<Show when={bot.group_link}>
-													<span class="text-[var(--tg-hint)]">•</span>
+											<div class="flex-1 min-w-0">
+												<div class="text-[15px] font-semibold text-[var(--tg-text)] truncate">
+													{bot.group_title || bot.bot_name}
+												</div>
+												<div class="flex items-center gap-1.5 mt-0.5 flex-wrap">
 													<span
 														dir="ltr"
-														class="text-[11.5px] text-[var(--tg-link)] font-mono truncate"
+														class="text-[12px] text-[var(--tg-hint)] font-mono truncate text-start rtl:text-right"
 													>
-														{bot.group_link?.replace(/^https?:\/\/(t\.me|telegram\.me)\//i, '@')}
+														@{bot.bot_username}
 													</span>
-												</Show>
+													<Show when={bot.group_link}>
+														<span class="text-[var(--tg-hint)]">•</span>
+														<span
+															dir="ltr"
+															class="text-[11.5px] text-[var(--tg-link)] font-mono truncate"
+														>
+															{bot.group_link?.replace(/^https?:\/\/(t\.me|telegram\.me)\//i, '@')}
+														</span>
+													</Show>
+												</div>
 											</div>
-										</div>
 
-										<span class="material-symbols-outlined text-[var(--tg-hint)] text-[20px] rtl:rotate-180">
-											chevron_right
-										</span>
-									</div>
-								)}
-							</For>
+											<span class="material-symbols-outlined text-[var(--tg-hint)] text-[20px] rtl:rotate-180">
+												chevron_right
+											</span>
+										</div>
+									)}
+								</For>
+							</div>
 						</div>
-					</div>
+					</Show>
 				</Show>
 			</main>
 

@@ -25,6 +25,30 @@ export default defineConfig(() => {
 		build: {
 			target: 'esnext',
 			sourcemap: false,
+			chunkSizeWarningLimit: 600,
+			rollupOptions: {
+				output: {
+					manualChunks(id) {
+						if (id.includes('node_modules')) {
+							if (id.includes('@sentry')) {
+								return 'vendor-sentry';
+							}
+							if (id.includes('@tma.js')) {
+								return 'vendor-tma';
+							}
+							if (id.includes('@tanstack/solid-query')) {
+								return 'vendor-query';
+							}
+							if (id.includes('solid-js') || id.includes('@solidjs') || id.includes('@solid-primitives')) {
+								return 'vendor-solid';
+							}
+							if (id.includes('axios')) {
+								return 'vendor-axios';
+							}
+						}
+					},
+				},
+			},
 		},
 	};
 });

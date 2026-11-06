@@ -90,9 +90,9 @@ export interface OwnerEntityItem {
 
 export const ownerApi = {
 	// --- Group Admins ---
-	searchUsers: (query: string) =>
+	searchUsers: (query: string, config?: any) =>
 		apiClient
-			.get<SearchedUser[]>(`/owner/users/search?q=${encodeURIComponent(query)}`)
+			.get<SearchedUser[]>(`/owner/users/search?q=${encodeURIComponent(query)}`, config)
 			.then((r) => r.data),
 
 	banUser: (userId: number, banType: string, reason: string, durationSeconds: number) =>

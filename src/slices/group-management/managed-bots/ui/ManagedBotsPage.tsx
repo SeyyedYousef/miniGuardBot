@@ -16,6 +16,7 @@ import { uiText } from '@/shared/i18n/group-ui.js';
 import { isRtl } from '@/shared/i18n/index.js';
 import { haptic } from '@/shared/lib/haptic.js';
 import { showToast } from '@/shared/ui/toast.js';
+import { BotCardSkeleton } from '@/shared/ui/Skeleton.js';
 import {
 	extractCleanBotToken,
 	normalizeGroupLinkInput,
@@ -222,80 +223,91 @@ export const ManagedBotsPage: Component = () => {
 
 			<main class="w-full max-w-md mx-auto flex-1 flex flex-col px-4 pt-5 gap-5">
 				<Show
-					when={(bots()?.length || 0) > 0}
+					when={!bots.loading}
 					fallback={
-						<div class="tg-section p-7 my-auto flex flex-col items-center text-center gap-4">
-							<div class="w-15 h-15 rounded-[18px] bg-[var(--tg-accent-soft)] flex items-center justify-center text-[var(--tg-button)]">
-								<span class="material-symbols-outlined text-[32px]">smart_toy</span>
-							</div>
-							<div class="space-y-1 max-w-xs">
-								<p class="text-[16px] font-bold text-[var(--tg-text)]">{txt().modalTitle}</p>
-								<p class="text-[13px] text-[var(--tg-hint)] leading-relaxed">{txt().heroSub}</p>
-							</div>
-							<button
-								onClick={() => {
-									haptic.impact('medium');
-									setShowCreateModal(true);
-								}}
-								class="tg-btn-primary w-full h-11 text-[14px] flex items-center justify-center gap-1.5"
-							>
-								<span class="material-symbols-outlined text-[19px]">add_circle</span>
-								<span>{txt().createBotBtn}</span>
-							</button>
+						<div class="tg-section">
+							<BotCardSkeleton />
+							<BotCardSkeleton />
+							<BotCardSkeleton />
 						</div>
 					}
 				>
-					<div>
-						<div class="tg-section-header">{txt().myBotsTitle}</div>
-						<div class="tg-section">
-							<For each={bots() || []}>
-								{(bot) => (
-									<div
-										onClick={() => {
-											haptic.impact('light');
-											navigate(`/bot/${bot.id}/manage`);
-										}}
-										class="tg-cell cursor-pointer"
-									>
-										<div class="w-10 h-10 rounded-[12px] bg-[var(--tg-button)] flex items-center justify-center text-white shrink-0">
-											<span class="material-symbols-outlined text-[22px]">smart_toy</span>
-										</div>
+					<Show
+						when={(bots()?.length || 0) > 0}
+						fallback={
+							<div class="tg-section p-7 my-auto flex flex-col items-center text-center gap-4">
+								<div class="w-15 h-15 rounded-[18px] bg-[var(--tg-accent-soft)] flex items-center justify-center text-[var(--tg-button)]">
+									<span class="material-symbols-outlined text-[32px]">smart_toy</span>
+								</div>
+								<div class="space-y-1 max-w-xs">
+									<p class="text-[16px] font-bold text-[var(--tg-text)]">{txt().modalTitle}</p>
+									<p class="text-[13px] text-[var(--tg-hint)] leading-relaxed">{txt().heroSub}</p>
+								</div>
+								<button
+									onClick={() => {
+										haptic.impact('medium');
+										setShowCreateModal(true);
+									}}
+									class="tg-btn-primary w-full h-11 text-[14px] flex items-center justify-center gap-1.5"
+								>
+									<span class="material-symbols-outlined text-[19px]">add_circle</span>
+									<span>{txt().createBotBtn}</span>
+								</button>
+							</div>
+						}
+					>
+						<div>
+							<div class="tg-section-header">{txt().myBotsTitle}</div>
+							<div class="tg-section">
+								<For each={bots() || []}>
+									{(bot) => (
+										<div
+											onClick={() => {
+												haptic.impact('light');
+												navigate(`/bot/${bot.id}/manage`);
+											}}
+											class="tg-cell cursor-pointer"
+										>
+											<div class="w-10 h-10 rounded-[12px] bg-[var(--tg-button)] flex items-center justify-center text-white shrink-0">
+												<span class="material-symbols-outlined text-[22px]">smart_toy</span>
+											</div>
 
-										<div class="flex-1 min-w-0">
-											<div class="text-[15px] font-semibold text-[var(--tg-text)] truncate">
-												{bot.bot_name}
-											</div>
-											<div
-												dir="ltr"
-												class="text-[12px] text-[var(--tg-hint)] font-mono truncate text-start rtl:text-right"
-											>
-												@{bot.bot_username}
-											</div>
-											<Show when={bot.group_link}>
+											<div class="flex-1 min-w-0">
+												<div class="text-[15px] font-semibold text-[var(--tg-text)] truncate">
+													{bot.bot_name}
+												</div>
 												<div
 													dir="ltr"
-													class="text-[11px] text-[var(--tg-link)] font-mono truncate text-start rtl:text-right mt-0.5"
+													class="text-[12px] text-[var(--tg-hint)] font-mono truncate text-start rtl:text-right"
 												>
-													{bot.group_link}
+													@{bot.bot_username}
 												</div>
-											</Show>
+												<Show when={bot.group_link}>
+													<div
+														dir="ltr"
+														class="text-[11px] text-[var(--tg-link)] font-mono truncate text-start rtl:text-right mt-0.5"
+													>
+														{bot.group_link}
+													</div>
+												</Show>
+											</div>
+
+											<button
+												onClick={(e) => handleDeleteBot(bot, e)}
+												class="w-8 h-8 rounded-lg flex items-center justify-center text-[var(--tg-destructive)] hover:bg-[var(--tg-destructive)]/10"
+											>
+												<span class="material-symbols-outlined text-[19px]">delete</span>
+											</button>
+
+											<span class="material-symbols-outlined text-[var(--tg-hint)] text-[20px] rtl:rotate-180">
+												chevron_right
+											</span>
 										</div>
-
-										<button
-											onClick={(e) => handleDeleteBot(bot, e)}
-											class="w-8 h-8 rounded-lg flex items-center justify-center text-[var(--tg-destructive)] hover:bg-[var(--tg-destructive)]/10"
-										>
-											<span class="material-symbols-outlined text-[19px]">delete</span>
-										</button>
-
-										<span class="material-symbols-outlined text-[var(--tg-hint)] text-[20px] rtl:rotate-180">
-											chevron_right
-										</span>
-									</div>
-								)}
-							</For>
+									)}
+								</For>
+							</div>
 						</div>
-					</div>
+					</Show>
 				</Show>
 			</main>
 

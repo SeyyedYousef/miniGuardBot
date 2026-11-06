@@ -1,6 +1,11 @@
 import { type Component, lazy } from 'solid-js';
-import { OwnerLayout } from '@/widgets/owner/OwnerLayout.js';
-import { OwnerRouteGuard } from './OwnerRouteGuard.js';
+
+const OwnerLayout = lazy(() =>
+	import('@/widgets/owner/OwnerLayout.js').then((m) => ({ default: m.OwnerLayout })),
+);
+const OwnerRouteGuard = lazy(() =>
+	import('./OwnerRouteGuard.js').then((m) => ({ default: m.OwnerRouteGuard })),
+);
 
 // Vertical Slice Architecture (VSA) Lazy-Loaded Slices
 const IndexPage = lazy(() =>

@@ -239,6 +239,8 @@ export const botApi = {
 // ─── Group API ────────────────────────────────────────────
 
 export const groupApi = {
+	listGroups: () => apiClient.get<ManagedGroup[]>('/groups').then((r: any) => r.data),
+
 	getGroup: (groupId: string) =>
 		apiClient.get<ManagedGroup>(`/groups/${groupId}`).then((r: any) => r.data),
 

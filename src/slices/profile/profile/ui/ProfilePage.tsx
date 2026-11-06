@@ -113,6 +113,10 @@ export const ProfilePage: Component = () => {
 							<img
 								src={userAvatarUrl()}
 								alt={displayName()}
+								width="56"
+								height="56"
+								loading="lazy"
+								decoding="async"
 								onError={handleAvatarError}
 								class="w-full h-full object-cover"
 							/>

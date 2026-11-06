@@ -118,6 +118,25 @@ export const apiClient: AxiosInstance = axios.create({
 	},
 });
 
+// Concurrent In-Flight GET Request Deduplication Cache
+const inFlightGetRequests = new Map<string, Promise<any>>();
+const originalGet = apiClient.get.bind(apiClient);
+apiClient.get = ((url: string, config?: any) => {
+	if (config?.headers?.['Cache-Control'] === 'no-cache') {
+		return originalGet(url, config);
+	}
+	const cacheKey = `${url}?${JSON.stringify(config?.params || {})}`;
+	const existing = inFlightGetRequests.get(cacheKey);
+	if (existing) {
+		return existing;
+	}
+	const promise = originalGet(url, config).finally(() => {
+		inFlightGetRequests.delete(cacheKey);
+	});
+	inFlightGetRequests.set(cacheKey, promise);
+	return promise;
+}) as typeof apiClient.get;
+
 const isOwnerPath = (url?: string) => (url ? /\/owner(\/|\?|#|$)/.test(url) : false);
 let refreshPromise: Promise<string> | null = null;
 

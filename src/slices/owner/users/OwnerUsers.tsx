@@ -1,4 +1,4 @@
-import { type Component, createSignal, For, Show } from 'solid-js';
+import { type Component, createSignal, For, onCleanup, Show } from 'solid-js';
 import { ownerApi, type SearchedUser } from '@/shared/api/owner.js';
 import { haptic } from '@/shared/lib/haptic.js';
 import { DangerActionDialog } from '@/widgets/owner/DangerActionDialog.js';
@@ -24,11 +24,21 @@ export const OwnerUsers: Component = () => {
 	const [actionLoading, setActionLoading] = createSignal(false);
 
 	let searchDebounceTimer: any;
+	let searchAbortController: AbortController | null = null;
+
+	onCleanup(() => {
+		if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+		if (searchAbortController) searchAbortController.abort();
+	});
 
 	const handleSearchInput = (value: string) => {
 		setQuery(value);
 		if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
 		if (!value.trim()) {
+			if (searchAbortController) {
+				searchAbortController.abort();
+				searchAbortController = null;
+			}
 			setUsers([]);
 			setError('');
 			return;
@@ -41,22 +51,34 @@ export const OwnerUsers: Component = () => {
 
 	const executeSearch = async (searchStr: string) => {
 		if (!searchStr) return;
+		if (searchAbortController) {
+			searchAbortController.abort();
+		}
+		searchAbortController = new AbortController();
+		const signal = searchAbortController.signal;
+
 		setError('');
 		setLoading(true);
 
 		try {
-			const data = await ownerApi.searchUsers(searchStr);
+			const data = await ownerApi.searchUsers(searchStr, { signal });
+			if (signal.aborted) return;
 			setUsers(data || []);
 			if (!data || data.length === 0) {
 				setError('هیچ مدیر گروهی با شناسه یا مشخصات وارد شده پیدا نشد.');
 			}
 		} catch (err: any) {
+			if (err?.name === 'CanceledError' || err?.code === 'ERR_CANCELED') {
+				return;
+			}
 			setError(err.response?.data?.error || 'خطا در برقراری ارتباط با دیتابیس مدیران گروه.');
 			try {
 				haptic.notify('error');
 			} catch {}
 		} finally {
-			setLoading(false);
+			if (!signal.aborted) {
+				setLoading(false);
+			}
 		}
 	};
 

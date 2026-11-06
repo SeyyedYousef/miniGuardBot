@@ -100,3 +100,29 @@ export const SkeletonChart: Component = () => {
 		</div>
 	);
 };
+
+export const BotCardSkeleton: Component = () => {
+	return (
+		<div class="tg-cell w-full animate-pulse select-none" aria-busy="true">
+			<div class="w-10 h-10 rounded-[12px] bg-[var(--tg-secondary-bg)] shrink-0" />
+			<div class="flex-1 min-w-0 space-y-2 py-0.5">
+				<div class="h-4 bg-[var(--tg-secondary-bg)] rounded-md w-3/5" />
+				<div class="h-3 bg-[var(--tg-secondary-bg)]/70 rounded-md w-2/5" />
+			</div>
+			<div class="w-4 h-4 bg-[var(--tg-secondary-bg)]/40 rounded-full" />
+		</div>
+	);
+};
+
+export const GroupCardSkeleton: Component = () => {
+	return (
+		<div class="tg-cell w-full animate-pulse select-none" aria-busy="true">
+			<div class="w-11 h-11 rounded-[14px] bg-[var(--tg-secondary-bg)] shrink-0" />
+			<div class="flex-1 min-w-0 space-y-2 py-1">
+				<div class="h-4 bg-[var(--tg-secondary-bg)] rounded-md w-4/6" />
+				<div class="h-3 bg-[var(--tg-secondary-bg)]/70 rounded-md w-1/3" />
+			</div>
+			<div class="w-5 h-5 bg-[var(--tg-secondary-bg)]/40 rounded-full" />
+		</div>
+	);
+};

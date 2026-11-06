@@ -1,10 +1,8 @@
 /* @refresh reload */
 
 import '@fontsource/vazirmatn/400.css';
-import '@fontsource/vazirmatn/500.css';
 import '@fontsource/vazirmatn/600.css';
 import '@fontsource/vazirmatn/700.css';
-import '@fontsource/vazirmatn/800.css';
 import '@fontsource/manrope/400.css';
 import '@fontsource/manrope/600.css';
 import '@fontsource/manrope/700.css';
@@ -17,14 +15,16 @@ import { Root } from '@/app/Root.js';
 import { bootstrapAuth } from '@/shared/api/axios.js';
 import { loadDictionary, locale } from '@/shared/i18n/index.js';
 import { initIconEngine, renderIconsInRoot } from '@/shared/lib/icon-engine.js';
+import { initRUM } from '@/shared/lib/rum.js';
 import { hideSplash, updateSplashProgress } from '@/shared/lib/splash.js';
 import { ErrorBoundary } from '@/shared/ui/ErrorBoundary.js';
 import '@/shared/lib/tg-theme.js';
 
 import './app/styles/index.css';
 
-// Initialize zero-latency inline SVG icon engine before any DOM render
+// Initialize zero-latency inline SVG icon engine & RUM Web Vitals observer
 initIconEngine();
+initRUM();
 
 if (import.meta.env.VITE_SENTRY_DSN) {
 	Sentry.init({
@@ -119,13 +119,14 @@ async function startApp() {
 		// 3. Now it's safe to retrieve params
 		const launchParams = retrieveLaunchParams();
 		const debug =
-			import.meta.env.DEV &&
+			Boolean(import.meta.env.DEV) &&
 			((launchParams.tgWebAppStartParam || '').includes('debug') ||
 				localStorage.getItem('debug') === 'true');
 
-		if (debug) {
+		if (import.meta.env.DEV && debug) {
 			try {
-				const eruda = await import('eruda');
+				const erudaPkg = 'eruda';
+				const eruda = await import(/* @vite-ignore */ erudaPkg);
 				eruda.default.init();
 			} catch (e) {
 				console.warn('Failed to load Eruda', e);
@@ -143,7 +144,7 @@ async function startApp() {
 			}),
 			loadDictionary(locale()),
 			typeof document !== 'undefined' && 'fonts' in document
-				? Promise.race([document.fonts.ready, new Promise((resolve) => setTimeout(resolve, 1500))])
+				? Promise.race([document.fonts.ready, new Promise((resolve) => setTimeout(resolve, 350))])
 				: Promise.resolve(),
 		]);
 

@@ -248,14 +248,17 @@ export function checkRateLimit(
 	return { allowed: true, retryAfter: 0 };
 }
 
-const rateLimitCleanupInterval = setInterval(() => {
-	const now = Date.now();
-	for (const [ip, record] of ipRateLimits.entries()) {
-		if (now > record.resetAt) {
-			ipRateLimits.delete(ip);
+const rateLimitCleanupInterval = setInterval(
+	() => {
+		const now = Date.now();
+		for (const [ip, record] of ipRateLimits.entries()) {
+			if (now > record.resetAt) {
+				ipRateLimits.delete(ip);
+			}
 		}
-	}
-}, 5 * 60 * 1000);
+	},
+	5 * 60 * 1000,
+);
 if (rateLimitCleanupInterval.unref) rateLimitCleanupInterval.unref();
 
 // ─── In-Memory / Persistent Settings Store ──────────────────────────────────
@@ -2232,1076 +2235,1314 @@ export function createServer() {
 		const acceptEncoding = (req.headers['accept-encoding'] as string) || '';
 		try {
 			const url = req.url || '/';
-		const method = req.method || 'GET';
+			const method = req.method || 'GET';
 
-		// Parse body helper with 1MB security cap & prototype pollution guard
-		const parseJsonBody = async (): Promise<any> => {
-			return new Promise((resolve) => {
-				let body = '';
-				let bytes = 0;
-				req.on('data', (chunk: Buffer) => {
-					bytes += chunk.length;
-					if (bytes <= MAX_BODY_BYTES) {
-						body += chunk.toString('utf8');
-					}
+			// Parse body helper with 1MB security cap & prototype pollution guard
+			const parseJsonBody = async (): Promise<any> => {
+				return new Promise((resolve) => {
+					let body = '';
+					let bytes = 0;
+					req.on('data', (chunk: Buffer) => {
+						bytes += chunk.length;
+						if (bytes <= MAX_BODY_BYTES) {
+							body += chunk.toString('utf8');
+						}
+					});
+					req.on('end', () => {
+						if (bytes > MAX_BODY_BYTES) {
+							resolve({});
+							return;
+						}
+						try {
+							const parsed = JSON.parse(body || '{}');
+							if (parsed && typeof parsed === 'object') {
+								delete (parsed as any).__proto__;
+								delete (parsed as any).constructor;
+								delete (parsed as any).prototype;
+							}
+							resolve(parsed);
+						} catch {
+							resolve({});
+						}
+					});
+					req.on('error', () => resolve({}));
 				});
-				req.on('end', () => {
-					if (bytes > MAX_BODY_BYTES) {
-						resolve({});
+			};
+
+			const sendJson = (status: number, data: any) => {
+				const elapsedMs = Number(process.hrtime.bigint() - startTime) / 1e6;
+				res.setHeader('Server-Timing', `total;dur=${elapsedMs.toFixed(2)}`);
+				if (elapsedMs > 600 && process.env.NODE_ENV !== 'test') {
+					console.warn(`[Perf Warning] Slow API ${method} ${url}: ${elapsedMs.toFixed(2)}ms`);
+				}
+				const jsonStr = JSON.stringify(data);
+				const buf = Buffer.from(jsonStr, 'utf8');
+
+				// Fast Compression for JSON payloads > 1KB
+				if (buf.length > 1024) {
+					if (acceptEncoding.includes('gzip')) {
+						const compressed = zlib.gzipSync(buf);
+						res.writeHead(status, {
+							'Content-Type': 'application/json; charset=utf-8',
+							'Content-Encoding': 'gzip',
+							'Content-Length': compressed.length,
+							Vary: 'Accept-Encoding, Origin',
+						});
+						res.end(compressed);
+						return;
+					} else if (acceptEncoding.includes('deflate')) {
+						const compressed = zlib.deflateSync(buf);
+						res.writeHead(status, {
+							'Content-Type': 'application/json; charset=utf-8',
+							'Content-Encoding': 'deflate',
+							'Content-Length': compressed.length,
+							Vary: 'Accept-Encoding, Origin',
+						});
+						res.end(compressed);
 						return;
 					}
-					try {
-						const parsed = JSON.parse(body || '{}');
-						if (parsed && typeof parsed === 'object') {
-							delete (parsed as any).__proto__;
-							delete (parsed as any).constructor;
-							delete (parsed as any).prototype;
-						}
-						resolve(parsed);
-					} catch {
-						resolve({});
-					}
+				}
+
+				res.writeHead(status, {
+					'Content-Type': 'application/json; charset=utf-8',
+					'Content-Length': buf.length,
 				});
-				req.on('error', () => resolve({}));
-			});
-		};
+				res.end(buf);
+			};
 
-		const sendJson = (status: number, data: any) => {
-			const elapsedMs = Number(process.hrtime.bigint() - startTime) / 1e6;
-			res.setHeader('Server-Timing', `total;dur=${elapsedMs.toFixed(2)}`);
-			if (elapsedMs > 600 && process.env.NODE_ENV !== 'test') {
-				console.warn(`[Perf Warning] Slow API ${method} ${url}: ${elapsedMs.toFixed(2)}ms`);
+			// ─── Security Headers & Strict CORS ─────────────────────────────────────
+			const reqOrigin = req.headers.origin || '';
+			const ALLOWED_ORIGINS = new Set([
+				'https://miniguard-app.pages.dev',
+				'https://guard-109-172-94-139.sslip.io',
+				'http://localhost:3000',
+				'http://localhost:5173',
+				'http://127.0.0.1:3000',
+				'http://127.0.0.1:5173',
+			]);
+
+			const isAllowedOrigin =
+				ALLOWED_ORIGINS.has(reqOrigin) ||
+				/^https:\/\/([a-zA-Z0-9-]+\.)?pages\.dev$/.test(reqOrigin) ||
+				/^https:\/\/([a-zA-Z0-9-]+\.)?telegram\.org$/.test(reqOrigin) ||
+				reqOrigin === 'https://web.telegram.org';
+
+			if (isAllowedOrigin && reqOrigin) {
+				res.setHeader('Access-Control-Allow-Origin', reqOrigin);
+				res.setHeader('Vary', 'Origin');
+			} else if (!reqOrigin) {
+				res.setHeader('Access-Control-Allow-Origin', 'https://miniguard-app.pages.dev');
 			}
-			const jsonStr = JSON.stringify(data);
-			const buf = Buffer.from(jsonStr, 'utf8');
 
-			// Fast Compression for JSON payloads > 1KB
-			if (buf.length > 1024) {
-				if (acceptEncoding.includes('gzip')) {
-					const compressed = zlib.gzipSync(buf);
-					res.writeHead(status, {
+			res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+			res.setHeader(
+				'Access-Control-Allow-Headers',
+				'Content-Type, Authorization, X-Telegram-Init-Data, X-Request-Lang, Accept-Language',
+			);
+			res.setHeader('X-Content-Type-Options', 'nosniff');
+			res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+			res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+			res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+			res.setHeader(
+				'Content-Security-Policy',
+				"frame-ancestors 'self' https://web.telegram.org https://*.telegram.org;",
+			);
+			res.setHeader('Permissions-Policy', 'geolocation=(), camera=(), microphone=()');
+
+			if (method === 'OPTIONS') {
+				res.writeHead(204);
+				res.end();
+				return;
+			}
+
+			const rawPath = (url || '/').split('?')[0];
+			const cleanPath = rawPath.replace(/^\/api\/v1/, '') || '/';
+
+			// ─── Rate Limiting (Sliding Window per IP) ────────────────────────────────
+			const clientIp =
+				(req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
+				(req.headers['x-real-ip'] as string)?.trim() ||
+				req.socket.remoteAddress ||
+				'127.0.0.1';
+
+			const isSensitiveAction =
+				cleanPath === '/owner/auth/totp' ||
+				cleanPath === '/bots/verify-token' ||
+				(cleanPath === '/bots' && method === 'POST') ||
+				cleanPath === '/subscription/subscribe-stars-invoice';
+
+			if (isSensitiveAction) {
+				const rate = checkRateLimit(`sens_${clientIp}`, 20, 60 * 1000);
+				if (!rate.allowed) {
+					res.writeHead(429, {
 						'Content-Type': 'application/json; charset=utf-8',
-						'Content-Encoding': 'gzip',
-						'Content-Length': compressed.length,
-						Vary: 'Accept-Encoding, Origin',
+						'Retry-After': String(rate.retryAfter),
 					});
-					res.end(compressed);
+					res.end(
+						JSON.stringify({
+							error: getApiMessage('RATE_LIMIT_EXCEEDED', req),
+							code: 'RATE_LIMIT_EXCEEDED',
+							retry_after: rate.retryAfter,
+						}),
+					);
 					return;
-				} else if (acceptEncoding.includes('deflate')) {
-					const compressed = zlib.deflateSync(buf);
-					res.writeHead(status, {
+				}
+			} else if (
+				rawPath.startsWith('/api/v1') ||
+				rawPath.startsWith('/bots') ||
+				rawPath.startsWith('/groups')
+			) {
+				const rate = checkRateLimit(`api_${clientIp}`, 180, 60 * 1000);
+				if (!rate.allowed) {
+					res.writeHead(429, {
 						'Content-Type': 'application/json; charset=utf-8',
-						'Content-Encoding': 'deflate',
-						'Content-Length': compressed.length,
-						Vary: 'Accept-Encoding, Origin',
+						'Retry-After': String(rate.retryAfter),
 					});
-					res.end(compressed);
+					res.end(
+						JSON.stringify({
+							error: getApiMessage('RATE_LIMIT_EXCEEDED', req),
+							code: 'RATE_LIMIT_EXCEEDED',
+							retry_after: rate.retryAfter,
+						}),
+					);
 					return;
 				}
 			}
 
-			res.writeHead(status, {
-				'Content-Type': 'application/json; charset=utf-8',
-				'Content-Length': buf.length,
-			});
-			res.end(buf);
-		};
+			// ─── 1. Auth & Profile Endpoints ─────────────────────────────────────────
+			if (cleanPath === '/auth/token' && method === 'POST') {
+				const body = await parseJsonBody();
+				const initDataRaw = String(
+					req.headers['x-telegram-init-data'] || body?.init_data || body?.initData || '',
+				).trim();
 
-		// ─── Security Headers & Strict CORS ─────────────────────────────────────
-		const reqOrigin = req.headers.origin || '';
-		const ALLOWED_ORIGINS = new Set([
-			'https://miniguard-app.pages.dev',
-			'https://guard-109-172-94-139.sslip.io',
-			'http://localhost:3000',
-			'http://localhost:5173',
-			'http://127.0.0.1:3000',
-			'http://127.0.0.1:5173',
-		]);
+				let userId = 0;
+				let username = '';
+				let firstName = '';
+				let isVerified = false;
 
-		const isAllowedOrigin =
-			ALLOWED_ORIGINS.has(reqOrigin) ||
-			/^https:\/\/([a-zA-Z0-9-]+\.)?pages\.dev$/.test(reqOrigin) ||
-			/^https:\/\/([a-zA-Z0-9-]+\.)?telegram\.org$/.test(reqOrigin) ||
-			reqOrigin === 'https://web.telegram.org';
+				if (initDataRaw) {
+					isVerified = verifyTelegramInitData(initDataRaw, BOT_TOKEN);
 
-		if (isAllowedOrigin && reqOrigin) {
-			res.setHeader('Access-Control-Allow-Origin', reqOrigin);
-			res.setHeader('Vary', 'Origin');
-		} else if (!reqOrigin) {
-			res.setHeader('Access-Control-Allow-Origin', 'https://miniguard-app.pages.dev');
-		}
+					if (
+						!isVerified &&
+						(process.env.NODE_ENV === 'test' || process.env.VITEST || !BOT_TOKEN)
+					) {
+						isVerified = true;
+					}
 
-		res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-		res.setHeader(
-			'Access-Control-Allow-Headers',
-			'Content-Type, Authorization, X-Telegram-Init-Data, X-Request-Lang, Accept-Language',
-		);
-		res.setHeader('X-Content-Type-Options', 'nosniff');
-		res.setHeader('X-Frame-Options', 'SAMEORIGIN');
-		res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-		res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
-		res.setHeader(
-			'Content-Security-Policy',
-			"frame-ancestors 'self' https://web.telegram.org https://*.telegram.org;",
-		);
-		res.setHeader('Permissions-Policy', 'geolocation=(), camera=(), microphone=()');
+					if (isVerified) {
+						try {
+							const params = new URLSearchParams(initDataRaw);
+							const authDate = Number(params.get('auth_date')) || 0;
+							if (
+								process.env.NODE_ENV === 'production' &&
+								authDate > 0 &&
+								Math.floor(Date.now() / 1000) - authDate > 86400
+							) {
+								return sendJson(401, {
+									error: getApiMessage('SESSION_EXPIRED', req),
+									code: 'SESSION_EXPIRED',
+								});
+							}
 
-		if (method === 'OPTIONS') {
-			res.writeHead(204);
-			res.end();
-			return;
-		}
-
-		const rawPath = (url || '/').split('?')[0];
-		const cleanPath = rawPath.replace(/^\/api\/v1/, '') || '/';
-
-		// ─── Rate Limiting (Sliding Window per IP) ────────────────────────────────
-		const clientIp =
-			(req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
-			(req.headers['x-real-ip'] as string)?.trim() ||
-			req.socket.remoteAddress ||
-			'127.0.0.1';
-
-		const isSensitiveAction =
-			cleanPath === '/owner/auth/totp' ||
-			cleanPath === '/bots/verify-token' ||
-			(cleanPath === '/bots' && method === 'POST') ||
-			cleanPath === '/subscription/subscribe-stars-invoice';
-
-		if (isSensitiveAction) {
-			const rate = checkRateLimit(`sens_${clientIp}`, 20, 60 * 1000);
-			if (!rate.allowed) {
-				res.writeHead(429, {
-					'Content-Type': 'application/json; charset=utf-8',
-					'Retry-After': String(rate.retryAfter),
-				});
-				res.end(
-					JSON.stringify({
-						error: getApiMessage('RATE_LIMIT_EXCEEDED', req),
-						code: 'RATE_LIMIT_EXCEEDED',
-						retry_after: rate.retryAfter,
-					}),
-				);
-				return;
-			}
-		} else if (
-			rawPath.startsWith('/api/v1') ||
-			rawPath.startsWith('/bots') ||
-			rawPath.startsWith('/groups')
-		) {
-			const rate = checkRateLimit(`api_${clientIp}`, 180, 60 * 1000);
-			if (!rate.allowed) {
-				res.writeHead(429, {
-					'Content-Type': 'application/json; charset=utf-8',
-					'Retry-After': String(rate.retryAfter),
-				});
-				res.end(
-					JSON.stringify({
-						error: getApiMessage('RATE_LIMIT_EXCEEDED', req),
-						code: 'RATE_LIMIT_EXCEEDED',
-						retry_after: rate.retryAfter,
-					}),
-				);
-				return;
-			}
-		}
-
-		// ─── 1. Auth & Profile Endpoints ─────────────────────────────────────────
-		if (cleanPath === '/auth/token' && method === 'POST') {
-			const body = await parseJsonBody();
-			const initDataRaw =
-				String(req.headers['x-telegram-init-data'] || body?.init_data || body?.initData || '').trim();
-
-			let userId = 0;
-			let username = '';
-			let firstName = '';
-			let isVerified = false;
-
-			if (initDataRaw) {
-				isVerified = verifyTelegramInitData(initDataRaw, BOT_TOKEN);
-
-				if (!isVerified && (process.env.NODE_ENV === 'test' || process.env.VITEST || !BOT_TOKEN)) {
+							const userStr = params.get('user');
+							if (userStr) {
+								const u = JSON.parse(userStr);
+								userId = Number(u.id);
+								username = u.username || '';
+								firstName = u.first_name || '';
+							}
+						} catch {}
+					}
+				} else if (process.env.NODE_ENV === 'test' || process.env.VITEST || !BOT_TOKEN) {
+					userId = OWNER_TELEGRAM_ID;
+					username = 'admin';
+					firstName = 'Admin';
 					isVerified = true;
 				}
 
-				if (isVerified) {
-					try {
-						const params = new URLSearchParams(initDataRaw);
-						const authDate = Number(params.get('auth_date')) || 0;
-						if (
-							process.env.NODE_ENV === 'production' &&
-							authDate > 0 &&
-							Math.floor(Date.now() / 1000) - authDate > 86400
-						) {
-							return sendJson(401, {
-								error: getApiMessage('SESSION_EXPIRED', req),
-								code: 'SESSION_EXPIRED',
-							});
-						}
-
-						const userStr = params.get('user');
-						if (userStr) {
-							const u = JSON.parse(userStr);
-							userId = Number(u.id);
-							username = u.username || '';
-							firstName = u.first_name || '';
-						}
-					} catch {}
+				if (!isVerified || !userId) {
+					return sendJson(401, {
+						error: getApiMessage('INVALID_INIT_DATA', req),
+						code: 'INVALID_INIT_DATA',
+					});
 				}
-			} else if (process.env.NODE_ENV === 'test' || process.env.VITEST || !BOT_TOKEN) {
-				userId = OWNER_TELEGRAM_ID;
-				username = 'admin';
-				firstName = 'Admin';
-				isVerified = true;
-			}
 
-			if (!isVerified || !userId) {
-				return sendJson(401, {
-					error: getApiMessage('INVALID_INIT_DATA', req),
-					code: 'INVALID_INIT_DATA',
-				});
-			}
-
-			const role = userId === OWNER_TELEGRAM_ID ? 'owner' : 'user';
-			const tokenPayload = {
-				userId,
-				username,
-				firstName,
-				role,
-				iat: Math.floor(Date.now() / 1000),
-				exp: Math.floor(Date.now() / 1000) + 86400,
-			};
-
-			const jwt = generateJwt(tokenPayload, ENCRYPTION_MASTER_KEY);
-
-			return sendJson(200, {
-				token: jwt,
-				access_token: jwt,
-				expires_in: 86400,
-				user: {
-					id: userId,
+				const role = userId === OWNER_TELEGRAM_ID ? 'owner' : 'user';
+				const tokenPayload = {
+					userId,
 					username,
-					first_name: firstName,
+					firstName,
 					role,
-				},
-			});
-		}
+					iat: Math.floor(Date.now() / 1000),
+					exp: Math.floor(Date.now() / 1000) + 86400,
+				};
 
-		if (cleanPath.startsWith('/profile/avatar/') && method === 'GET') {
-			const userIdStr = cleanPath.split('/')[3] || '';
-			const userId = Number(userIdStr.replace(/\D/g, ''));
-			if (!userId || userId <= 0 || userId > 1e14) {
-				return sendJson(400, {
-					error: getApiMessage('INVALID_USER_ID', req),
-					code: 'INVALID_USER_ID',
+				const jwt = generateJwt(tokenPayload, ENCRYPTION_MASTER_KEY);
+
+				return sendJson(200, {
+					token: jwt,
+					access_token: jwt,
+					expires_in: 86400,
+					user: {
+						id: userId,
+						username,
+						first_name: firstName,
+						role,
+					},
 				});
 			}
-			const tokenToUse = BOT_TOKEN || Array.from(activeChildPollingTokens)[0] || '';
-			if (!tokenToUse) {
-				res.writeHead(404);
-				res.end();
-				return;
-			}
-			try {
-				const photosRes = await callTelegramApi<{
-					total_count: number;
-					photos: Array<Array<{ file_id: string }>>;
-				}>('getUserProfilePhotos', { user_id: userId, limit: 1 }, tokenToUse);
 
-				const firstPhotoSizes = photosRes.result?.photos?.[0];
-				const bestPhoto =
-					Array.isArray(firstPhotoSizes) && firstPhotoSizes.length > 0
-						? firstPhotoSizes[firstPhotoSizes.length - 1]
-						: null;
-
-				if (!bestPhoto?.file_id) {
+			if (cleanPath.startsWith('/profile/avatar/') && method === 'GET') {
+				const userIdStr = cleanPath.split('/')[3] || '';
+				const userId = Number(userIdStr.replace(/\D/g, ''));
+				if (!userId || userId <= 0 || userId > 1e14) {
+					return sendJson(400, {
+						error: getApiMessage('INVALID_USER_ID', req),
+						code: 'INVALID_USER_ID',
+					});
+				}
+				const tokenToUse = BOT_TOKEN || Array.from(activeChildPollingTokens)[0] || '';
+				if (!tokenToUse) {
 					res.writeHead(404);
 					res.end();
 					return;
 				}
+				try {
+					const photosRes = await callTelegramApi<{
+						total_count: number;
+						photos: Array<Array<{ file_id: string }>>;
+					}>('getUserProfilePhotos', { user_id: userId, limit: 1 }, tokenToUse);
 
-				const fileRes = await callTelegramApi<{ file_path?: string }>(
-					'getFile',
-					{ file_id: bestPhoto.file_id },
-					tokenToUse,
-				);
-				const filePathOnTg = fileRes.result?.file_path;
-				if (
-					!filePathOnTg ||
-					!/^[a-zA-Z0-9_\-\/.]+$/.test(filePathOnTg) ||
-					filePathOnTg.includes('..')
-				) {
-					res.writeHead(404);
-					res.end();
-					return;
-				}
+					const firstPhotoSizes = photosRes.result?.photos?.[0];
+					const bestPhoto =
+						Array.isArray(firstPhotoSizes) && firstPhotoSizes.length > 0
+							? firstPhotoSizes[firstPhotoSizes.length - 1]
+							: null;
 
-				await new Promise<void>((resolve) => {
-					const imgReq = https.request(
-						{
-							hostname: 'api.telegram.org',
-							port: 443,
-							path: `/file/bot${tokenToUse}/${filePathOnTg}`,
-							method: 'GET',
-							family: 4,
-							timeout: 10000,
-						},
-						(imgRes) => {
-							if (imgRes.statusCode !== 200) {
-								res.writeHead(404);
-								res.end();
-								resolve();
-								return;
-							}
-							const contentType = imgRes.headers['content-type'] || 'image/jpeg';
-							if (!contentType.startsWith('image/')) {
-								res.writeHead(403);
-								res.end();
-								resolve();
-								return;
-							}
-							res.writeHead(200, {
-								'Content-Type': contentType,
-								'Cache-Control': 'public, max-age=3600',
-								'X-Content-Type-Options': 'nosniff',
-							});
-							let downloadedBytes = 0;
-							imgRes.on('data', (chunk: Buffer) => {
-								downloadedBytes += chunk.length;
-								if (downloadedBytes > 5 * 1024 * 1024) {
-									imgReq.destroy();
+					if (!bestPhoto?.file_id) {
+						res.writeHead(404);
+						res.end();
+						return;
+					}
+
+					const fileRes = await callTelegramApi<{ file_path?: string }>(
+						'getFile',
+						{ file_id: bestPhoto.file_id },
+						tokenToUse,
+					);
+					const filePathOnTg = fileRes.result?.file_path;
+					if (
+						!filePathOnTg ||
+						!/^[a-zA-Z0-9_\-\/.]+$/.test(filePathOnTg) ||
+						filePathOnTg.includes('..')
+					) {
+						res.writeHead(404);
+						res.end();
+						return;
+					}
+
+					await new Promise<void>((resolve) => {
+						const imgReq = https.request(
+							{
+								hostname: 'api.telegram.org',
+								port: 443,
+								path: `/file/bot${tokenToUse}/${filePathOnTg}`,
+								method: 'GET',
+								family: 4,
+								timeout: 10000,
+							},
+							(imgRes) => {
+								if (imgRes.statusCode !== 200) {
+									res.writeHead(404);
 									res.end();
 									resolve();
+									return;
 								}
-							});
-							imgRes.pipe(res);
-							imgRes.on('end', () => resolve());
-						},
-					);
-					imgReq.on('error', () => {
-						if (!res.headersSent) res.writeHead(404);
-						res.end();
-						resolve();
+								const contentType = imgRes.headers['content-type'] || 'image/jpeg';
+								if (!contentType.startsWith('image/')) {
+									res.writeHead(403);
+									res.end();
+									resolve();
+									return;
+								}
+								res.writeHead(200, {
+									'Content-Type': contentType,
+									'Cache-Control': 'public, max-age=3600',
+									'X-Content-Type-Options': 'nosniff',
+								});
+								let downloadedBytes = 0;
+								imgRes.on('data', (chunk: Buffer) => {
+									downloadedBytes += chunk.length;
+									if (downloadedBytes > 5 * 1024 * 1024) {
+										imgReq.destroy();
+										res.end();
+										resolve();
+									}
+								});
+								imgRes.pipe(res);
+								imgRes.on('end', () => resolve());
+							},
+						);
+						imgReq.on('error', () => {
+							if (!res.headersSent) res.writeHead(404);
+							res.end();
+							resolve();
+						});
+						imgReq.on('timeout', () => {
+							imgReq.destroy();
+							if (!res.headersSent) res.writeHead(404);
+							res.end();
+							resolve();
+						});
+						imgReq.end();
 					});
-					imgReq.on('timeout', () => {
-						imgReq.destroy();
-						if (!res.headersSent) res.writeHead(404);
-						res.end();
-						resolve();
-					});
-					imgReq.end();
-				});
-				return;
-			} catch {
-				if (!res.headersSent) res.writeHead(404);
-				res.end();
-				return;
-			}
-		}
-
-		if (cleanPath === '/profile/stats' && method === 'GET') {
-			const totalMembers = Array.from(managedGroupsStore.values()).reduce(
-				(acc, g) => acc + (g.member_count || g.members_count || 0),
-				0,
-			);
-			const totalBlockedThreats = Array.from(groupsStore.values()).reduce(
-				(acc, s) => acc + (s.analytics?.spamBlocked || 0),
-				0,
-			);
-			return sendJson(200, {
-				managed_groups_count: managedGroupsStore.size,
-				total_protected_members: totalMembers,
-				blocked_threats_count: totalBlockedThreats,
-			});
-		}
-
-		if (cleanPath === '/profile/public-config' && method === 'GET') {
-			return sendJson(200, {
-				support_username: ownerSystemSettings.support_username,
-				announcement_text: ownerSystemSettings.announcement_text,
-				maintenance_mode: ownerSystemSettings.maintenance_mode,
-			});
-		}
-
-		if (cleanPath === '/profile/language' && method === 'POST') {
-			const body = await parseJsonBody();
-			return sendJson(200, { success: true, language_code: body?.language_code || 'fa' });
-		}
-
-		if (cleanPath === '/profile/gdpr' && method === 'DELETE') {
-			return sendJson(200, {
-				status: 'purged',
-				message: getApiMessage('GDPR_PURGED', req),
-			});
-		}
-
-		// ─── 2. Subscription & Stars Endpoints ───────────────────────────────────
-		if (cleanPath === '/subscription/packages' && method === 'GET') {
-			const reqLang = resolveRequestLang(req);
-			const monthlyPrice = Number(ownerSystemSettings.monthly_stars_price || 100);
-			return sendJson(200, getLocalizedSubscriptionPackages(reqLang, monthlyPrice));
-		}
-
-		if (cleanPath === '/subscription/subscribe-stars-invoice' && method === 'POST') {
-			const body = await parseJsonBody();
-			const groupIdStr = String(body?.group_id || 'g1');
-			const pkgId = String(body?.package_id || 'pkg_monthly_100');
-			const mg = managedGroupsStore.get(groupIdStr);
-			const groupTitle = mg?.title || mg?.chat_title || 'Telegram Group';
-			const starsAmount = Math.max(1, Number(ownerSystemSettings.monthly_stars_price || 100));
-
-			if (process.env.NODE_ENV === 'test' || process.env.VITEST) {
-				return sendJson(200, {
-					invoice_link: `https://t.me/$miniguard_stars_${groupIdStr}_${pkgId}`,
-					stars_amount: starsAmount,
-				});
-			}
-
-			const payloadStr = JSON.stringify({
-				g: groupIdStr,
-				p: pkgId,
-				t: Math.floor(Date.now() / 1000),
-			}).slice(0, 120);
-
-			const reqLang = resolveRequestLang(req);
-			const localizedInvoice = getLocalizedStarsInvoice(reqLang, groupTitle, starsAmount);
-
-			const invoiceParams = {
-				title: localizedInvoice.title,
-				description: localizedInvoice.description,
-				payload: payloadStr,
-				provider_token: '', // Must be empty string for Telegram Stars (XTR)
-				currency: 'XTR',
-				prices: [{ label: localizedInvoice.priceLabel, amount: starsAmount }],
-			};
-
-			// Try Master Bot Token first, then fallback to Group's Child Bot Token
-			const primaryToken = BOT_TOKEN || getBotTokenForGroup(groupIdStr);
-			let invRes = await callTelegramApi<string>('createInvoiceLink', invoiceParams, primaryToken);
-
-			if ((!invRes.ok || !invRes.result) && groupIdStr) {
-				const childToken = getBotTokenForGroup(groupIdStr);
-				if (childToken && childToken !== primaryToken) {
-					invRes = await callTelegramApi<string>('createInvoiceLink', invoiceParams, childToken);
+					return;
+				} catch {
+					if (!res.headersSent) res.writeHead(404);
+					res.end();
+					return;
 				}
 			}
 
-			if (invRes.ok && typeof invRes.result === 'string' && invRes.result.startsWith('http')) {
+			if (cleanPath === '/profile/stats' && method === 'GET') {
+				const totalMembers = Array.from(managedGroupsStore.values()).reduce(
+					(acc, g) => acc + (g.member_count || g.members_count || 0),
+					0,
+				);
+				const totalBlockedThreats = Array.from(groupsStore.values()).reduce(
+					(acc, s) => acc + (s.analytics?.spamBlocked || 0),
+					0,
+				);
 				return sendJson(200, {
-					invoice_link: invRes.result,
-					stars_amount: starsAmount,
-					group_id: groupIdStr,
+					managed_groups_count: managedGroupsStore.size,
+					total_protected_members: totalMembers,
+					blocked_threats_count: totalBlockedThreats,
 				});
 			}
 
-			return sendJson(400, {
-				error: invRes.description || getApiMessage('STARS_INVOICE_ERROR', req),
-				code: 'STARS_INVOICE_ERROR',
-			});
-		}
-
-		if (cleanPath === '/subscription/subscribe' && method === 'POST') {
-			const body = await parseJsonBody();
-			const gid = String(body?.group_id || 'g1');
-			const mg = managedGroupsStore.get(gid);
-			const baseMs = mg?.subscription_expires_at
-				? Math.max(Date.now(), new Date(mg.subscription_expires_at).getTime())
-				: Date.now();
-			const newExpiry = new Date(baseMs + 30 * 86400 * 1000).toISOString();
-			if (mg) {
-				mg.subscription_expires_at = newExpiry;
-				mg.trial_ends_at = newExpiry;
-				mg.subscription_status = 'paid';
-				mg.is_active = true;
-				mg.updated_at = new Date().toISOString();
-				managedGroupsStore.set(gid, mg);
+			if (cleanPath === '/profile/public-config' && method === 'GET') {
+				return sendJson(200, {
+					support_username: ownerSystemSettings.support_username,
+					announcement_text: ownerSystemSettings.announcement_text,
+					maintenance_mode: ownerSystemSettings.maintenance_mode,
+				});
 			}
-			for (const [bid, b] of managedBotsStore.entries()) {
-				if (b.bound_group_id === gid || b.group_id === gid || b.id === gid || b.id === mg?.bot_id) {
-					b.subscription_status = 'active';
-					b.subscription_expires_at = newExpiry;
-					b.trial_expires_at = newExpiry;
-					managedBotsStore.set(bid, b);
+
+			if (cleanPath === '/profile/language' && method === 'POST') {
+				const body = await parseJsonBody();
+				return sendJson(200, { success: true, language_code: body?.language_code || 'fa' });
+			}
+
+			if (cleanPath === '/profile/gdpr' && method === 'DELETE') {
+				return sendJson(200, {
+					status: 'purged',
+					message: getApiMessage('GDPR_PURGED', req),
+				});
+			}
+
+			// ─── 2. Subscription & Stars Endpoints ───────────────────────────────────
+			if (cleanPath === '/subscription/packages' && method === 'GET') {
+				const reqLang = resolveRequestLang(req);
+				const monthlyPrice = Number(ownerSystemSettings.monthly_stars_price || 100);
+				return sendJson(200, getLocalizedSubscriptionPackages(reqLang, monthlyPrice));
+			}
+
+			if (cleanPath === '/subscription/subscribe-stars-invoice' && method === 'POST') {
+				const body = await parseJsonBody();
+				const groupIdStr = String(body?.group_id || 'g1');
+				const pkgId = String(body?.package_id || 'pkg_monthly_100');
+				const mg = managedGroupsStore.get(groupIdStr);
+				const groupTitle = mg?.title || mg?.chat_title || 'Telegram Group';
+				const starsAmount = Math.max(1, Number(ownerSystemSettings.monthly_stars_price || 100));
+
+				if (process.env.NODE_ENV === 'test' || process.env.VITEST) {
+					return sendJson(200, {
+						invoice_link: `https://t.me/$miniguard_stars_${groupIdStr}_${pkgId}`,
+						stars_amount: starsAmount,
+					});
 				}
-			}
-			savePersistentStore();
-			return sendJson(200, {
-				group_id: gid,
-				new_expires_at: newExpiry,
-				message: getApiMessage('SUBSCRIPTION_ACTIVATED', req),
-			});
-		}
 
-		// ─── 3. Bots CRUD Endpoints (Fixes Bot Token Registration & Live Group Admin Verification!) ──
-		if (cleanPath === '/bots' && method === 'GET') {
-			const authUser = extractAuthUser(req);
-			const list = Array.from(managedBotsStore.values())
-				.filter((b) => b.id !== 'b1' && b.bot_username?.toLowerCase() !== 'miniguardbot')
-				.filter((b) => {
-					if (!authUser || authUser.role === 'owner') return true;
-					return b.owner_user_id === authUser.userId;
-				})
-				.map(({ encrypted_token: _, ...rest }) => normalizeStoredBot(rest));
-			return sendJson(200, list);
-		}
+				const payloadStr = JSON.stringify({
+					g: groupIdStr,
+					p: pkgId,
+					t: Math.floor(Date.now() / 1000),
+				}).slice(0, 120);
 
-		if (cleanPath === '/bots/verify-token' && method === 'POST') {
-			const body = await parseJsonBody();
-			const rawTokenInput = body?.token || body?.bot_token || body?.botToken || '';
-			const cleanToken = extractCleanBotToken(rawTokenInput);
-			if (!cleanToken) {
+				const reqLang = resolveRequestLang(req);
+				const localizedInvoice = getLocalizedStarsInvoice(reqLang, groupTitle, starsAmount);
+
+				const invoiceParams = {
+					title: localizedInvoice.title,
+					description: localizedInvoice.description,
+					payload: payloadStr,
+					provider_token: '', // Must be empty string for Telegram Stars (XTR)
+					currency: 'XTR',
+					prices: [{ label: localizedInvoice.priceLabel, amount: starsAmount }],
+				};
+
+				// Try Master Bot Token first, then fallback to Group's Child Bot Token
+				const primaryToken = BOT_TOKEN || getBotTokenForGroup(groupIdStr);
+				let invRes = await callTelegramApi<string>(
+					'createInvoiceLink',
+					invoiceParams,
+					primaryToken,
+				);
+
+				if ((!invRes.ok || !invRes.result) && groupIdStr) {
+					const childToken = getBotTokenForGroup(groupIdStr);
+					if (childToken && childToken !== primaryToken) {
+						invRes = await callTelegramApi<string>('createInvoiceLink', invoiceParams, childToken);
+					}
+				}
+
+				if (invRes.ok && typeof invRes.result === 'string' && invRes.result.startsWith('http')) {
+					return sendJson(200, {
+						invoice_link: invRes.result,
+						stars_amount: starsAmount,
+						group_id: groupIdStr,
+					});
+				}
+
 				return sendJson(400, {
-					error: getApiMessage('INVALID_TOKEN_FORMAT', req),
-					code: 'INVALID_TOKEN_FORMAT',
+					error: invRes.description || getApiMessage('STARS_INVOICE_ERROR', req),
+					code: 'STARS_INVOICE_ERROR',
 				});
 			}
 
-			let verifiedBotId = Number(cleanToken.split(':')[0]) || Math.floor(Math.random() * 900000000);
-			let verifiedUsername = `guard_${verifiedBotId}_bot`;
-			let verifiedFirstName = 'ربات اختصاصی';
+			if (cleanPath === '/subscription/subscribe' && method === 'POST') {
+				const body = await parseJsonBody();
+				const gid = String(body?.group_id || 'g1');
+				const mg = managedGroupsStore.get(gid);
+				const baseMs = mg?.subscription_expires_at
+					? Math.max(Date.now(), new Date(mg.subscription_expires_at).getTime())
+					: Date.now();
+				const newExpiry = new Date(baseMs + 30 * 86400 * 1000).toISOString();
+				if (mg) {
+					mg.subscription_expires_at = newExpiry;
+					mg.trial_ends_at = newExpiry;
+					mg.subscription_status = 'paid';
+					mg.is_active = true;
+					mg.updated_at = new Date().toISOString();
+					managedGroupsStore.set(gid, mg);
+				}
+				for (const [bid, b] of managedBotsStore.entries()) {
+					if (
+						b.bound_group_id === gid ||
+						b.group_id === gid ||
+						b.id === gid ||
+						b.id === mg?.bot_id
+					) {
+						b.subscription_status = 'active';
+						b.subscription_expires_at = newExpiry;
+						b.trial_expires_at = newExpiry;
+						managedBotsStore.set(bid, b);
+					}
+				}
+				savePersistentStore();
+				return sendJson(200, {
+					group_id: gid,
+					new_expires_at: newExpiry,
+					message: getApiMessage('SUBSCRIPTION_ACTIVATED', req),
+				});
+			}
 
-			if (process.env.NODE_ENV !== 'test' && !process.env.VITEST) {
-				const meRes = await callTelegramApi<{
-					id: number;
-					is_bot: boolean;
-					first_name: string;
-					username: string;
-				}>('getMe', {}, cleanToken);
+			// ─── 3. Bots CRUD Endpoints (Fixes Bot Token Registration & Live Group Admin Verification!) ──
+			if (cleanPath === '/bots' && method === 'GET') {
+				const authUser = extractAuthUser(req);
+				const list = Array.from(managedBotsStore.values())
+					.filter((b) => b.id !== 'b1' && b.bot_username?.toLowerCase() !== 'miniguardbot')
+					.filter((b) => {
+						if (!authUser || authUser.role === 'owner') return true;
+						return b.owner_user_id === authUser.userId;
+					})
+					.map(({ encrypted_token: _, ...rest }) => normalizeStoredBot(rest));
+				return sendJson(200, list);
+			}
 
-				if (!meRes.ok || !meRes.result) {
+			if (cleanPath === '/bots/verify-token' && method === 'POST') {
+				const body = await parseJsonBody();
+				const rawTokenInput = body?.token || body?.bot_token || body?.botToken || '';
+				const cleanToken = extractCleanBotToken(rawTokenInput);
+				if (!cleanToken) {
 					return sendJson(400, {
-						error: getApiMessage('INVALID_TELEGRAM_TOKEN', req),
-						code: 'INVALID_TELEGRAM_TOKEN',
+						error: getApiMessage('INVALID_TOKEN_FORMAT', req),
+						code: 'INVALID_TOKEN_FORMAT',
 					});
 				}
-				verifiedBotId = meRes.result.id;
-				verifiedUsername = meRes.result.username || verifiedUsername;
-				verifiedFirstName = meRes.result.first_name || verifiedFirstName;
 
-				startChildBotPolling(cleanToken, {
-					id: `pre_${verifiedBotId}`,
-					owner_user_id: OWNER_TELEGRAM_ID,
-					bot_username: verifiedUsername,
-					bot_name: verifiedFirstName,
-					bot_id: verifiedBotId,
-					encrypted_token: '',
-					bound_group_link: '',
-					bound_group_id: '',
-					bound_group_title: '',
-					status: 'active',
-					subscription_status: 'trial',
-					trial_expires_at: new Date(Date.now() + 86400000).toISOString(),
-					monthly_stars_price: 100,
-					created_at: new Date().toISOString(),
-				});
-			}
+				let verifiedBotId =
+					Number(cleanToken.split(':')[0]) || Math.floor(Math.random() * 900000000);
+				let verifiedUsername = `guard_${verifiedBotId}_bot`;
+				let verifiedFirstName = 'ربات اختصاصی';
 
-			const detected = detectedChatsByToken.get(cleanToken);
-			return sendJson(200, {
-				ok: true,
-				bot_id: verifiedBotId,
-				bot_username: verifiedUsername,
-				bot_name: verifiedFirstName,
-				admin_deep_link: `https://t.me/${verifiedUsername}?startgroup=start&admin=restrict_members+delete_messages+ban_users+invite_users+pin_messages+manage_chat`,
-				detected_group: detected
-					? {
-							chat_id: detected.chatId,
-							chat_title: detected.title,
-							username: detected.username,
-							is_admin: detected.isAdmin,
-						}
-					: null,
-			});
-		}
+				if (process.env.NODE_ENV !== 'test' && !process.env.VITEST) {
+					const meRes = await callTelegramApi<{
+						id: number;
+						is_bot: boolean;
+						first_name: string;
+						username: string;
+					}>('getMe', {}, cleanToken);
 
-		if (cleanPath === '/bots' && method === 'POST') {
-			const body = await parseJsonBody();
-			const rawTokenInput = body?.token || body?.bot_token || body?.botToken || '';
-			const cleanToken = extractCleanBotToken(rawTokenInput);
-			if (!cleanToken) {
-				return sendJson(400, {
-					error: getApiMessage('INVALID_TOKEN_FORMAT', req),
-					code: 'INVALID_TOKEN_FORMAT',
-				});
-			}
-
-			// Verify token against live Telegram API (getMe)
-			let verifiedBotId = Number(cleanToken.split(':')[0]) || Math.floor(Math.random() * 900000000);
-			let verifiedUsername = String(body?.bot_username || body?.username || '')
-				.replace('@', '')
-				.trim();
-			let verifiedFirstName = String(body?.bot_name || body?.name || '').trim();
-
-			if (process.env.NODE_ENV !== 'test' && !process.env.VITEST) {
-				const meRes = await callTelegramApi<{
-					id: number;
-					is_bot: boolean;
-					first_name: string;
-					username: string;
-				}>('getMe', {}, cleanToken);
-
-				if (meRes.ok && meRes.result) {
+					if (!meRes.ok || !meRes.result) {
+						return sendJson(400, {
+							error: getApiMessage('INVALID_TELEGRAM_TOKEN', req),
+							code: 'INVALID_TELEGRAM_TOKEN',
+						});
+					}
 					verifiedBotId = meRes.result.id;
 					verifiedUsername = meRes.result.username || verifiedUsername;
 					verifiedFirstName = meRes.result.first_name || verifiedFirstName;
-				} else {
-					return sendJson(400, {
-						error: getApiMessage('INVALID_TELEGRAM_TOKEN', req),
-						code: 'INVALID_TELEGRAM_TOKEN',
+
+					startChildBotPolling(cleanToken, {
+						id: `pre_${verifiedBotId}`,
+						owner_user_id: OWNER_TELEGRAM_ID,
+						bot_username: verifiedUsername,
+						bot_name: verifiedFirstName,
+						bot_id: verifiedBotId,
+						encrypted_token: '',
+						bound_group_link: '',
+						bound_group_id: '',
+						bound_group_title: '',
+						status: 'active',
+						subscription_status: 'trial',
+						trial_expires_at: new Date(Date.now() + 86400000).toISOString(),
+						monthly_stars_price: 100,
+						created_at: new Date().toISOString(),
 					});
 				}
-			}
 
-			if (!verifiedUsername) {
-				verifiedUsername = `guard_${verifiedBotId}_bot`;
-			}
-			if (!verifiedFirstName) {
-				verifiedFirstName = verifiedUsername;
-			}
-
-			const rawGroupLink = String(
-				body?.group_link || body?.bound_group_link || body?.groupLink || '',
-			).trim();
-			const customTitle = String(
-				body?.group_title || body?.bound_group_title || body?.groupTitle || '',
-			).trim();
-
-			// Verify group existence & bot Administrator status on Telegram
-			const groupCheck = await verifyGroupAndAdminWithTelegram(
-				cleanToken,
-				verifiedBotId,
-				verifiedUsername,
-				rawGroupLink || 'https://t.me/my_group',
-				customTitle,
-				resolveRequestLang(req),
-			);
-
-			if (!groupCheck.ok) {
-				return sendJson(400, {
-					error: groupCheck.error,
-					code: groupCheck.code,
+				const detected = detectedChatsByToken.get(cleanToken);
+				return sendJson(200, {
+					ok: true,
 					bot_id: verifiedBotId,
 					bot_username: verifiedUsername,
 					bot_name: verifiedFirstName,
 					admin_deep_link: `https://t.me/${verifiedUsername}?startgroup=start&admin=restrict_members+delete_messages+ban_users+invite_users+pin_messages+manage_chat`,
+					detected_group: detected
+						? {
+								chat_id: detected.chatId,
+								chat_title: detected.title,
+								username: detected.username,
+								is_admin: detected.isAdmin,
+							}
+						: null,
 				});
 			}
 
-			const normalizedLink = groupCheck.groupLink || 'https://t.me/my_group';
-			const groupTitle = groupCheck.chatTitle || 'گروه تلگرام';
-			const chatIdNumeric = groupCheck.chatId || -(1002000000000 + (verifiedBotId % 900000000));
-			const realMembersCount = groupCheck.membersCount || 1;
-
-			// Check if this bot_id is already registered; if so, update it cleanly
-			let existingBot: StoredManagedBot | undefined;
-			for (const b of managedBotsStore.values()) {
-				if (b.bot_id === verifiedBotId) {
-					existingBot = b;
-					break;
-				}
-			}
-
-			const nowIso = new Date().toISOString();
-			const trialExpiryIso = new Date(Date.now() + 24 * 3600 * 1000).toISOString();
-			const botRecordId = existingBot?.id || `b_${Date.now()}`;
-			const groupRecordId =
-				existingBot?.group_id || existingBot?.bound_group_id || `g_${Date.now()}`;
-
-			const authUser = extractAuthUser(req);
-			const creatorUserId = authUser?.userId || OWNER_TELEGRAM_ID;
-
-			const newBot: StoredManagedBot = {
-				id: botRecordId,
-				owner_user_id: creatorUserId,
-				bot_username: verifiedUsername,
-				bot_name: verifiedFirstName,
-				bot_id: verifiedBotId,
-				encrypted_token: encryptBotToken(cleanToken, ENCRYPTION_MASTER_KEY),
-				group_id: groupRecordId,
-				group_link: normalizedLink,
-				group_title: groupTitle,
-				bound_group_link: normalizedLink,
-				bound_group_id: groupRecordId,
-				bound_group_title: groupTitle,
-				status: 'active',
-				managed_groups_count: 1,
-				subscription_status: existingBot?.subscription_status || 'trial',
-				trial_expires_at: existingBot?.trial_expires_at || trialExpiryIso,
-				monthly_stars_price: 100,
-				created_at: existingBot?.created_at || nowIso,
-				updated_at: nowIso,
-			};
-
-			const newGroup: StoredManagedGroup = {
-				id: groupRecordId,
-				owner_user_id: creatorUserId,
-				bot_id: botRecordId,
-				bot_username: verifiedUsername,
-				chat_id: chatIdNumeric,
-				telegram_chat_id: chatIdNumeric,
-				chat_title: groupTitle,
-				title: groupTitle,
-				chat_type: groupCheck.chatType || 'supergroup',
-				group_link: normalizedLink,
-				members_count: realMembersCount,
-				member_count: realMembersCount,
-				is_active: true,
-				subscription_status: 'trial',
-				trial_ends_at: trialExpiryIso,
-				subscription_expires_at: trialExpiryIso,
-				trial_used: true,
-				created_at: nowIso,
-				updated_at: nowIso,
-			};
-
-			managedBotsStore.set(newBot.id, newBot);
-			managedGroupsStore.set(newGroup.id, newGroup);
-			getGroupSettings(chatIdNumeric, groupTitle);
-			savePersistentStore();
-
-			// Start live Telegram Long-Polling for this user's child bot immediately
-			startChildBotPolling(cleanToken, newBot);
-
-			const { encrypted_token: _, ...publicBot } = newBot;
-			return sendJson(201, publicBot);
-		}
-
-		// GET / PUT / DELETE /api/v1/bots/:id and GET /api/v1/bots/:id/groups
-		if (cleanPath.startsWith('/bots/')) {
-			const parts = cleanPath.split('/').filter(Boolean); // ['bots', ':id', 'groups'?]
-			const botId = parts[1];
-			const authUser = extractAuthUser(req);
-			const targetBot = managedBotsStore.get(botId);
-			if (
-				targetBot &&
-				authUser &&
-				authUser.role !== 'owner' &&
-				targetBot.owner_user_id &&
-				targetBot.owner_user_id !== authUser.userId
-			) {
-				return sendJson(403, {
-					error: getApiMessage('FORBIDDEN_BOT', req),
-					code: 'FORBIDDEN_BOT',
-				});
-			}
-
-			if (parts.length === 2 && method === 'GET') {
-				const bot = managedBotsStore.get(botId);
-				if (!bot)
-					return sendJson(404, {
-						error: getApiMessage('BOT_NOT_FOUND', req),
-						code: 'BOT_NOT_FOUND',
-					});
-				const { encrypted_token: _, ...publicBot } = bot;
-				return sendJson(200, normalizeStoredBot(publicBot));
-			}
-
-			if (parts.length === 2 && method === 'PUT') {
-				const bot = managedBotsStore.get(botId);
-				if (!bot)
-					return sendJson(404, {
-						error: getApiMessage('BOT_NOT_FOUND', req),
-						code: 'BOT_NOT_FOUND',
-					});
+			if (cleanPath === '/bots' && method === 'POST') {
 				const body = await parseJsonBody();
-				const newGroupLink = String(
-					body?.group_link || body?.bound_group_link || bot.group_link || '',
-				).trim();
-				const newGroupTitle = String(
-					body?.group_title || body?.bound_group_title || body?.chat_title || '',
-				).trim();
-
-				let plainToken = '';
-				if (bot.encrypted_token) {
-					try {
-						plainToken = decryptBotToken(bot.encrypted_token, ENCRYPTION_MASTER_KEY);
-					} catch {}
+				const rawTokenInput = body?.token || body?.bot_token || body?.botToken || '';
+				const cleanToken = extractCleanBotToken(rawTokenInput);
+				if (!cleanToken) {
+					return sendJson(400, {
+						error: getApiMessage('INVALID_TOKEN_FORMAT', req),
+						code: 'INVALID_TOKEN_FORMAT',
+					});
 				}
 
-				let finalLink = newGroupLink || bot.group_link || bot.bound_group_link;
-				let finalTitle = newGroupTitle || bot.group_title || bot.bound_group_title;
-				let finalChatId: number | undefined;
-				let finalMembersCount: number | undefined;
+				// Verify token against live Telegram API (getMe)
+				let verifiedBotId =
+					Number(cleanToken.split(':')[0]) || Math.floor(Math.random() * 900000000);
+				let verifiedUsername = String(body?.bot_username || body?.username || '')
+					.replace('@', '')
+					.trim();
+				let verifiedFirstName = String(body?.bot_name || body?.name || '').trim();
 
-				if (plainToken && newGroupLink && newGroupLink !== bot.group_link) {
-					const check = await verifyGroupAndAdminWithTelegram(
-						plainToken,
-						bot.bot_id,
-						bot.bot_username,
-						newGroupLink,
-						newGroupTitle,
-						resolveRequestLang(req),
-					);
-					if (!check.ok) {
+				if (process.env.NODE_ENV !== 'test' && !process.env.VITEST) {
+					const meRes = await callTelegramApi<{
+						id: number;
+						is_bot: boolean;
+						first_name: string;
+						username: string;
+					}>('getMe', {}, cleanToken);
+
+					if (meRes.ok && meRes.result) {
+						verifiedBotId = meRes.result.id;
+						verifiedUsername = meRes.result.username || verifiedUsername;
+						verifiedFirstName = meRes.result.first_name || verifiedFirstName;
+					} else {
 						return sendJson(400, {
-							error: check.error,
-							code: check.code,
-							bot_username: bot.bot_username,
-							admin_deep_link: `https://t.me/${bot.bot_username}?startgroup=start&admin=restrict_members+delete_messages+ban_users+invite_users+pin_messages+manage_chat`,
+							error: getApiMessage('INVALID_TELEGRAM_TOKEN', req),
+							code: 'INVALID_TELEGRAM_TOKEN',
 						});
 					}
-					finalLink = check.groupLink || finalLink;
-					finalTitle = check.chatTitle || finalTitle;
-					finalChatId = check.chatId;
-					finalMembersCount = check.membersCount;
+				}
+
+				if (!verifiedUsername) {
+					verifiedUsername = `guard_${verifiedBotId}_bot`;
+				}
+				if (!verifiedFirstName) {
+					verifiedFirstName = verifiedUsername;
+				}
+
+				const rawGroupLink = String(
+					body?.group_link || body?.bound_group_link || body?.groupLink || '',
+				).trim();
+				const customTitle = String(
+					body?.group_title || body?.bound_group_title || body?.groupTitle || '',
+				).trim();
+
+				// Verify group existence & bot Administrator status on Telegram
+				const groupCheck = await verifyGroupAndAdminWithTelegram(
+					cleanToken,
+					verifiedBotId,
+					verifiedUsername,
+					rawGroupLink || 'https://t.me/my_group',
+					customTitle,
+					resolveRequestLang(req),
+				);
+
+				if (!groupCheck.ok) {
+					return sendJson(400, {
+						error: groupCheck.error,
+						code: groupCheck.code,
+						bot_id: verifiedBotId,
+						bot_username: verifiedUsername,
+						bot_name: verifiedFirstName,
+						admin_deep_link: `https://t.me/${verifiedUsername}?startgroup=start&admin=restrict_members+delete_messages+ban_users+invite_users+pin_messages+manage_chat`,
+					});
+				}
+
+				const normalizedLink = groupCheck.groupLink || 'https://t.me/my_group';
+				const groupTitle = groupCheck.chatTitle || 'گروه تلگرام';
+				const chatIdNumeric = groupCheck.chatId || -(1002000000000 + (verifiedBotId % 900000000));
+				const realMembersCount = groupCheck.membersCount || 1;
+
+				// Check if this bot_id is already registered; if so, update it cleanly
+				let existingBot: StoredManagedBot | undefined;
+				for (const b of managedBotsStore.values()) {
+					if (b.bot_id === verifiedBotId) {
+						existingBot = b;
+						break;
+					}
 				}
 
 				const nowIso = new Date().toISOString();
-				bot.group_link = finalLink;
-				bot.bound_group_link = finalLink;
-				bot.group_title = finalTitle;
-				bot.bound_group_title = finalTitle;
-				bot.updated_at = nowIso;
-				managedBotsStore.set(botId, bot);
+				const trialExpiryIso = new Date(Date.now() + 24 * 3600 * 1000).toISOString();
+				const botRecordId = existingBot?.id || `b_${Date.now()}`;
+				const groupRecordId =
+					existingBot?.group_id || existingBot?.bound_group_id || `g_${Date.now()}`;
 
-				const gid = bot.group_id || bot.bound_group_id;
-				if (gid) {
-					const mg = managedGroupsStore.get(gid);
-					if (mg) {
-						mg.group_link = finalLink;
-						mg.chat_title = finalTitle;
-						mg.title = finalTitle;
-						if (finalChatId) {
-							mg.chat_id = finalChatId;
-							mg.telegram_chat_id = finalChatId;
-						}
-						if (finalMembersCount) {
-							mg.members_count = finalMembersCount;
-							mg.member_count = finalMembersCount;
-						}
-						mg.updated_at = nowIso;
-						managedGroupsStore.set(gid, mg);
-					}
-				}
+				const authUser = extractAuthUser(req);
+				const creatorUserId = authUser?.userId || OWNER_TELEGRAM_ID;
+
+				const newBot: StoredManagedBot = {
+					id: botRecordId,
+					owner_user_id: creatorUserId,
+					bot_username: verifiedUsername,
+					bot_name: verifiedFirstName,
+					bot_id: verifiedBotId,
+					encrypted_token: encryptBotToken(cleanToken, ENCRYPTION_MASTER_KEY),
+					group_id: groupRecordId,
+					group_link: normalizedLink,
+					group_title: groupTitle,
+					bound_group_link: normalizedLink,
+					bound_group_id: groupRecordId,
+					bound_group_title: groupTitle,
+					status: 'active',
+					managed_groups_count: 1,
+					subscription_status: existingBot?.subscription_status || 'trial',
+					trial_expires_at: existingBot?.trial_expires_at || trialExpiryIso,
+					monthly_stars_price: 100,
+					created_at: existingBot?.created_at || nowIso,
+					updated_at: nowIso,
+				};
+
+				const newGroup: StoredManagedGroup = {
+					id: groupRecordId,
+					owner_user_id: creatorUserId,
+					bot_id: botRecordId,
+					bot_username: verifiedUsername,
+					chat_id: chatIdNumeric,
+					telegram_chat_id: chatIdNumeric,
+					chat_title: groupTitle,
+					title: groupTitle,
+					chat_type: groupCheck.chatType || 'supergroup',
+					group_link: normalizedLink,
+					members_count: realMembersCount,
+					member_count: realMembersCount,
+					is_active: true,
+					subscription_status: 'trial',
+					trial_ends_at: trialExpiryIso,
+					subscription_expires_at: trialExpiryIso,
+					trial_used: true,
+					created_at: nowIso,
+					updated_at: nowIso,
+				};
+
+				managedBotsStore.set(newBot.id, newBot);
+				managedGroupsStore.set(newGroup.id, newGroup);
+				getGroupSettings(chatIdNumeric, groupTitle);
 				savePersistentStore();
-				const { encrypted_token: _, ...publicBot } = bot;
-				return sendJson(200, normalizeStoredBot(publicBot));
+
+				// Start live Telegram Long-Polling for this user's child bot immediately
+				startChildBotPolling(cleanToken, newBot);
+
+				const { encrypted_token: _, ...publicBot } = newBot;
+				return sendJson(201, publicBot);
 			}
 
-			if (parts.length === 2 && method === 'DELETE') {
-				const bot = managedBotsStore.get(botId);
-				if (bot) {
-					if (bot.encrypted_token) {
-						try {
-							const plain = decryptBotToken(bot.encrypted_token, ENCRYPTION_MASTER_KEY);
-							activeChildPollingTokens.delete(plain);
-						} catch {}
-					}
-					const gid = bot.group_id || bot.bound_group_id;
-					if (gid) {
-						managedGroupsStore.delete(gid);
-						groupsStore.delete(gid);
-					}
-					for (const [mgId, mg] of managedGroupsStore.entries()) {
-						if (mg.bot_id === botId) {
-							managedGroupsStore.delete(mgId);
-						}
-					}
-					managedBotsStore.delete(botId);
-					savePersistentStore();
-				}
-				return sendJson(200, {
-					ok: true,
-					deleted_bot_id: botId,
-					message: getApiMessage('BOT_DELETED_SUCCESS', req),
-				});
-			}
-
-			if (parts.length === 3 && parts[2] === 'groups' && method === 'GET') {
-				const groups = Array.from(managedGroupsStore.values())
-					.filter((g) => g.bot_id === botId)
-					.map((g) => normalizeStoredGroup(g));
-				return sendJson(200, groups);
-			}
-		}
-
-		// ─── 4. Groups, Settings, Analytics & Audit Endpoints ────────────────────
-		if (cleanPath === '/groups' && method === 'GET') {
-			const authUser = extractAuthUser(req);
-			const list = Array.from(managedGroupsStore.values())
-				.filter((g) => g.id !== 'g1' && g.bot_id !== 'b1')
-				.filter((g) => {
-					if (!authUser || authUser.role === 'owner') return true;
-					return g.owner_user_id === authUser.userId;
-				})
-				.map((g) => normalizeStoredGroup(g));
-			return sendJson(200, list);
-		}
-
-		if (cleanPath.startsWith('/groups/')) {
-			const parts = cleanPath.split('/').filter(Boolean); // ['groups', ':id', ('settings'|'analytics'|'audit')?]
-			const groupIdStr = parts[1];
-			const authUser = extractAuthUser(req);
-			const targetGroup = managedGroupsStore.get(groupIdStr);
-			if (
-				targetGroup &&
-				authUser &&
-				authUser.role !== 'owner' &&
-				targetGroup.owner_user_id &&
-				targetGroup.owner_user_id !== authUser.userId
-			) {
-				return sendJson(403, {
-					error: getApiMessage('FORBIDDEN_GROUP', req),
-					code: 'FORBIDDEN_GROUP',
-				});
-			}
-
-			// GET / PUT / DELETE /api/v1/groups/:id
-			if (parts.length === 2) {
-				if (method === 'GET') {
-					const mg = managedGroupsStore.get(groupIdStr);
-					if (mg) return sendJson(200, normalizeStoredGroup(mg));
-					const rt = findRuntimeGroupByIdOrChatId(groupIdStr);
-					const exp = new Date(Date.now() + 24 * 3600 * 1000).toISOString();
-					return sendJson(
-						200,
-						normalizeStoredGroup({
-							id: groupIdStr,
-							bot_id: '',
-							chat_id: rt.chatId,
-							telegram_chat_id: rt.chatId,
-							chat_title: rt.chatTitle,
-							title: rt.chatTitle,
-							chat_type: 'supergroup',
-							members_count: 1,
-							member_count: 1,
-							is_active: true,
-							subscription_status: 'trial',
-							trial_ends_at: exp,
-							subscription_expires_at: exp,
-							trial_used: true,
-							created_at: new Date().toISOString(),
-							updated_at: new Date().toISOString(),
-						}),
-					);
+			// GET / PUT / DELETE /api/v1/bots/:id and GET /api/v1/bots/:id/groups
+			if (cleanPath.startsWith('/bots/')) {
+				const parts = cleanPath.split('/').filter(Boolean); // ['bots', ':id', 'groups'?]
+				const botId = parts[1];
+				const authUser = extractAuthUser(req);
+				const targetBot = managedBotsStore.get(botId);
+				if (
+					targetBot &&
+					authUser &&
+					authUser.role !== 'owner' &&
+					targetBot.owner_user_id &&
+					targetBot.owner_user_id !== authUser.userId
+				) {
+					return sendJson(403, {
+						error: getApiMessage('FORBIDDEN_BOT', req),
+						code: 'FORBIDDEN_BOT',
+					});
 				}
 
-				if (method === 'PUT') {
-					const mg = managedGroupsStore.get(groupIdStr);
-					if (!mg)
+				if (parts.length === 2 && method === 'GET') {
+					const bot = managedBotsStore.get(botId);
+					if (!bot)
 						return sendJson(404, {
-							error: getApiMessage('GROUP_NOT_FOUND', req),
-							code: 'GROUP_NOT_FOUND',
+							error: getApiMessage('BOT_NOT_FOUND', req),
+							code: 'BOT_NOT_FOUND',
+						});
+					const { encrypted_token: _, ...publicBot } = bot;
+					return sendJson(200, normalizeStoredBot(publicBot));
+				}
+
+				if (parts.length === 2 && method === 'PUT') {
+					const bot = managedBotsStore.get(botId);
+					if (!bot)
+						return sendJson(404, {
+							error: getApiMessage('BOT_NOT_FOUND', req),
+							code: 'BOT_NOT_FOUND',
 						});
 					const body = await parseJsonBody();
 					const newGroupLink = String(
-						body?.group_link || body?.bound_group_link || mg.group_link || '',
+						body?.group_link || body?.bound_group_link || bot.group_link || '',
 					).trim();
 					const newGroupTitle = String(
-						body?.chat_title || body?.group_title || body?.title || '',
+						body?.group_title || body?.bound_group_title || body?.chat_title || '',
 					).trim();
 
-					const parentBot = mg.bot_id ? managedBotsStore.get(mg.bot_id) : undefined;
 					let plainToken = '';
-					if (parentBot?.encrypted_token) {
+					if (bot.encrypted_token) {
 						try {
-							plainToken = decryptBotToken(parentBot.encrypted_token, ENCRYPTION_MASTER_KEY);
+							plainToken = decryptBotToken(bot.encrypted_token, ENCRYPTION_MASTER_KEY);
 						} catch {}
 					}
 
-					let finalLink = newGroupLink || mg.group_link || '';
-					let finalTitle = newGroupTitle || mg.chat_title || mg.title;
-					let finalChatId = mg.chat_id || mg.telegram_chat_id;
-					let finalMembersCount = mg.members_count || mg.member_count || 1;
+					let finalLink = newGroupLink || bot.group_link || bot.bound_group_link;
+					let finalTitle = newGroupTitle || bot.group_title || bot.bound_group_title;
+					let finalChatId: number | undefined;
+					let finalMembersCount: number | undefined;
 
-					if (plainToken && parentBot && newGroupLink && newGroupLink !== mg.group_link) {
+					if (plainToken && newGroupLink && newGroupLink !== bot.group_link) {
 						const check = await verifyGroupAndAdminWithTelegram(
 							plainToken,
-							parentBot.bot_id,
-							parentBot.bot_username,
+							bot.bot_id,
+							bot.bot_username,
 							newGroupLink,
 							newGroupTitle,
+							resolveRequestLang(req),
 						);
 						if (!check.ok) {
 							return sendJson(400, {
 								error: check.error,
 								code: check.code,
-								bot_username: parentBot.bot_username,
-								admin_deep_link: `https://t.me/${parentBot.bot_username}?startgroup=start&admin=restrict_members+delete_messages+ban_users+invite_users+pin_messages+manage_chat`,
+								bot_username: bot.bot_username,
+								admin_deep_link: `https://t.me/${bot.bot_username}?startgroup=start&admin=restrict_members+delete_messages+ban_users+invite_users+pin_messages+manage_chat`,
 							});
 						}
 						finalLink = check.groupLink || finalLink;
 						finalTitle = check.chatTitle || finalTitle;
-						if (check.chatId) finalChatId = check.chatId;
-						if (check.membersCount) finalMembersCount = check.membersCount;
+						finalChatId = check.chatId;
+						finalMembersCount = check.membersCount;
 					}
 
 					const nowIso = new Date().toISOString();
-					mg.group_link = finalLink;
-					mg.chat_title = finalTitle;
-					mg.title = finalTitle;
-					mg.chat_id = finalChatId;
-					mg.telegram_chat_id = finalChatId;
-					mg.members_count = finalMembersCount;
-					mg.member_count = finalMembersCount;
-					mg.updated_at = nowIso;
-					managedGroupsStore.set(groupIdStr, mg);
+					bot.group_link = finalLink;
+					bot.bound_group_link = finalLink;
+					bot.group_title = finalTitle;
+					bot.bound_group_title = finalTitle;
+					bot.updated_at = nowIso;
+					managedBotsStore.set(botId, bot);
 
-					if (parentBot) {
-						parentBot.group_link = finalLink;
-						parentBot.bound_group_link = finalLink;
-						parentBot.group_title = finalTitle;
-						parentBot.bound_group_title = finalTitle;
-						parentBot.updated_at = nowIso;
-						managedBotsStore.set(parentBot.id, parentBot);
-					}
-
-					savePersistentStore();
-					return sendJson(200, normalizeStoredGroup(mg));
-				}
-
-				if (method === 'DELETE') {
-					const mg = managedGroupsStore.get(groupIdStr);
-					managedGroupsStore.delete(groupIdStr);
-					groupsStore.delete(groupIdStr);
-					if (mg?.telegram_chat_id) {
-						groupsStore.delete(String(Math.abs(mg.telegram_chat_id)));
-					}
-					for (const [bid, bot] of managedBotsStore.entries()) {
-						if (
-							bot.bound_group_id === groupIdStr ||
-							bot.group_id === groupIdStr ||
-							bot.id === mg?.bot_id
-						) {
-							if (bot.encrypted_token) {
-								try {
-									const plain = decryptBotToken(bot.encrypted_token, ENCRYPTION_MASTER_KEY);
-									activeChildPollingTokens.delete(plain);
-								} catch {}
+					const gid = bot.group_id || bot.bound_group_id;
+					if (gid) {
+						const mg = managedGroupsStore.get(gid);
+						if (mg) {
+							mg.group_link = finalLink;
+							mg.chat_title = finalTitle;
+							mg.title = finalTitle;
+							if (finalChatId) {
+								mg.chat_id = finalChatId;
+								mg.telegram_chat_id = finalChatId;
 							}
-							managedBotsStore.delete(bid);
+							if (finalMembersCount) {
+								mg.members_count = finalMembersCount;
+								mg.member_count = finalMembersCount;
+							}
+							mg.updated_at = nowIso;
+							managedGroupsStore.set(gid, mg);
 						}
 					}
 					savePersistentStore();
-					return sendJson(200, { ok: true, deleted_group_id: groupIdStr });
+					const { encrypted_token: _, ...publicBot } = bot;
+					return sendJson(200, normalizeStoredBot(publicBot));
+				}
+
+				if (parts.length === 2 && method === 'DELETE') {
+					const bot = managedBotsStore.get(botId);
+					if (bot) {
+						if (bot.encrypted_token) {
+							try {
+								const plain = decryptBotToken(bot.encrypted_token, ENCRYPTION_MASTER_KEY);
+								activeChildPollingTokens.delete(plain);
+							} catch {}
+						}
+						const gid = bot.group_id || bot.bound_group_id;
+						if (gid) {
+							managedGroupsStore.delete(gid);
+							groupsStore.delete(gid);
+						}
+						for (const [mgId, mg] of managedGroupsStore.entries()) {
+							if (mg.bot_id === botId) {
+								managedGroupsStore.delete(mgId);
+							}
+						}
+						managedBotsStore.delete(botId);
+						savePersistentStore();
+					}
+					return sendJson(200, {
+						ok: true,
+						deleted_bot_id: botId,
+						message: getApiMessage('BOT_DELETED_SUCCESS', req),
+					});
+				}
+
+				if (parts.length === 3 && parts[2] === 'groups' && method === 'GET') {
+					const groups = Array.from(managedGroupsStore.values())
+						.filter((g) => g.bot_id === botId)
+						.map((g) => normalizeStoredGroup(g));
+					return sendJson(200, groups);
 				}
 			}
 
-			// GET / PUT /api/v1/groups/:id/profile (Live Telegram Group Title & Bio + Dynamic Bio)
-			if (parts.length === 3 && parts[2] === 'profile') {
-				const s = findRuntimeGroupByIdOrChatId(groupIdStr);
-				const mg = managedGroupsStore.get(groupIdStr);
-				const chatId = mg?.telegram_chat_id || mg?.chat_id || s.chatId;
-				const tokenToUse = getBotTokenForGroup(groupIdStr, chatId);
+			// ─── 4. Groups, Settings, Analytics & Audit Endpoints ────────────────────
+			if (cleanPath === '/groups' && method === 'GET') {
+				const authUser = extractAuthUser(req);
+				const list = Array.from(managedGroupsStore.values())
+					.filter((g) => g.id !== 'g1' && g.bot_id !== 'b1')
+					.filter((g) => {
+						if (!authUser || authUser.role === 'owner') return true;
+						return g.owner_user_id === authUser.userId;
+					})
+					.map((g) => normalizeStoredGroup(g));
+				return sendJson(200, list);
+			}
 
-				if (method === 'GET') {
-					let liveTitle = mg?.title || mg?.chat_title || s.chatTitle || 'گروه تلگرام';
-					let liveDesc = s.chatDescription || '';
-					let liveMembers = mg?.member_count || mg?.members_count || 1;
+			if (cleanPath.startsWith('/groups/')) {
+				const parts = cleanPath.split('/').filter(Boolean); // ['groups', ':id', ('settings'|'analytics'|'audit')?]
+				const groupIdStr = parts[1];
+				const authUser = extractAuthUser(req);
+				const targetGroup = managedGroupsStore.get(groupIdStr);
+				if (
+					targetGroup &&
+					authUser &&
+					authUser.role !== 'owner' &&
+					targetGroup.owner_user_id &&
+					targetGroup.owner_user_id !== authUser.userId
+				) {
+					return sendJson(403, {
+						error: getApiMessage('FORBIDDEN_GROUP', req),
+						code: 'FORBIDDEN_GROUP',
+					});
+				}
 
-					if (process.env.NODE_ENV !== 'test' && !process.env.VITEST && tokenToUse && chatId) {
-						try {
-							const chatRes = await callTelegramApi<{
-								id: number;
-								title?: string;
-								description?: string;
-							}>('getChat', { chat_id: chatId }, tokenToUse);
-							if (chatRes.ok && chatRes.result) {
-								if (chatRes.result.title) liveTitle = chatRes.result.title;
-								if (typeof chatRes.result.description === 'string') {
-									liveDesc = chatRes.result.description;
+				// GET / PUT / DELETE /api/v1/groups/:id
+				if (parts.length === 2) {
+					if (method === 'GET') {
+						const mg = managedGroupsStore.get(groupIdStr);
+						if (mg) return sendJson(200, normalizeStoredGroup(mg));
+						const rt = findRuntimeGroupByIdOrChatId(groupIdStr);
+						const exp = new Date(Date.now() + 24 * 3600 * 1000).toISOString();
+						return sendJson(
+							200,
+							normalizeStoredGroup({
+								id: groupIdStr,
+								bot_id: '',
+								chat_id: rt.chatId,
+								telegram_chat_id: rt.chatId,
+								chat_title: rt.chatTitle,
+								title: rt.chatTitle,
+								chat_type: 'supergroup',
+								members_count: 1,
+								member_count: 1,
+								is_active: true,
+								subscription_status: 'trial',
+								trial_ends_at: exp,
+								subscription_expires_at: exp,
+								trial_used: true,
+								created_at: new Date().toISOString(),
+								updated_at: new Date().toISOString(),
+							}),
+						);
+					}
+
+					if (method === 'PUT') {
+						const mg = managedGroupsStore.get(groupIdStr);
+						if (!mg)
+							return sendJson(404, {
+								error: getApiMessage('GROUP_NOT_FOUND', req),
+								code: 'GROUP_NOT_FOUND',
+							});
+						const body = await parseJsonBody();
+						const newGroupLink = String(
+							body?.group_link || body?.bound_group_link || mg.group_link || '',
+						).trim();
+						const newGroupTitle = String(
+							body?.chat_title || body?.group_title || body?.title || '',
+						).trim();
+
+						const parentBot = mg.bot_id ? managedBotsStore.get(mg.bot_id) : undefined;
+						let plainToken = '';
+						if (parentBot?.encrypted_token) {
+							try {
+								plainToken = decryptBotToken(parentBot.encrypted_token, ENCRYPTION_MASTER_KEY);
+							} catch {}
+						}
+
+						let finalLink = newGroupLink || mg.group_link || '';
+						let finalTitle = newGroupTitle || mg.chat_title || mg.title;
+						let finalChatId = mg.chat_id || mg.telegram_chat_id;
+						let finalMembersCount = mg.members_count || mg.member_count || 1;
+
+						if (plainToken && parentBot && newGroupLink && newGroupLink !== mg.group_link) {
+							const check = await verifyGroupAndAdminWithTelegram(
+								plainToken,
+								parentBot.bot_id,
+								parentBot.bot_username,
+								newGroupLink,
+								newGroupTitle,
+							);
+							if (!check.ok) {
+								return sendJson(400, {
+									error: check.error,
+									code: check.code,
+									bot_username: parentBot.bot_username,
+									admin_deep_link: `https://t.me/${parentBot.bot_username}?startgroup=start&admin=restrict_members+delete_messages+ban_users+invite_users+pin_messages+manage_chat`,
+								});
+							}
+							finalLink = check.groupLink || finalLink;
+							finalTitle = check.chatTitle || finalTitle;
+							if (check.chatId) finalChatId = check.chatId;
+							if (check.membersCount) finalMembersCount = check.membersCount;
+						}
+
+						const nowIso = new Date().toISOString();
+						mg.group_link = finalLink;
+						mg.chat_title = finalTitle;
+						mg.title = finalTitle;
+						mg.chat_id = finalChatId;
+						mg.telegram_chat_id = finalChatId;
+						mg.members_count = finalMembersCount;
+						mg.member_count = finalMembersCount;
+						mg.updated_at = nowIso;
+						managedGroupsStore.set(groupIdStr, mg);
+
+						if (parentBot) {
+							parentBot.group_link = finalLink;
+							parentBot.bound_group_link = finalLink;
+							parentBot.group_title = finalTitle;
+							parentBot.bound_group_title = finalTitle;
+							parentBot.updated_at = nowIso;
+							managedBotsStore.set(parentBot.id, parentBot);
+						}
+
+						savePersistentStore();
+						return sendJson(200, normalizeStoredGroup(mg));
+					}
+
+					if (method === 'DELETE') {
+						const mg = managedGroupsStore.get(groupIdStr);
+						managedGroupsStore.delete(groupIdStr);
+						groupsStore.delete(groupIdStr);
+						if (mg?.telegram_chat_id) {
+							groupsStore.delete(String(Math.abs(mg.telegram_chat_id)));
+						}
+						for (const [bid, bot] of managedBotsStore.entries()) {
+							if (
+								bot.bound_group_id === groupIdStr ||
+								bot.group_id === groupIdStr ||
+								bot.id === mg?.bot_id
+							) {
+								if (bot.encrypted_token) {
+									try {
+										const plain = decryptBotToken(bot.encrypted_token, ENCRYPTION_MASTER_KEY);
+										activeChildPollingTokens.delete(plain);
+									} catch {}
+								}
+								managedBotsStore.delete(bid);
+							}
+						}
+						savePersistentStore();
+						return sendJson(200, { ok: true, deleted_group_id: groupIdStr });
+					}
+				}
+
+				// GET / PUT /api/v1/groups/:id/profile (Live Telegram Group Title & Bio + Dynamic Bio)
+				if (parts.length === 3 && parts[2] === 'profile') {
+					const s = findRuntimeGroupByIdOrChatId(groupIdStr);
+					const mg = managedGroupsStore.get(groupIdStr);
+					const chatId = mg?.telegram_chat_id || mg?.chat_id || s.chatId;
+					const tokenToUse = getBotTokenForGroup(groupIdStr, chatId);
+
+					if (method === 'GET') {
+						let liveTitle = mg?.title || mg?.chat_title || s.chatTitle || 'گروه تلگرام';
+						let liveDesc = s.chatDescription || '';
+						let liveMembers = mg?.member_count || mg?.members_count || 1;
+
+						if (process.env.NODE_ENV !== 'test' && !process.env.VITEST && tokenToUse && chatId) {
+							try {
+								const chatRes = await callTelegramApi<{
+									id: number;
+									title?: string;
+									description?: string;
+								}>('getChat', { chat_id: chatId }, tokenToUse);
+								if (chatRes.ok && chatRes.result) {
+									if (chatRes.result.title) liveTitle = chatRes.result.title;
+									if (typeof chatRes.result.description === 'string') {
+										liveDesc = chatRes.result.description;
+									}
+								}
+								const countRes = await callTelegramApi<number>(
+									'getChatMemberCount',
+									{ chat_id: chatId },
+									tokenToUse,
+								);
+								if (countRes.ok && typeof countRes.result === 'number') {
+									liveMembers = countRes.result;
+								}
+							} catch {}
+						}
+
+						s.chatTitle = liveTitle;
+						s.chatDescription = liveDesc;
+						if (mg) {
+							mg.title = liveTitle;
+							mg.chat_title = liveTitle;
+							mg.member_count = liveMembers;
+							mg.members_count = liveMembers;
+							managedGroupsStore.set(groupIdStr, mg);
+						}
+						if (!s.fullSettings) s.fullSettings = defaultFullSettings(groupIdStr);
+						const dynBio = s.fullSettings.dynamic_bio || {
+							enabled: false,
+							title_template: liveTitle,
+							bio_template: liveDesc,
+							append_time_to_title: false,
+							variables_enabled: { members: true, time: true, date: true, day_name: false },
+						};
+						if (!dynBio.title_template) dynBio.title_template = liveTitle;
+						if (!dynBio.bio_template && liveDesc) dynBio.bio_template = liveDesc;
+
+						return sendJson(200, {
+							group_id: groupIdStr,
+							chat_id: chatId,
+							current_title: liveTitle,
+							current_description: liveDesc,
+							members_count: liveMembers,
+							dynamic_bio: dynBio,
+						});
+					}
+
+					if (method === 'PUT' || method === 'POST') {
+						const body = await parseJsonBody();
+						const liveMembers = mg?.member_count || mg?.members_count || 1;
+						if (!s.fullSettings) s.fullSettings = defaultFullSettings(groupIdStr);
+
+						const incomingDyn = body?.dynamic_bio || {};
+						const dynEnabled = Boolean(
+							incomingDyn.enabled ?? body?.enabled ?? s.fullSettings.dynamic_bio?.enabled,
+						);
+						const rawTitleInput = String(
+							body?.current_title ?? incomingDyn.title_template ?? s.chatTitle ?? mg?.title ?? '',
+						).trim();
+						const rawDescInput = String(
+							body?.current_description ?? incomingDyn.bio_template ?? s.chatDescription ?? '',
+						).trim();
+
+						const resolvedTitle = dynEnabled
+							? renderDynamicBioTemplate(rawTitleInput, liveMembers).slice(0, 128)
+							: rawTitleInput.slice(0, 128);
+						const resolvedDesc = dynEnabled
+							? renderDynamicBioTemplate(rawDescInput, liveMembers).slice(0, 255)
+							: rawDescInput.slice(0, 255);
+
+						let telegramWarning = '';
+						if (process.env.NODE_ENV !== 'test' && !process.env.VITEST && tokenToUse && chatId) {
+							if (resolvedTitle) {
+								const tRes = await callTelegramApi(
+									'setChatTitle',
+									{ chat_id: chatId, title: resolvedTitle },
+									tokenToUse,
+								);
+								if (!tRes.ok && tRes.description && !tRes.description.includes('not modified')) {
+									telegramWarning = getApiMessage('BOT_INFO_CHANGE_WARNING', req);
 								}
 							}
+							const dRes = await callTelegramApi(
+								'setChatDescription',
+								{ chat_id: chatId, description: resolvedDesc },
+								tokenToUse,
+							);
+							if (
+								!dRes.ok &&
+								dRes.description &&
+								!dRes.description.includes('not modified') &&
+								!telegramWarning
+							) {
+								telegramWarning = getApiMessage('BOT_INFO_CHANGE_WARNING', req);
+							}
+						}
+
+						if (resolvedTitle) {
+							s.chatTitle = resolvedTitle;
+							if (mg) {
+								mg.title = resolvedTitle;
+								mg.chat_title = resolvedTitle;
+								mg.updated_at = new Date().toISOString();
+								managedGroupsStore.set(groupIdStr, mg);
+								if (mg.bot_id) {
+									const parentBot = managedBotsStore.get(mg.bot_id);
+									if (parentBot) {
+										parentBot.group_title = resolvedTitle;
+										parentBot.bound_group_title = resolvedTitle;
+										managedBotsStore.set(parentBot.id, parentBot);
+									}
+								}
+							}
+						}
+						s.chatDescription = resolvedDesc;
+						s.fullSettings.dynamic_bio = {
+							enabled: dynEnabled,
+							title_template: rawTitleInput,
+							bio_template: rawDescInput,
+							append_time_to_title: Boolean(incomingDyn.append_time_to_title),
+							variables_enabled: incomingDyn.variables_enabled || {
+								members: true,
+								time: true,
+								date: true,
+								day_name: false,
+							},
+						};
+						recordGroupAuditLog(s, 'بروزرسانی نام و بیوگرافی گروه', {
+							title: resolvedTitle,
+							dynamic: dynEnabled,
+						});
+						savePersistentStore();
+
+						return sendJson(200, {
+							ok: true,
+							group_id: groupIdStr,
+							current_title: s.chatTitle,
+							current_description: s.chatDescription,
+							members_count: liveMembers,
+							dynamic_bio: s.fullSettings.dynamic_bio,
+							warning: telegramWarning || undefined,
+						});
+					}
+				}
+
+				// GET / PUT /api/v1/groups/:id/settings
+				if (parts.length === 3 && parts[2] === 'settings') {
+					const s = findRuntimeGroupByIdOrChatId(groupIdStr);
+					if (!s.fullSettings) {
+						s.fullSettings = defaultFullSettings(groupIdStr);
+					}
+
+					if (method === 'GET') {
+						// Ensure live toggles are reflected in fullSettings
+						s.fullSettings.group_id = groupIdStr;
+						s.fullSettings.content_restrictions.removeLinks.enabled = s.removeLinks;
+						s.fullSettings.content_restrictions.blockBots.enabled = s.blockBots;
+						s.fullSettings.content_restrictions.blockExternalReplies.enabled =
+							s.blockCrossChatReplies;
+						s.fullSettings.limits.floodMessages = s.floodLimit;
+						s.fullSettings.limits.floodWindow = s.floodWindowSec;
+						s.fullSettings.quiet_hours.emergencyLock = s.emergencyLock;
+						s.fullSettings.quiet_hours.enabled = s.quietHoursActive;
+						return sendJson(200, s.fullSettings);
+					}
+
+					if (method === 'PUT' || method === 'POST') {
+						const body = await parseJsonBody();
+						// Support { category, data, version } from groupApi.updateSettings
+						if (body?.category && body?.data !== undefined) {
+							s.fullSettings[body.category] = body.data;
+						} else {
+							if (body?.content_restrictions) {
+								s.fullSettings.content_restrictions = {
+									...s.fullSettings.content_restrictions,
+									...body.content_restrictions,
+								};
+							}
+							if (body?.limits) {
+								s.fullSettings.limits = { ...s.fullSettings.limits, ...body.limits };
+							}
+							if (body?.quiet_hours) {
+								s.fullSettings.quiet_hours = { ...s.fullSettings.quiet_hours, ...body.quiet_hours };
+							}
+							if (body?.welcome) {
+								s.fullSettings.welcome = { ...s.fullSettings.welcome, ...body.welcome };
+							}
+							if (body?.warnings) {
+								s.fullSettings.warnings = { ...s.fullSettings.warnings, ...body.warnings };
+							}
+							if (body?.forced_Simembership) {
+								s.fullSettings.forced_Simembership = {
+									...s.fullSettings.forced_Simembership,
+									...body.forced_Simembership,
+								};
+							}
+							if (body?.general) {
+								s.fullSettings.general = {
+									...s.fullSettings.general,
+									...body.general,
+								};
+							}
+							if (body?.dynamic_bio) {
+								s.fullSettings.dynamic_bio = {
+									...s.fullSettings.dynamic_bio,
+									...body.dynamic_bio,
+								};
+							}
+						}
+						s.fullSettings.version = (Number(s.fullSettings.version) || 1) + 1;
+						s.fullSettings.updated_at = new Date().toISOString();
+						syncRuntimeFromFullSettings(s);
+						recordGroupAuditLog(s, `بروزرسانی تنظیمات گروه (${body?.category || 'عمومی'})`);
+						savePersistentStore();
+						return sendJson(200, s.fullSettings);
+					}
+				}
+
+				// GET /api/v1/groups/:id/analytics (100% Real Group Telemetry — Zero Fake Data)
+				if (parts.length === 3 && parts[2] === 'analytics' && method === 'GET') {
+					const s = findRuntimeGroupByIdOrChatId(groupIdStr);
+					const analytics = getOrCreateGroupAnalytics(s);
+					const mg = managedGroupsStore.get(groupIdStr);
+					const chatId = mg?.telegram_chat_id || mg?.chat_id || s.chatId;
+					const tokenToUse = getBotTokenForGroup(groupIdStr, chatId);
+
+					let liveMembers = mg?.member_count || mg?.members_count || 1;
+					if (process.env.NODE_ENV !== 'test' && !process.env.VITEST && tokenToUse && chatId) {
+						try {
 							const countRes = await callTelegramApi<number>(
 								'getChatMemberCount',
 								{ chat_id: chatId },
@@ -3309,645 +3550,424 @@ export function createServer() {
 							);
 							if (countRes.ok && typeof countRes.result === 'number') {
 								liveMembers = countRes.result;
+								if (mg) {
+									mg.member_count = liveMembers;
+									mg.members_count = liveMembers;
+									managedGroupsStore.set(groupIdStr, mg);
+								}
 							}
 						} catch {}
 					}
 
-					s.chatTitle = liveTitle;
-					s.chatDescription = liveDesc;
-					if (mg) {
-						mg.title = liveTitle;
-						mg.chat_title = liveTitle;
-						mg.member_count = liveMembers;
-						mg.members_count = liveMembers;
-						managedGroupsStore.set(groupIdStr, mg);
-					}
-					if (!s.fullSettings) s.fullSettings = defaultFullSettings(groupIdStr);
-					const dynBio = s.fullSettings.dynamic_bio || {
-						enabled: false,
-						title_template: liveTitle,
-						bio_template: liveDesc,
-						append_time_to_title: false,
-						variables_enabled: { members: true, time: true, date: true, day_name: false },
-					};
-					if (!dynBio.title_template) dynBio.title_template = liveTitle;
-					if (!dynBio.bio_template && liveDesc) dynBio.bio_template = liveDesc;
+					const today = new Date();
+					const dailyStats = Array.from({ length: 7 }, (_, idx) => {
+						const d = new Date(today.getTime() - (6 - idx) * 86400 * 1000);
+						const dateStr = d.toISOString().slice(0, 10);
+						const realDay = analytics.dailyStats[dateStr];
+						return {
+							date: dateStr,
+							total_messages: realDay?.total_messages || 0,
+							active_users: realDay?.active_users || 0,
+							new_members: realDay?.new_members || 0,
+							left_members: realDay?.left_members || 0,
+							spam_blocked: realDay?.spam_blocked || 0,
+							warnings_issued: realDay?.warnings_issued || 0,
+							muted_users: realDay?.muted_users || 0,
+							banned_users: realDay?.banned_users || 0,
+						};
+					});
+
+					const totalMsgs7d = dailyStats.reduce((a, b) => a + b.total_messages, 0);
+					const totalSpam7d = dailyStats.reduce((a, b) => a + b.spam_blocked, 0);
+					const totalNew7d = dailyStats.reduce((a, b) => a + b.new_members, 0);
+					const totalLeft7d = dailyStats.reduce((a, b) => a + b.left_members, 0);
+					const activeUsersCount = Object.keys(analytics.topUsers).length;
+
+					const topViolatedRules = Object.entries(analytics.violationsByReason)
+						.map(([rule, count]) => ({ rule, count }))
+						.sort((a, b) => b.count - a.count)
+						.slice(0, 6);
+
+					const topUsersList = Object.values(analytics.topUsers)
+						.sort((a, b) => b.messages - a.messages)
+						.slice(0, 10);
+
+					const forumTopicsList = Object.values(analytics.topicMessages).sort(
+						(a, b) => b.messages - a.messages,
+					);
 
 					return sendJson(200, {
 						group_id: groupIdStr,
-						chat_id: chatId,
-						current_title: liveTitle,
-						current_description: liveDesc,
-						members_count: liveMembers,
-						dynamic_bio: dynBio,
+						group_title: mg?.title || s.chatTitle || 'گروه',
+						summary: {
+							total_members: liveMembers,
+							members_change: totalNew7d - totalLeft7d,
+							total_messages: analytics.totalMessages,
+							messages_change_pct: 0,
+							spam_blocked: analytics.spamBlocked,
+							new_members: analytics.newMembers,
+							members_left: analytics.membersLeft,
+							active_users: activeUsersCount,
+							join_requests_approved: analytics.joinRequestsApproved,
+							join_requests_declined: analytics.joinRequestsDeclined,
+							warnings_issued: analytics.warningsIssued,
+							muted_users: analytics.mutedUsers,
+							banned_users: analytics.bannedUsers,
+						},
+						growth: dailyStats.map((d) => ({
+							date: d.date,
+							value: liveMembers,
+						})),
+						activity: dailyStats.map((d) => ({
+							date: d.date,
+							value: d.total_messages,
+						})),
+						hourly_messages: analytics.hourlyMessages,
+						total_messages_7d: totalMsgs7d,
+						total_spam_blocked_7d: totalSpam7d,
+						active_members_rate:
+							liveMembers > 0
+								? Math.min(100, Math.round((activeUsersCount / liveMembers) * 100))
+								: 0,
+						security_score: 100,
+						daily_stats: dailyStats,
+						top_violated_rules: topViolatedRules,
+						top_users: topUsersList,
+						forum_topics: forumTopicsList,
 					});
 				}
 
-				if (method === 'PUT' || method === 'POST') {
+				// POST /api/v1/groups/:id/send-report (Send real analytics report via Bot to Admin/Group)
+				if (parts.length === 3 && parts[2] === 'send-report' && method === 'POST') {
+					const s = findRuntimeGroupByIdOrChatId(groupIdStr);
+					const analytics = getOrCreateGroupAnalytics(s);
+					const mg = managedGroupsStore.get(groupIdStr);
+					const chatId = mg?.telegram_chat_id || mg?.chat_id || s.chatId;
+					const tokenToUse = getBotTokenForGroup(groupIdStr, chatId);
 					const body = await parseJsonBody();
+					const targetUserId = Number(body?.user_id || OWNER_TELEGRAM_ID);
 					const liveMembers = mg?.member_count || mg?.members_count || 1;
-					if (!s.fullSettings) s.fullSettings = defaultFullSettings(groupIdStr);
 
-					const incomingDyn = body?.dynamic_bio || {};
-					const dynEnabled = Boolean(
-						incomingDyn.enabled ?? body?.enabled ?? s.fullSettings.dynamic_bio?.enabled,
-					);
-					const rawTitleInput = String(
-						body?.current_title ?? incomingDyn.title_template ?? s.chatTitle ?? mg?.title ?? '',
-					).trim();
-					const rawDescInput = String(
-						body?.current_description ?? incomingDyn.bio_template ?? s.chatDescription ?? '',
-					).trim();
+					const reportText = [
+						`📊 <b>گزارش عملکرد واقعی گروه «${escapeHtml(mg?.title || s.chatTitle || 'گروه')}»</b>`,
+						`━━━━━━━━━━━━━━━━━━━━`,
+						`👥 <b>تعداد کل اعضا:</b> ${liveMembers.toLocaleString('fa-IR')} نفر`,
+						`💬 <b>کل پیام‌های ثبت‌شده:</b> ${analytics.totalMessages.toLocaleString('fa-IR')}`,
+						`🛡️ <b>اسپم و تخلفات مسدودشده:</b> ${analytics.spamBlocked.toLocaleString('fa-IR')}`,
+						`➕ <b>ورودی‌های جدید:</b> ${analytics.newMembers.toLocaleString('fa-IR')} نفر`,
+						`➖ <b>خروجی‌ها:</b> ${analytics.membersLeft.toLocaleString('fa-IR')} نفر`,
+						`🔇 <b>سکوت‌های اعمال‌شده:</b> ${analytics.mutedUsers.toLocaleString('fa-IR')}`,
+						`🚫 <b>اخراج‌های دائمی:</b> ${analytics.bannedUsers.toLocaleString('fa-IR')}`,
+						`━━━━━━━━━━━━━━━━━━━━`,
+						`⏱ <i>تولید شده توسط موتور تحلیلی MiniGuard</i>`,
+					].join('\n');
 
-					const resolvedTitle = dynEnabled
-						? renderDynamicBioTemplate(rawTitleInput, liveMembers).slice(0, 128)
-						: rawTitleInput.slice(0, 128);
-					const resolvedDesc = dynEnabled
-						? renderDynamicBioTemplate(rawDescInput, liveMembers).slice(0, 255)
-						: rawDescInput.slice(0, 255);
-
-					let telegramWarning = '';
-					if (process.env.NODE_ENV !== 'test' && !process.env.VITEST && tokenToUse && chatId) {
-						if (resolvedTitle) {
-							const tRes = await callTelegramApi(
-								'setChatTitle',
-								{ chat_id: chatId, title: resolvedTitle },
-								tokenToUse,
-							);
-							if (!tRes.ok && tRes.description && !tRes.description.includes('not modified')) {
-								telegramWarning = getApiMessage('BOT_INFO_CHANGE_WARNING', req);
-							}
-						}
-						const dRes = await callTelegramApi(
-							'setChatDescription',
-							{ chat_id: chatId, description: resolvedDesc },
-							tokenToUse,
-						);
-						if (
-							!dRes.ok &&
-							dRes.description &&
-							!dRes.description.includes('not modified') &&
-							!telegramWarning
-						) {
-							telegramWarning = getApiMessage('BOT_INFO_CHANGE_WARNING', req);
+					if (process.env.NODE_ENV !== 'test' && !process.env.VITEST && tokenToUse) {
+						const dmRes = await telegram.sendMessage(targetUserId, reportText, {}, tokenToUse);
+						if (!dmRes.ok && chatId) {
+							await telegram.sendMessage(chatId, reportText, {}, tokenToUse);
 						}
 					}
-
-					if (resolvedTitle) {
-						s.chatTitle = resolvedTitle;
-						if (mg) {
-							mg.title = resolvedTitle;
-							mg.chat_title = resolvedTitle;
-							mg.updated_at = new Date().toISOString();
-							managedGroupsStore.set(groupIdStr, mg);
-							if (mg.bot_id) {
-								const parentBot = managedBotsStore.get(mg.bot_id);
-								if (parentBot) {
-									parentBot.group_title = resolvedTitle;
-									parentBot.bound_group_title = resolvedTitle;
-									managedBotsStore.set(parentBot.id, parentBot);
-								}
-							}
-						}
-					}
-					s.chatDescription = resolvedDesc;
-					s.fullSettings.dynamic_bio = {
-						enabled: dynEnabled,
-						title_template: rawTitleInput,
-						bio_template: rawDescInput,
-						append_time_to_title: Boolean(incomingDyn.append_time_to_title),
-						variables_enabled: incomingDyn.variables_enabled || {
-							members: true,
-							time: true,
-							date: true,
-							day_name: false,
-						},
-					};
-					recordGroupAuditLog(s, 'بروزرسانی نام و بیوگرافی گروه', {
-						title: resolvedTitle,
-						dynamic: dynEnabled,
-					});
-					savePersistentStore();
-
 					return sendJson(200, {
 						ok: true,
-						group_id: groupIdStr,
-						current_title: s.chatTitle,
-						current_description: s.chatDescription,
-						members_count: liveMembers,
-						dynamic_bio: s.fullSettings.dynamic_bio,
-						warning: telegramWarning || undefined,
+						message: getApiMessage('REPORT_SENT_SUCCESS', req),
+					});
+				}
+
+				// GET /api/v1/groups/:id/audit
+				if (parts.length === 3 && parts[2] === 'audit' && method === 'GET') {
+					const s = findRuntimeGroupByIdOrChatId(groupIdStr);
+					const analytics = getOrCreateGroupAnalytics(s);
+					return sendJson(200, analytics.auditLogs);
+				}
+			}
+
+			// ─── 5. Owner Gate & Platform Administration Endpoints ───────────────────
+			if (cleanPath === '/owner/auth/totp' && method === 'POST') {
+				const clientIp =
+					(req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
+					req.socket.remoteAddress ||
+					'unknown';
+				const now = Date.now();
+				const attempt = ownerLoginAttempts.get(clientIp);
+				if (attempt && now < attempt.resetAt && attempt.count >= 10) {
+					return sendJson(429, {
+						error: getApiMessage('RATE_LIMIT_LOGIN', req),
+						code: 'RATE_LIMIT_LOGIN',
+					});
+				}
+
+				const body = await parseJsonBody();
+				const inputPass = String(body?.password || '');
+				const expectedBuf = Buffer.from(OWNER_PASSWORD, 'utf8');
+				const inputBuf = Buffer.from(inputPass, 'utf8');
+				const isMatch =
+					expectedBuf.length === inputBuf.length && crypto.timingSafeEqual(expectedBuf, inputBuf);
+
+				if (isMatch) {
+					ownerLoginAttempts.delete(clientIp);
+					return sendJson(200, {
+						token: `mg-owner-${Date.now()}-${Buffer.from(String(OWNER_TELEGRAM_ID)).toString('hex')}`,
+						user: { id: OWNER_TELEGRAM_ID, role: 'owner' },
+					});
+				}
+
+				ownerLoginAttempts.set(clientIp, {
+					count: (attempt && now < attempt.resetAt ? attempt.count : 0) + 1,
+					resetAt: now + 5 * 60 * 1000,
+				});
+				return sendJson(401, {
+					error: getApiMessage('INVALID_OWNER_PASSWORD', req),
+					code: 'INVALID_OWNER_PASSWORD',
+				});
+			}
+
+			// Strict Owner Gate Authorization Middleware (All /owner/* routes except /owner/auth/totp)
+			if (cleanPath.startsWith('/owner/')) {
+				const authUser = extractAuthUser(req);
+				if (!authUser || authUser.role !== 'owner') {
+					return sendJson(401, {
+						error: getApiMessage('UNAUTHORIZED_OWNER', req),
+						code: 'UNAUTHORIZED_OWNER',
 					});
 				}
 			}
 
-			// GET / PUT /api/v1/groups/:id/settings
-			if (parts.length === 3 && parts[2] === 'settings') {
-				const s = findRuntimeGroupByIdOrChatId(groupIdStr);
-				if (!s.fullSettings) {
-					s.fullSettings = defaultFullSettings(groupIdStr);
-				}
+			if (cleanPath === '/owner/dashboard/stats' && method === 'GET') {
+				return sendJson(200, {
+					total_users: Math.max(1, managedBotsStore.size),
+					active_subscriptions: managedGroupsStore.size || 1,
+					mrr_stars: managedGroupsStore.size * 100,
+					mrr_ton: 0,
+					revenue_stars_30d: managedGroupsStore.size * 100,
+					revenue_ton_30d: 0,
+					new_users_today: 1,
+					churn_rate: 0,
+				});
+			}
 
+			if (cleanPath === '/owner/settings') {
 				if (method === 'GET') {
-					// Ensure live toggles are reflected in fullSettings
-					s.fullSettings.group_id = groupIdStr;
-					s.fullSettings.content_restrictions.removeLinks.enabled = s.removeLinks;
-					s.fullSettings.content_restrictions.blockBots.enabled = s.blockBots;
-					s.fullSettings.content_restrictions.blockExternalReplies.enabled =
-						s.blockCrossChatReplies;
-					s.fullSettings.limits.floodMessages = s.floodLimit;
-					s.fullSettings.limits.floodWindow = s.floodWindowSec;
-					s.fullSettings.quiet_hours.emergencyLock = s.emergencyLock;
-					s.fullSettings.quiet_hours.enabled = s.quietHoursActive;
-					return sendJson(200, s.fullSettings);
+					return sendJson(200, ownerSystemSettings);
 				}
-
 				if (method === 'PUT' || method === 'POST') {
 					const body = await parseJsonBody();
-					// Support { category, data, version } from groupApi.updateSettings
-					if (body?.category && body?.data !== undefined) {
-						s.fullSettings[body.category] = body.data;
-					} else {
-						if (body?.content_restrictions) {
-							s.fullSettings.content_restrictions = {
-								...s.fullSettings.content_restrictions,
-								...body.content_restrictions,
-							};
-						}
-						if (body?.limits) {
-							s.fullSettings.limits = { ...s.fullSettings.limits, ...body.limits };
-						}
-						if (body?.quiet_hours) {
-							s.fullSettings.quiet_hours = { ...s.fullSettings.quiet_hours, ...body.quiet_hours };
-						}
-						if (body?.welcome) {
-							s.fullSettings.welcome = { ...s.fullSettings.welcome, ...body.welcome };
-						}
-						if (body?.warnings) {
-							s.fullSettings.warnings = { ...s.fullSettings.warnings, ...body.warnings };
-						}
-						if (body?.forced_Simembership) {
-							s.fullSettings.forced_Simembership = {
-								...s.fullSettings.forced_Simembership,
-								...body.forced_Simembership,
-							};
-						}
-						if (body?.general) {
-							s.fullSettings.general = {
-								...s.fullSettings.general,
-								...body.general,
-							};
-						}
-						if (body?.dynamic_bio) {
-							s.fullSettings.dynamic_bio = {
-								...s.fullSettings.dynamic_bio,
-								...body.dynamic_bio,
-							};
-						}
-					}
-					s.fullSettings.version = (Number(s.fullSettings.version) || 1) + 1;
-					s.fullSettings.updated_at = new Date().toISOString();
-					syncRuntimeFromFullSettings(s);
-					recordGroupAuditLog(s, `بروزرسانی تنظیمات گروه (${body?.category || 'عمومی'})`);
+					ownerSystemSettings = { ...ownerSystemSettings, ...body };
 					savePersistentStore();
-					return sendJson(200, s.fullSettings);
+					return sendJson(200, { success: true, ...ownerSystemSettings });
 				}
 			}
 
-			// GET /api/v1/groups/:id/analytics (100% Real Group Telemetry — Zero Fake Data)
-			if (parts.length === 3 && parts[2] === 'analytics' && method === 'GET') {
-				const s = findRuntimeGroupByIdOrChatId(groupIdStr);
-				const analytics = getOrCreateGroupAnalytics(s);
-				const mg = managedGroupsStore.get(groupIdStr);
-				const chatId = mg?.telegram_chat_id || mg?.chat_id || s.chatId;
-				const tokenToUse = getBotTokenForGroup(groupIdStr, chatId);
-
-				let liveMembers = mg?.member_count || mg?.members_count || 1;
-				if (process.env.NODE_ENV !== 'test' && !process.env.VITEST && tokenToUse && chatId) {
-					try {
-						const countRes = await callTelegramApi<number>(
-							'getChatMemberCount',
-							{ chat_id: chatId },
-							tokenToUse,
-						);
-						if (countRes.ok && typeof countRes.result === 'number') {
-							liveMembers = countRes.result;
-							if (mg) {
-								mg.member_count = liveMembers;
-								mg.members_count = liveMembers;
-								managedGroupsStore.set(groupIdStr, mg);
-							}
-						}
-					} catch {}
-				}
-
-				const today = new Date();
-				const dailyStats = Array.from({ length: 7 }, (_, idx) => {
-					const d = new Date(today.getTime() - (6 - idx) * 86400 * 1000);
-					const dateStr = d.toISOString().slice(0, 10);
-					const realDay = analytics.dailyStats[dateStr];
-					return {
-						date: dateStr,
-						total_messages: realDay?.total_messages || 0,
-						active_users: realDay?.active_users || 0,
-						new_members: realDay?.new_members || 0,
-						left_members: realDay?.left_members || 0,
-						spam_blocked: realDay?.spam_blocked || 0,
-						warnings_issued: realDay?.warnings_issued || 0,
-						muted_users: realDay?.muted_users || 0,
-						banned_users: realDay?.banned_users || 0,
-					};
-				});
-
-				const totalMsgs7d = dailyStats.reduce((a, b) => a + b.total_messages, 0);
-				const totalSpam7d = dailyStats.reduce((a, b) => a + b.spam_blocked, 0);
-				const totalNew7d = dailyStats.reduce((a, b) => a + b.new_members, 0);
-				const totalLeft7d = dailyStats.reduce((a, b) => a + b.left_members, 0);
-				const activeUsersCount = Object.keys(analytics.topUsers).length;
-
-				const topViolatedRules = Object.entries(analytics.violationsByReason)
-					.map(([rule, count]) => ({ rule, count }))
-					.sort((a, b) => b.count - a.count)
-					.slice(0, 6);
-
-				const topUsersList = Object.values(analytics.topUsers)
-					.sort((a, b) => b.messages - a.messages)
-					.slice(0, 10);
-
-				const forumTopicsList = Object.values(analytics.topicMessages).sort(
-					(a, b) => b.messages - a.messages,
-				);
-
-				return sendJson(200, {
-					group_id: groupIdStr,
-					group_title: mg?.title || s.chatTitle || 'گروه',
-					summary: {
-						total_members: liveMembers,
-						members_change: totalNew7d - totalLeft7d,
-						total_messages: analytics.totalMessages,
-						messages_change_pct: 0,
-						spam_blocked: analytics.spamBlocked,
-						new_members: analytics.newMembers,
-						members_left: analytics.membersLeft,
-						active_users: activeUsersCount,
-						join_requests_approved: analytics.joinRequestsApproved,
-						join_requests_declined: analytics.joinRequestsDeclined,
-						warnings_issued: analytics.warningsIssued,
-						muted_users: analytics.mutedUsers,
-						banned_users: analytics.bannedUsers,
-					},
-					growth: dailyStats.map((d) => ({
-						date: d.date,
-						value: liveMembers,
-					})),
-					activity: dailyStats.map((d) => ({
-						date: d.date,
-						value: d.total_messages,
-					})),
-					hourly_messages: analytics.hourlyMessages,
-					total_messages_7d: totalMsgs7d,
-					total_spam_blocked_7d: totalSpam7d,
-					active_members_rate:
-						liveMembers > 0 ? Math.min(100, Math.round((activeUsersCount / liveMembers) * 100)) : 0,
-					security_score: 100,
-					daily_stats: dailyStats,
-					top_violated_rules: topViolatedRules,
-					top_users: topUsersList,
-					forum_topics: forumTopicsList,
-				});
-			}
-
-			// POST /api/v1/groups/:id/send-report (Send real analytics report via Bot to Admin/Group)
-			if (parts.length === 3 && parts[2] === 'send-report' && method === 'POST') {
-				const s = findRuntimeGroupByIdOrChatId(groupIdStr);
-				const analytics = getOrCreateGroupAnalytics(s);
-				const mg = managedGroupsStore.get(groupIdStr);
-				const chatId = mg?.telegram_chat_id || mg?.chat_id || s.chatId;
-				const tokenToUse = getBotTokenForGroup(groupIdStr, chatId);
-				const body = await parseJsonBody();
-				const targetUserId = Number(body?.user_id || OWNER_TELEGRAM_ID);
-				const liveMembers = mg?.member_count || mg?.members_count || 1;
-
-				const reportText = [
-					`📊 <b>گزارش عملکرد واقعی گروه «${escapeHtml(mg?.title || s.chatTitle || 'گروه')}»</b>`,
-					`━━━━━━━━━━━━━━━━━━━━`,
-					`👥 <b>تعداد کل اعضا:</b> ${liveMembers.toLocaleString('fa-IR')} نفر`,
-					`💬 <b>کل پیام‌های ثبت‌شده:</b> ${analytics.totalMessages.toLocaleString('fa-IR')}`,
-					`🛡️ <b>اسپم و تخلفات مسدودشده:</b> ${analytics.spamBlocked.toLocaleString('fa-IR')}`,
-					`➕ <b>ورودی‌های جدید:</b> ${analytics.newMembers.toLocaleString('fa-IR')} نفر`,
-					`➖ <b>خروجی‌ها:</b> ${analytics.membersLeft.toLocaleString('fa-IR')} نفر`,
-					`🔇 <b>سکوت‌های اعمال‌شده:</b> ${analytics.mutedUsers.toLocaleString('fa-IR')}`,
-					`🚫 <b>اخراج‌های دائمی:</b> ${analytics.bannedUsers.toLocaleString('fa-IR')}`,
-					`━━━━━━━━━━━━━━━━━━━━`,
-					`⏱ <i>تولید شده توسط موتور تحلیلی MiniGuard</i>`,
-				].join('\n');
-
-				if (process.env.NODE_ENV !== 'test' && !process.env.VITEST && tokenToUse) {
-					const dmRes = await telegram.sendMessage(targetUserId, reportText, {}, tokenToUse);
-					if (!dmRes.ok && chatId) {
-						await telegram.sendMessage(chatId, reportText, {}, tokenToUse);
-					}
-				}
-				return sendJson(200, {
-					ok: true,
-					message: getApiMessage('REPORT_SENT_SUCCESS', req),
-				});
-			}
-
-			// GET /api/v1/groups/:id/audit
-			if (parts.length === 3 && parts[2] === 'audit' && method === 'GET') {
-				const s = findRuntimeGroupByIdOrChatId(groupIdStr);
-				const analytics = getOrCreateGroupAnalytics(s);
-				return sendJson(200, analytics.auditLogs);
-			}
-		}
-
-		// ─── 5. Owner Gate & Platform Administration Endpoints ───────────────────
-		if (cleanPath === '/owner/auth/totp' && method === 'POST') {
-			const clientIp =
-				(req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
-				req.socket.remoteAddress ||
-				'unknown';
-			const now = Date.now();
-			const attempt = ownerLoginAttempts.get(clientIp);
-			if (attempt && now < attempt.resetAt && attempt.count >= 10) {
-				return sendJson(429, {
-					error: getApiMessage('RATE_LIMIT_LOGIN', req),
-					code: 'RATE_LIMIT_LOGIN',
-				});
-			}
-
-			const body = await parseJsonBody();
-			const inputPass = String(body?.password || '');
-			const expectedBuf = Buffer.from(OWNER_PASSWORD, 'utf8');
-			const inputBuf = Buffer.from(inputPass, 'utf8');
-			const isMatch =
-				expectedBuf.length === inputBuf.length && crypto.timingSafeEqual(expectedBuf, inputBuf);
-
-			if (isMatch) {
-				ownerLoginAttempts.delete(clientIp);
-				return sendJson(200, {
-					token: `mg-owner-${Date.now()}-${Buffer.from(String(OWNER_TELEGRAM_ID)).toString('hex')}`,
-					user: { id: OWNER_TELEGRAM_ID, role: 'owner' },
-				});
-			}
-
-			ownerLoginAttempts.set(clientIp, {
-				count: (attempt && now < attempt.resetAt ? attempt.count : 0) + 1,
-				resetAt: now + 5 * 60 * 1000,
-			});
-			return sendJson(401, {
-				error: getApiMessage('INVALID_OWNER_PASSWORD', req),
-				code: 'INVALID_OWNER_PASSWORD',
-			});
-		}
-
-		// Strict Owner Gate Authorization Middleware (All /owner/* routes except /owner/auth/totp)
-		if (cleanPath.startsWith('/owner/')) {
-			const authUser = extractAuthUser(req);
-			if (!authUser || authUser.role !== 'owner') {
-				return sendJson(401, {
-					error: getApiMessage('UNAUTHORIZED_OWNER', req),
-					code: 'UNAUTHORIZED_OWNER',
-				});
-			}
-		}
-
-		if (cleanPath === '/owner/dashboard/stats' && method === 'GET') {
-			return sendJson(200, {
-				total_users: Math.max(1, managedBotsStore.size),
-				active_subscriptions: managedGroupsStore.size || 1,
-				mrr_stars: managedGroupsStore.size * 100,
-				mrr_ton: 0,
-				revenue_stars_30d: managedGroupsStore.size * 100,
-				revenue_ton_30d: 0,
-				new_users_today: 1,
-				churn_rate: 0,
-			});
-		}
-
-		if (cleanPath === '/owner/settings') {
-			if (method === 'GET') {
-				return sendJson(200, ownerSystemSettings);
-			}
-			if (method === 'PUT' || method === 'POST') {
-				const body = await parseJsonBody();
-				ownerSystemSettings = { ...ownerSystemSettings, ...body };
-				savePersistentStore();
-				return sendJson(200, { success: true, ...ownerSystemSettings });
-			}
-		}
-
-		if (cleanPath === '/owner/entities/groups' && method === 'GET') {
-			const entityList: any[] = [];
-			for (const mg of managedGroupsStore.values()) {
-				entityList.push({
-					id: mg.id,
-					title: mg.title,
-					telegram_id: mg.telegram_chat_id,
-					owner_id: OWNER_TELEGRAM_ID,
-					owner_username: 'owner',
-					credit_balance: 30,
-					status: mg.is_active ? 'active' : 'suspended',
-					created_at: mg.created_at,
-				});
-			}
-			return sendJson(200, entityList);
-		}
-
-		if (cleanPath === '/owner/entities/add-credit' && method === 'POST') {
-			const body = await parseJsonBody();
-			return sendJson(200, { status: 'ok', ...body });
-		}
-
-		if (cleanPath === '/owner/users/search' && method === 'GET') {
-			return sendJson(200, [
-				{
-					telegram_id: OWNER_TELEGRAM_ID,
-					username: 'owner',
-					first_name: 'مدیر کل پلتفرم',
-					last_name: '',
-					language_code: 'fa',
-					created_at: new Date().toISOString(),
-					managed_groups_count: managedGroupsStore.size || 1,
-					is_premium: true,
-					is_flagged: false,
-					fraud_reason: '',
-				},
-			]);
-		}
-
-		if (
-			(cleanPath === '/owner/users/ban' ||
-				cleanPath === '/owner/users/unban' ||
-				cleanPath === '/owner/users/flag') &&
-			method === 'POST'
-		) {
-			return sendJson(200, { status: 'ok' });
-		}
-
-		if (cleanPath === '/owner/users/impersonate' && method === 'POST') {
-			const body = await parseJsonBody();
-			return sendJson(200, {
-				access_token: `mg-impersonate-${body?.user_id || OWNER_TELEGRAM_ID}`,
-				expires_in: 3600,
-			});
-		}
-
-		if (cleanPath === '/owner/audit-logs' && method === 'GET') {
-			return sendJson(200, {
-				logs: [
-					{
-						id: 'log-1',
+			if (cleanPath === '/owner/entities/groups' && method === 'GET') {
+				const entityList: any[] = [];
+				for (const mg of managedGroupsStore.values()) {
+					entityList.push({
+						id: mg.id,
+						title: mg.title,
+						telegram_id: mg.telegram_chat_id,
 						owner_id: OWNER_TELEGRAM_ID,
-						action: 'سیستم MiniGuard Bot با موفقیت راه‌اندازی و ایمن‌سازی شد',
+						owner_username: 'owner',
+						credit_balance: 30,
+						status: mg.is_active ? 'active' : 'suspended',
+						created_at: mg.created_at,
+					});
+				}
+				return sendJson(200, entityList);
+			}
+
+			if (cleanPath === '/owner/entities/add-credit' && method === 'POST') {
+				const body = await parseJsonBody();
+				return sendJson(200, { status: 'ok', ...body });
+			}
+
+			if (cleanPath === '/owner/users/search' && method === 'GET') {
+				return sendJson(200, [
+					{
+						telegram_id: OWNER_TELEGRAM_ID,
+						username: 'owner',
+						first_name: 'مدیر کل پلتفرم',
+						last_name: '',
+						language_code: 'fa',
 						created_at: new Date().toISOString(),
+						managed_groups_count: managedGroupsStore.size || 1,
+						is_premium: true,
+						is_flagged: false,
+						fraud_reason: '',
 					},
-				],
-				has_more: false,
-			});
-		}
+				]);
+			}
 
-		if (cleanPath === '/owner/health/metrics' && method === 'GET') {
-			return sendJson(200, {
-				db_status: 'ok',
-				db_latency_ms: 1,
-				redis_status: 'ok',
-				active_goroutines: 4 + activeChildPollingTokens.size,
-				memory_used_mb: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
-				uptime_seconds: Math.floor(process.uptime()),
-				recent_errors_count: 0,
-			});
-		}
+			if (
+				(cleanPath === '/owner/users/ban' ||
+					cleanPath === '/owner/users/unban' ||
+					cleanPath === '/owner/users/flag') &&
+				method === 'POST'
+			) {
+				return sendJson(200, { status: 'ok' });
+			}
 
-		if (cleanPath === '/owner/health/errors' && method === 'GET') {
-			return sendJson(200, []);
-		}
+			if (cleanPath === '/owner/users/impersonate' && method === 'POST') {
+				const body = await parseJsonBody();
+				return sendJson(200, {
+					access_token: `mg-impersonate-${body?.user_id || OWNER_TELEGRAM_ID}`,
+					expires_in: 3600,
+				});
+			}
 
-		if (cleanPath === '/owner/broadcasts') {
-			if (method === 'GET') return sendJson(200, []);
-			if (method === 'POST') return sendJson(200, { success: true, id: Date.now() });
-		}
+			if (cleanPath === '/owner/audit-logs' && method === 'GET') {
+				return sendJson(200, {
+					logs: [
+						{
+							id: 'log-1',
+							owner_id: OWNER_TELEGRAM_ID,
+							action: 'سیستم MiniGuard Bot با موفقیت راه‌اندازی و ایمن‌سازی شد',
+							created_at: new Date().toISOString(),
+						},
+					],
+					has_more: false,
+				});
+			}
 
-		if (cleanPath === '/owner/finance/orders' && method === 'GET') {
-			return sendJson(200, []);
-		}
+			if (cleanPath === '/owner/health/metrics' && method === 'GET') {
+				return sendJson(200, {
+					db_status: 'ok',
+					db_latency_ms: 1,
+					redis_status: 'ok',
+					active_goroutines: 4 + activeChildPollingTokens.size,
+					memory_used_mb: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
+					uptime_seconds: Math.floor(process.uptime()),
+					recent_errors_count: 0,
+				});
+			}
 
-		// ─── 6. Webhook & Health Endpoints ───────────────────────────────────────
-		if (rawPath === '/webhook' && method === 'POST') {
-			const body = await parseJsonBody();
-			sendJson(200, { ok: true });
-			processTelegramUpdate(body);
-			return;
-		}
+			if (cleanPath === '/owner/health/errors' && method === 'GET') {
+				return sendJson(200, []);
+			}
 
-		if ((rawPath === '/health' || cleanPath === '/health') && method === 'GET') {
-			return sendJson(200, {
-				status: 'ok',
-				engine: 'MiniGuardBot-8.x',
-				time: new Date().toISOString(),
-				activeGroups: managedGroupsStore.size || groupsStore.size,
-				activeBots: managedBotsStore.size,
-				botConfigured: Boolean(BOT_TOKEN),
-			});
-		}
+			if (cleanPath === '/owner/broadcasts') {
+				if (method === 'GET') return sendJson(200, []);
+				if (method === 'POST') return sendJson(200, { success: true, id: Date.now() });
+			}
 
-		// ─── 7. Serve Static Frontend (dist) with Path Traversal Guard, Caching & Compression ───
-		const distPath = path.resolve(process.cwd(), 'dist');
-		const safeRelative = path.normalize(rawPath).replace(/^(\.\.(\/|\\|$))+/, '');
-		let filePath = path.resolve(distPath, `.${safeRelative}`);
-		if (!filePath.startsWith(distPath)) {
-			res.writeHead(403, { 'Content-Type': 'text/plain' });
-			res.end('Forbidden');
-			return;
-		}
+			if (cleanPath === '/owner/finance/orders' && method === 'GET') {
+				return sendJson(200, []);
+			}
 
-		if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
-			filePath = path.join(distPath, 'index.html');
-		}
-
-		if (fs.existsSync(filePath)) {
-			const ext = path.extname(filePath).toLowerCase();
-			const mimeTypes: Record<string, string> = {
-				'.html': 'text/html; charset=utf-8',
-				'.js': 'application/javascript; charset=utf-8',
-				'.css': 'text/css; charset=utf-8',
-				'.json': 'application/json; charset=utf-8',
-				'.png': 'image/png',
-				'.jpg': 'image/jpeg',
-				'.jpeg': 'image/jpeg',
-				'.webp': 'image/webp',
-				'.svg': 'image/svg+xml',
-				'.woff2': 'font/woff2',
-				'.woff': 'font/woff',
-				'.ico': 'image/x-icon',
-				'.webmanifest': 'application/manifest+json',
-			};
-
-			const stat = fs.statSync(filePath);
-			const etag = `W/"${stat.size}-${stat.mtimeMs.toString(16)}"`;
-			const isHashedAsset = rawPath.startsWith('/assets/');
-
-			// 1-year immutable caching for fingerprinted assets; immediate revalidation for index.html
-			const cacheControl = isHashedAsset
-				? 'public, max-age=31536000, immutable'
-				: 'public, max-age=0, must-revalidate';
-
-			res.setHeader('Cache-Control', cacheControl);
-			res.setHeader('ETag', etag);
-
-			if (req.headers['if-none-match'] === etag) {
-				res.writeHead(304);
-				res.end();
+			// ─── 6. Webhook & Health Endpoints ───────────────────────────────────────
+			if (rawPath === '/webhook' && method === 'POST') {
+				const body = await parseJsonBody();
+				sendJson(200, { ok: true });
+				processTelegramUpdate(body);
 				return;
 			}
 
-			const contentType = mimeTypes[ext] || 'application/octet-stream';
-			const isCompressible = ['.html', '.js', '.css', '.json', '.svg'].includes(ext);
-
-			if (isCompressible && stat.size > 1024) {
-				if (acceptEncoding.includes('gzip')) {
-					res.writeHead(200, {
-						'Content-Type': contentType,
-						'Content-Encoding': 'gzip',
-						Vary: 'Accept-Encoding',
-					});
-					fs.createReadStream(filePath).pipe(zlib.createGzip()).pipe(res);
-					return;
-				} else if (acceptEncoding.includes('deflate')) {
-					res.writeHead(200, {
-						'Content-Type': contentType,
-						'Content-Encoding': 'deflate',
-						Vary: 'Accept-Encoding',
-					});
-					fs.createReadStream(filePath).pipe(zlib.createDeflate()).pipe(res);
-					return;
-				}
+			if ((rawPath === '/health' || cleanPath === '/health') && method === 'GET') {
+				return sendJson(200, {
+					status: 'ok',
+					engine: 'MiniGuardBot-8.x',
+					time: new Date().toISOString(),
+					activeGroups: managedGroupsStore.size || groupsStore.size,
+					activeBots: managedBotsStore.size,
+					botConfigured: Boolean(BOT_TOKEN),
+				});
 			}
 
-			res.writeHead(200, {
-				'Content-Type': contentType,
-				'Content-Length': stat.size,
-			});
-			fs.createReadStream(filePath).pipe(res);
-			return;
-		}
+			// ─── 7. Serve Static Frontend (dist) with Path Traversal Guard, Caching & Compression ───
+			const distPath = path.resolve(process.cwd(), 'dist');
+			const safeRelative = path.normalize(rawPath).replace(/^(\.\.(\/|\\|$))+/, '');
+			let filePath = path.resolve(distPath, `.${safeRelative}`);
+			if (!filePath.startsWith(distPath)) {
+				res.writeHead(403, { 'Content-Type': 'text/plain' });
+				res.end('Forbidden');
+				return;
+			}
 
-		res.writeHead(404, { 'Content-Type': 'text/plain' });
-		res.end('Not Found');
-	} catch (err: any) {
-		console.error('[HTTP Server Error]:', err?.message || err);
-		if (!res.headersSent) {
-			res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
-			res.end(
-				JSON.stringify({
-					error: getApiMessage('INTERNAL_SERVER_ERROR', req),
-					code: 'INTERNAL_SERVER_ERROR',
-				}),
-			);
+			if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
+				filePath = path.join(distPath, 'index.html');
+			}
+
+			if (fs.existsSync(filePath)) {
+				const ext = path.extname(filePath).toLowerCase();
+				const mimeTypes: Record<string, string> = {
+					'.html': 'text/html; charset=utf-8',
+					'.js': 'application/javascript; charset=utf-8',
+					'.css': 'text/css; charset=utf-8',
+					'.json': 'application/json; charset=utf-8',
+					'.png': 'image/png',
+					'.jpg': 'image/jpeg',
+					'.jpeg': 'image/jpeg',
+					'.webp': 'image/webp',
+					'.svg': 'image/svg+xml',
+					'.woff2': 'font/woff2',
+					'.woff': 'font/woff',
+					'.ico': 'image/x-icon',
+					'.webmanifest': 'application/manifest+json',
+				};
+
+				const stat = fs.statSync(filePath);
+				const etag = `W/"${stat.size}-${stat.mtimeMs.toString(16)}"`;
+				const isHashedAsset = rawPath.startsWith('/assets/');
+
+				// 1-year immutable caching for fingerprinted assets; immediate revalidation for index.html
+				const cacheControl = isHashedAsset
+					? 'public, max-age=31536000, immutable'
+					: 'public, max-age=0, must-revalidate';
+
+				res.setHeader('Cache-Control', cacheControl);
+				res.setHeader('ETag', etag);
+
+				if (req.headers['if-none-match'] === etag) {
+					res.writeHead(304);
+					res.end();
+					return;
+				}
+
+				const contentType = mimeTypes[ext] || 'application/octet-stream';
+				const isCompressible = ['.html', '.js', '.css', '.json', '.svg'].includes(ext);
+
+				if (isCompressible && stat.size > 1024) {
+					if (acceptEncoding.includes('gzip')) {
+						res.writeHead(200, {
+							'Content-Type': contentType,
+							'Content-Encoding': 'gzip',
+							Vary: 'Accept-Encoding',
+						});
+						fs.createReadStream(filePath).pipe(zlib.createGzip()).pipe(res);
+						return;
+					} else if (acceptEncoding.includes('deflate')) {
+						res.writeHead(200, {
+							'Content-Type': contentType,
+							'Content-Encoding': 'deflate',
+							Vary: 'Accept-Encoding',
+						});
+						fs.createReadStream(filePath).pipe(zlib.createDeflate()).pipe(res);
+						return;
+					}
+				}
+
+				res.writeHead(200, {
+					'Content-Type': contentType,
+					'Content-Length': stat.size,
+				});
+				fs.createReadStream(filePath).pipe(res);
+				return;
+			}
+
+			res.writeHead(404, { 'Content-Type': 'text/plain' });
+			res.end('Not Found');
+		} catch (err: any) {
+			console.error('[HTTP Server Error]:', err?.message || err);
+			if (!res.headersSent) {
+				res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
+				res.end(
+					JSON.stringify({
+						error: getApiMessage('INTERNAL_SERVER_ERROR', req),
+						code: 'INTERNAL_SERVER_ERROR',
+					}),
+				);
+			}
 		}
-	}
-});
+	});
 
 	return server;
 }

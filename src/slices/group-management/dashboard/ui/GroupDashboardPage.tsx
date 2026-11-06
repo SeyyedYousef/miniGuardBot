@@ -91,17 +91,24 @@ export const GroupDashboardPage: Component = () => {
 	const toggleEmergencyLock = async () => {
 		if (isLocking() || !settings()) return;
 		const current = isGroupLocked();
+		const prevSettings = settings();
 		haptic.impact('medium');
 		setIsLocking(true);
+
+		const qh = { ...((settings()?.quiet_hours as any) || {}), emergencyLock: !current };
+		// Optimistic UI Update: update state immediately for zero perceived latency
+		mutate((prev: any) => (prev ? { ...prev, quiet_hours: qh } : { quiet_hours: qh }));
+
 		try {
-			const qh = { ...((settings()?.quiet_hours as any) || {}), emergencyLock: !current };
 			const res = await groupApi.updateSettings(params.id, 'quiet_hours', qh, settingsVersion());
 			if (res?.version) setSettingsVersion(res.version);
-			mutate((prev: any) => (prev ? { ...prev, quiet_hours: qh } : { quiet_hours: qh }));
 			haptic.notify('success');
 			showToast(!current ? txt().lockActive : txt().lockInactive, 'success');
 		} catch {
+			// Automatic Rollback on failure
+			mutate(prevSettings);
 			haptic.notify('error');
+			showToast('خطا در اعمال تغییرات. وضعیت بازگردانی شد.', 'error');
 		} finally {
 			setIsLocking(false);
 		}
