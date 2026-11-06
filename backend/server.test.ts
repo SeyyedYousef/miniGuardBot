@@ -1,10 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+	checkRateLimit,
 	createServer,
+	escapeHtml,
 	extractCleanBotToken,
+	generateJwt,
 	getGroupSettings,
 	processTelegramUpdate,
 	telegram,
+	verifyJwt,
 } from './server.js';
 
 describe('MiniGuard Backend Bot Engine & Firewall Execution', () => {
@@ -170,8 +174,8 @@ describe('MiniGuard Backend Bot Engine & Firewall Execution', () => {
 
 	it('extracts valid BotFather tokens even when pasted with extra message text or zero-width chars', () => {
 		const rawPasted =
-			'Done! Congratulations on your new bot. Use this token to access the HTTP API:\n\u200B8463728029:AAFxFFyIQ1gYh16MP1uYk6_xFDcWiMQuEfY\nKeep your token secure!';
-		expect(extractCleanBotToken(rawPasted)).toBe('8463728029:AAFxFFyIQ1gYh16MP1uYk6_xFDcWiMQuEfY');
+			'Done! Congratulations on your new bot. Use this token to access the HTTP API:\n\u200B123456789:AAFMockTestTokenForSecurityAuditX1234\nKeep your token secure!';
+		expect(extractCleanBotToken(rawPasted)).toBe('123456789:AAFMockTestTokenForSecurityAuditX1234');
 		expect(extractCleanBotToken('invalid-token')).toBeNull();
 	});
 
@@ -184,7 +188,7 @@ describe('MiniGuard Backend Bot Engine & Firewall Execution', () => {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
-					bot_token: '8463728029:AAFxFFyIQ1gYh16MP1uYk6_xFDcWiMQuEfY',
+					bot_token: '123456789:AAFMockTestTokenForSecurityAuditX1234',
 					bot_username: 'MyCustomGuardBot',
 					bound_group_link: '@my_super_group',
 				}),
@@ -197,5 +201,73 @@ describe('MiniGuard Backend Bot Engine & Firewall Execution', () => {
 		} finally {
 			srv.close();
 		}
+	});
+
+	describe('Security Engineering Audit & Hardening Suite', () => {
+		const testSecret = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+
+		it('signs and verifies JWT tokens with HS256 HMAC and timing-safe equality', () => {
+			const payload = { userId: 5076130392, role: 'owner', exp: Math.floor(Date.now() / 1000) + 3600 };
+			const jwt = generateJwt(payload, testSecret);
+			expect(typeof jwt).toBe('string');
+			expect(jwt.split('.')).toHaveLength(3);
+
+			const decoded = verifyJwt(jwt, testSecret);
+			expect(decoded).not.toBeNull();
+			expect(decoded?.userId).toBe(5076130392);
+			expect(decoded?.role).toBe('owner');
+		});
+
+		it('rejects tampered or forged JWT tokens', () => {
+			const payload = { userId: 12345, role: 'user', exp: Math.floor(Date.now() / 1000) + 3600 };
+			const jwt = generateJwt(payload, testSecret);
+			const tampered = jwt.slice(0, -4) + 'abcd';
+			expect(verifyJwt(tampered, testSecret)).toBeNull();
+		});
+
+		it('rejects expired JWT tokens', () => {
+			const expiredPayload = { userId: 12345, role: 'user', exp: Math.floor(Date.now() / 1000) - 100 };
+			const expiredJwt = generateJwt(expiredPayload, testSecret);
+			expect(verifyJwt(expiredJwt, testSecret)).toBeNull();
+		});
+
+		it('enforces IP rate limiting and rejects excessive requests with retry-after', () => {
+			const ip = '198.51.100.42';
+			// Limit to 3 requests per 1000ms
+			expect(checkRateLimit(ip, 3, 1000).allowed).toBe(true);
+			expect(checkRateLimit(ip, 3, 1000).allowed).toBe(true);
+			expect(checkRateLimit(ip, 3, 1000).allowed).toBe(true);
+			const rateExceeded = checkRateLimit(ip, 3, 1000);
+			expect(rateExceeded.allowed).toBe(false);
+			expect(rateExceeded.retryAfter).toBeGreaterThan(0);
+		});
+
+		it('sanitizes user input via escapeHtml to prevent HTML injection in Telegram messages', () => {
+			const dangerousInput = '<script>alert("xss")</script> & <b>bold</b> "quoted"';
+			const sanitized = escapeHtml(dangerousInput);
+			expect(sanitized).toBe(
+				'&lt;script&gt;alert(&quot;xss&quot;)&lt;/script&gt; &amp; &lt;b&gt;bold&lt;/b&gt; &quot;quoted&quot;',
+			);
+			expect(sanitized).not.toContain('<script>');
+		});
+
+		it('attaches hardened security headers to all HTTP responses', async () => {
+			const srv = createServer();
+			await new Promise<void>((resolve) => srv.listen(0, '127.0.0.1', () => resolve()));
+			const addr = srv.address() as { port: number };
+			try {
+				const res = await fetch(`http://127.0.0.1:${addr.port}/health`, {
+					headers: { Origin: 'https://miniguard-app.pages.dev' },
+				});
+				expect(res.headers.get('x-content-type-options')).toBe('nosniff');
+				expect(res.headers.get('x-frame-options')).toBe('SAMEORIGIN');
+				expect(res.headers.get('strict-transport-security')).toBeTruthy();
+				expect(res.headers.get('referrer-policy')).toBe('strict-origin-when-cross-origin');
+				expect(res.headers.get('content-security-policy')).toContain("frame-ancestors 'self'");
+				expect(res.headers.get('access-control-allow-origin')).toBe('https://miniguard-app.pages.dev');
+			} finally {
+				srv.close();
+			}
+		});
 	});
 });

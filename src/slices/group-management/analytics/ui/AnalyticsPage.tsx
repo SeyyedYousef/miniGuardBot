@@ -50,7 +50,7 @@ export const AnalyticsPage: Component = () => {
 		haptic.selection();
 	};
 
-	const isFa = () => locale() === 'fa' || locale() === 'ps';
+	const isFa = () => locale() === 'fa';
 
 	const renderChart = (metrics: DailyMetric[], color: string, label: string, icon: string) => {
 		if (!metrics || metrics.length === 0) {

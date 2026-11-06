@@ -11,7 +11,7 @@ type GuideTab = 'setup' | 'commands' | 'faq';
 
 export const AirdropPage: Component = () => {
 	const navigate = useNavigate();
-	const isFa = () => locale() === 'fa' || locale() === 'ps';
+	const isFa = () => locale() === 'fa';
 
 	const [activeTab, setActiveTab] = createSignal<GuideTab>('setup');
 	const [selectedCmdCategory, setSelectedCmdCategory] = createSignal<CommandCategory | 'all'>(

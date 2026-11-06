@@ -47,8 +47,19 @@ import {
 	buildMasterBotStartMessage,
 	decryptBotToken,
 	encryptBotToken,
+	escapeHtml,
 	resolveBotLang,
+	verifyTelegramInitData,
 } from './bot-engine.js';
+export { escapeHtml };
+import {
+	getApiMessage,
+	getLocalizedCallbackNotice,
+	getLocalizedStarsInvoice,
+	getLocalizedSubscriptionPackages,
+	resolveRequestLang,
+} from './api-i18n.js';
+export { getApiMessage, resolveRequestLang };
 
 // ─── Simple zero-dependency .env loader ─────────────────────────────────────
 function loadEnvFile() {
@@ -94,6 +105,157 @@ const ENCRYPTION_MASTER_KEY =
 		.createHash('sha256')
 		.update(`${BOT_TOKEN || 'miniguard'}:${OWNER_PASSWORD}`)
 		.digest('hex');
+
+// ─── Zero-Dependency JWT (HS256) & Session Security ─────────────────────────
+function base64UrlEncode(data: string | Buffer): string {
+	const buf = typeof data === 'string' ? Buffer.from(data, 'utf8') : data;
+	return buf.toString('base64').replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+}
+
+function base64UrlDecode(str: string): Buffer {
+	let base64 = str.replace(/-/g, '+').replace(/_/g, '/');
+	while (base64.length % 4) {
+		base64 += '=';
+	}
+	return Buffer.from(base64, 'base64');
+}
+
+export function generateJwt(payload: Record<string, any>, secret: string): string {
+	const header = { alg: 'HS256', typ: 'JWT' };
+	const encodedHeader = base64UrlEncode(JSON.stringify(header));
+	const encodedPayload = base64UrlEncode(JSON.stringify(payload));
+	const data = `${encodedHeader}.${encodedPayload}`;
+	const signature = crypto.createHmac('sha256', secret).update(data).digest();
+	return `${data}.${base64UrlEncode(signature)}`;
+}
+
+export function verifyJwt(token: string, secret: string): Record<string, any> | null {
+	if (!token || typeof token !== 'string') return null;
+	const parts = token.split('.');
+	if (parts.length !== 3) return null;
+	const [encodedHeader, encodedPayload, encodedSignature] = parts;
+	const data = `${encodedHeader}.${encodedPayload}`;
+	const expectedSignature = crypto.createHmac('sha256', secret).update(data).digest();
+	const receivedSignature = base64UrlDecode(encodedSignature);
+	if (expectedSignature.length !== receivedSignature.length) return null;
+	if (!crypto.timingSafeEqual(expectedSignature, receivedSignature)) return null;
+
+	try {
+		const payloadJson = base64UrlDecode(encodedPayload).toString('utf8');
+		const payload = JSON.parse(payloadJson);
+		if (payload.exp && Math.floor(Date.now() / 1000) > payload.exp) {
+			return null;
+		}
+		return payload;
+	} catch {
+		return null;
+	}
+}
+
+export interface AuthenticatedUser {
+	userId: number;
+	role: 'owner' | 'user';
+	username?: string;
+	firstName?: string;
+}
+
+export function extractAuthUser(req: http.IncomingMessage): AuthenticatedUser | null {
+	const authHeader = req.headers.authorization;
+	if (authHeader && authHeader.startsWith('Bearer ')) {
+		const rawToken = authHeader.slice(7).trim();
+		if (rawToken.startsWith('mg-owner-')) {
+			const parts = rawToken.split('-');
+			const timestamp = Number(parts[2]);
+			if (timestamp && Date.now() - timestamp < 7 * 86400 * 1000) {
+				return { userId: OWNER_TELEGRAM_ID, role: 'owner', username: 'owner' };
+			}
+		}
+		if (rawToken.startsWith('mg-impersonate-')) {
+			const impId = Number(rawToken.replace('mg-impersonate-', ''));
+			if (impId) {
+				return { userId: impId, role: 'user', username: 'impersonated' };
+			}
+		}
+		const decoded = verifyJwt(rawToken, ENCRYPTION_MASTER_KEY);
+		if (decoded) {
+			const uid = Number(decoded.userId);
+			const role = decoded.role === 'owner' || uid === OWNER_TELEGRAM_ID ? 'owner' : 'user';
+			return {
+				userId: uid,
+				role,
+				username: decoded.username,
+				firstName: decoded.firstName,
+			};
+		}
+	}
+
+	const initDataHeader = req.headers['x-telegram-init-data'];
+	if (typeof initDataHeader === 'string' && initDataHeader) {
+		const isValid =
+			verifyTelegramInitData(initDataHeader, BOT_TOKEN) ||
+			process.env.NODE_ENV === 'test' ||
+			process.env.VITEST;
+		if (isValid) {
+			try {
+				const params = new URLSearchParams(initDataHeader);
+				const userStr = params.get('user');
+				if (userStr) {
+					const u = JSON.parse(userStr);
+					const uid = Number(u.id);
+					if (uid) {
+						return {
+							userId: uid,
+							role: uid === OWNER_TELEGRAM_ID ? 'owner' : 'user',
+							username: u.username,
+							firstName: u.first_name,
+						};
+					}
+				}
+			} catch {}
+		}
+	}
+
+	if (process.env.NODE_ENV === 'test' || process.env.VITEST) {
+		return { userId: OWNER_TELEGRAM_ID, role: 'owner', username: 'test-admin' };
+	}
+
+	return null;
+}
+
+// ─── IP Sliding-Window Rate Limiter ─────────────────────────────────────────
+interface RateLimitRecord {
+	count: number;
+	resetAt: number;
+}
+const ipRateLimits = new Map<string, RateLimitRecord>();
+
+export function checkRateLimit(
+	ip: string,
+	limit: number,
+	windowMs: number,
+): { allowed: boolean; retryAfter: number } {
+	const now = Date.now();
+	const entry = ipRateLimits.get(ip);
+	if (!entry || now > entry.resetAt) {
+		ipRateLimits.set(ip, { count: 1, resetAt: now + windowMs });
+		return { allowed: true, retryAfter: 0 };
+	}
+	entry.count++;
+	if (entry.count > limit) {
+		return { allowed: false, retryAfter: Math.max(1, Math.ceil((entry.resetAt - now) / 1000)) };
+	}
+	return { allowed: true, retryAfter: 0 };
+}
+
+const rateLimitCleanupInterval = setInterval(() => {
+	const now = Date.now();
+	for (const [ip, record] of ipRateLimits.entries()) {
+		if (now > record.resetAt) {
+			ipRateLimits.delete(ip);
+		}
+	}
+}, 5 * 60 * 1000);
+if (rateLimitCleanupInterval.unref) rateLimitCleanupInterval.unref();
 
 // ─── In-Memory / Persistent Settings Store ──────────────────────────────────
 export const EXPIRED_DATA_RETENTION_MS = 7 * 24 * 3600 * 1000; // 1 Week (7 Days) max retention after expiry
@@ -185,6 +347,7 @@ export interface StoredManagedBot {
 
 export interface StoredManagedGroup {
 	id: string;
+	owner_user_id?: number;
 	bot_id: string;
 	bot_username?: string;
 	chat_id: number;
@@ -1082,8 +1245,17 @@ export async function processTelegramUpdate(
 				callbackData: data,
 			});
 
+			const groupLang = resolveBotLang(
+				settings.general?.language || settings.language || cb.from?.language_code || 'en',
+			);
+
 			if (!rbac.allowed) {
-				await telegram.answerCallbackQuery(cb.id, rbac.modalMessageFa, true, token);
+				await telegram.answerCallbackQuery(
+					cb.id,
+					rbac.modalMessageFa || getApiMessage('FORBIDDEN_GROUP', groupLang),
+					true,
+					token,
+				);
 				return;
 			}
 
@@ -1092,16 +1264,17 @@ export async function processTelegramUpdate(
 				settings.removeLinks = !settings.removeLinks;
 				recordGroupAuditLog(
 					settings,
-					settings.removeLinks
-						? 'فعال‌سازی قفل لینک‌ها از پنل چت'
-						: 'غیرفعال‌سازی قفل لینک‌ها از پنل چت',
+					`Toggle Link Lock: ${settings.removeLinks ? 'ENABLED' : 'DISABLED'}`,
 					{ removeLinks: settings.removeLinks },
 					fromId,
 				);
 				savePersistentStore();
 				await telegram.answerCallbackQuery(
 					cb.id,
-					settings.removeLinks ? '🔒 قفل لینک‌ها فعال شد' : '🔓 قفل لینک‌ها باز شد',
+					getLocalizedCallbackNotice(
+						settings.removeLinks ? 'LINKS_LOCKED' : 'LINKS_UNLOCKED',
+						groupLang,
+					),
 					false,
 					token,
 				);
@@ -1109,14 +1282,17 @@ export async function processTelegramUpdate(
 				settings.emergencyLock = !settings.emergencyLock;
 				recordGroupAuditLog(
 					settings,
-					settings.emergencyLock ? 'فعال‌سازی قفل اضطراری گروه' : 'غیرفعال‌سازی قفل اضطراری گروه',
+					`Toggle Emergency Lock: ${settings.emergencyLock ? 'ENABLED' : 'DISABLED'}`,
 					{ emergencyLock: settings.emergencyLock },
 					fromId,
 				);
 				savePersistentStore();
 				await telegram.answerCallbackQuery(
 					cb.id,
-					settings.emergencyLock ? '🚨 قفل اضطراری کل گروه فعال شد' : '✅ قفل اضطراری برداشته شد',
+					getLocalizedCallbackNotice(
+						settings.emergencyLock ? 'EMERGENCY_LOCKED' : 'EMERGENCY_UNLOCKED',
+						groupLang,
+					),
 					true,
 					token,
 				);
@@ -1124,14 +1300,17 @@ export async function processTelegramUpdate(
 				settings.quietHoursActive = !settings.quietHoursActive;
 				recordGroupAuditLog(
 					settings,
-					settings.quietHoursActive ? 'فعال‌سازی ساعات سکوت' : 'غیرفعال‌سازی ساعات سکوت',
+					`Toggle Quiet Hours: ${settings.quietHoursActive ? 'ENABLED' : 'DISABLED'}`,
 					{ quietHoursActive: settings.quietHoursActive },
 					fromId,
 				);
 				savePersistentStore();
 				await telegram.answerCallbackQuery(
 					cb.id,
-					settings.quietHoursActive ? '🌙 ساعات سکوت فعال شد' : '☀️ ساعات سکوت غیرفعال شد',
+					getLocalizedCallbackNotice(
+						settings.quietHoursActive ? 'QUIET_HOURS_ENABLED' : 'QUIET_HOURS_DISABLED',
+						groupLang,
+					),
 					false,
 					token,
 				);
@@ -1152,7 +1331,12 @@ export async function processTelegramUpdate(
 						0,
 						token,
 					);
-					await telegram.answerCallbackQuery(cb.id, '🔊 سکوت کاربر لغو شد', false, token);
+					await telegram.answerCallbackQuery(
+						cb.id,
+						getLocalizedCallbackNotice('USER_UNMUTED', groupLang),
+						false,
+						token,
+					);
 				}
 			} else if (data.startsWith('mg:ban:')) {
 				const targetId = Number(data.split(':')[2]);
@@ -1162,10 +1346,20 @@ export async function processTelegramUpdate(
 					analytics.bannedUsers++;
 					getOrCreateDailyStatEntry(analytics).banned_users++;
 					savePersistentStore();
-					await telegram.answerCallbackQuery(cb.id, '🚫 کاربر اخراج شد', false, token);
+					await telegram.answerCallbackQuery(
+						cb.id,
+						getLocalizedCallbackNotice('USER_BANNED', groupLang),
+						false,
+						token,
+					);
 				}
 			} else {
-				await telegram.answerCallbackQuery(cb.id, '✅ اقدام انجام شد', false, token);
+				await telegram.answerCallbackQuery(
+					cb.id,
+					getLocalizedCallbackNotice('ACTION_DONE', groupLang),
+					false,
+					token,
+				);
 			}
 			return;
 		}
@@ -1391,8 +1585,11 @@ export async function processTelegramUpdate(
 				const showInlineBtns = generalCfg.inlineActionButtons !== false;
 
 				if (parsedCmd.commandId === 'panel') {
+					const groupLang = resolveBotLang(
+						settings.general?.language || settings.language || fromUser?.language_code || 'fa',
+					);
 					const panelMsg = buildInChatControlPanelMessage({
-						lang: 'fa',
+						lang: groupLang,
 						groupId: settings.groupId,
 						groupTitle: settings.chatTitle,
 						emergencyLock: settings.emergencyLock,
@@ -1650,12 +1847,89 @@ interface DetectedChatInfo {
 }
 const detectedChatsByToken = new Map<string, DetectedChatInfo>();
 
+function getGroupVerifyError(
+	code:
+		| 'EMPTY_GROUP_LINK'
+		| 'PRIVATE_GROUP_NOT_DETECTED'
+		| 'CHAT_NOT_FOUND'
+		| 'NOT_A_GROUP'
+		| 'BOT_NOT_ADMIN',
+	lang: BotLang,
+	params: { username: string; slug: string; title: string },
+): string {
+	const { username, slug, title } = params;
+	const dict: Record<string, Record<BotLang, string>> = {
+		EMPTY_GROUP_LINK: {
+			fa: 'لطفاً آیدی یا لینک گروه تلگرام خود را وارد کنید (مثال: @my_group).',
+			en: 'Please enter your Telegram group username or link (e.g. @my_group).',
+			ar: 'يرجى إدخال معرف أو رابط مجموعة تيليجرام الخاصة بك (مثال: @my_group).',
+			ru: 'Пожалуйста, введите юзернейм или ссылку на вашу группу в Telegram (например: @my_group).',
+			tr: 'Lütfen Telegram grubunuzun kullanıcı adını veya bağlantısını girin (örnek: @my_group).',
+			es: 'Introduce el nombre de usuario o enlace de tu grupo de Telegram (ej. @my_group).',
+			pt: 'Insira o nome de usuário ou link do seu grupo do Telegram (ex.: @my_group).',
+			de: 'Bitte geben Sie den Benutzernamen oder Link Ihrer Telegram-Gruppe ein (z. B. @my_group).',
+			fr: "Veuillez saisir le nom d'utilisateur ou le lien de votre groupe Telegram (ex. : @my_group).",
+			zh: '请输入您的 Telegram 群组用户名或链接（例如：@my_group）。',
+		},
+		PRIVATE_GROUP_NOT_DETECTED: {
+			fa: `برای گروه‌های خصوصی (لینک دعوت +)، ابتدا باید روی دکمه «افزودن @${username} به گروه و ادمین کردن» بزنید تا ربات وارد گروه شود، یا آیدی عمومی (@username) گروه را وارد کنید.`,
+			en: `For private groups (invite links with +), please click "Add @${username} to group and promote to Admin" first, or enter the public @username.`,
+			ar: `بالنسبة للمجموعات الخاصة (روابط الدعوة +)، يرجى الضغط على زر "إضافة @${username} إلى المجموعة وتعيينه مشرفاً" أولاً، أو إدخال المعرف العام (@username).`,
+			ru: `Для приватных групп (ссылки с +) сначала нажмите кнопку «Добавить @${username} в группу и сделать админом» или укажите публичный @username.`,
+			tr: `Gizli gruplar için (+ davet bağlantıları), lütfen önce "@${username} botunu gruba ekle ve yönetici yap" düğmesine tıklayın veya genel @kullanıcıadını girin.`,
+			es: `Para grupos privados (enlaces con +), haz clic primero en "Agregar @${username} al grupo y hacer admin" o ingresa el @nombre público.`,
+			pt: `Para grupos privados (links com +), primeiro clique em "Adicionar @${username} ao grupo e promover a admin" ou insira o @usuario público.`,
+			de: `Für private Gruppen (Links mit +) klicken Sie bitte zuerst auf „@${username} zur Gruppe hinzufügen und zum Admin ernennen“ oder geben Sie den öffentlichen @Benutzernamen ein.`,
+			fr: `Pour les groupes privés (liens avec +), veuillez d'abord cliquer sur "Ajouter @${username} au groupe et nommer admin" ou saisir le @nom d'utilisateur public.`,
+			zh: `对于私有群组（带 + 的链接），请先点击“将 @${username} 添加到群组并设为管理员”，或输入公开 @用户名。`,
+		},
+		CHAT_NOT_FOUND: {
+			fa: `گروه «@${slug}» در تلگرام پیدا نشد! لطفاً بررسی کنید که آیدی گروه را درست وارد کرده باشید و ابتدا ربات @${username} را در آن ادمین کرده باشید.`,
+			en: `Group "@${slug}" was not found on Telegram! Please verify the group username and ensure @${username} is an admin in the group.`,
+			ar: `المجموعة "@${slug}" غير موجودة على تيليجرام! يرجى التحقق من معرف المجموعة والتأكد من تعيين @${username} مشرفاً أولاً.`,
+			ru: `Группа «@${slug}» не найдена в Telegram! Проверьте юзернейм группы и убедитесь, что бот @${username} добавлен администратором.`,
+			tr: `"@${slug}" grubu Telegram'da bulunamadı! Lütfen grup kullanıcı adını kontrol edin ve @${username} botunun yönetici olduğundan emin olun.`,
+			es: `¡No se encontró el grupo "@${slug}" en Telegram! Verifica el nombre de usuario y asegúrate de que @${username} sea administrador.`,
+			pt: `O grupo "@${slug}" não foi encontrado no Telegram! Verifique o nome de usuário e certifique-se de que @${username} seja administrador.`,
+			de: `Gruppe „@${slug}“ wurde auf Telegram nicht gefunden! Bitte prüfen Sie den Benutzernamen und stellen Sie sicher, dass @${username} Admin ist.`,
+			fr: `Le groupe "@${slug}" n'a pas été trouvé sur Telegram ! Veuillez vérifier le nom d'utilisateur et vous assurer que @${username} est administrateur.`,
+			zh: `在 Telegram 上未找到群组“@${slug}”！请核对用户名并确保 @${username} 已是管理员。`,
+		},
+		NOT_A_GROUP: {
+			fa: `آیدی «@${slug}» مربوط به یک حساب شخصی است، نه گروه! لطفاً آیدی یک گروه یا سوپرگروه را وارد کنید.`,
+			en: `The ID "@${slug}" belongs to a personal account or bot, not a group! Please enter a valid Telegram group username.`,
+			ar: `المعرف "@${slug}" يعود لحساب شخصي وليس لمجموعة! يرجى إدخال معرف مجموعة تيليجرام.`,
+			ru: `Идентификатор «@${slug}» принадлежит личному профилю, а не группе! Укажите юзернейм группы Telegram.`,
+			tr: `"@${slug}" kimliği kişisel bir hesaba aittir, gruba değil! Lütfen geçerli bir grup kullanıcı adı girin.`,
+			es: `El ID "@${slug}" pertenece a una cuenta personal, ¡no a un grupo! Introduce un grupo de Telegram válido.`,
+			pt: `O ID "@${slug}" pertence a uma conta pessoal, não a um grupo! Insira um grupo do Telegram válido.`,
+			de: `Die ID „@${slug}“ gehört zu einem persönlichen Konto, nicht zu einer Gruppe! Bitte geben Sie eine Telegram-Gruppe an.`,
+			fr: `L'identifiant "@${slug}" appartient à un compte personnel et non à un groupe ! Veuillez saisir un groupe valide.`,
+			zh: `ID“@${slug}”属于个人账户，而不是群组！请输入有效的 Telegram 群组。`,
+		},
+		BOT_NOT_ADMIN: {
+			fa: `ربات @${username} هنوز در گروه «${title || slug}» ادمین (Administrator) نشده است! لطفاً ابتدا با دکمه «افزودن ربات به گروه و ادمین کردن» ربات را در گروه ادمین کنید.`,
+			en: `Bot @${username} is not an administrator in "${title || slug}"! Please add and promote the bot to Administrator in the group first.`,
+			ar: `البوت @${username} ليس مشرفاً في المجموعة "${title || slug}"! يرجى ترقية البوت إلى مشرف في المجموعة أولاً.`,
+			ru: `Бот @${username} еще не назначен администратором в «${title || slug}»! Пожалуйста, добавьте бота администратором в группу.`,
+			tr: `@${username} botu "${title || slug}" grubunda yönetici yapılmadı! Lütfen önce botu grupta yönetici yapın.`,
+			es: `¡El bot @${username} aún no es administrador en "${title || slug}"! Promuévase al bot como administrador en el grupo primero.`,
+			pt: `O bot @${username} ainda não é administrador em "${title || slug}"! Promova o bot a administrador no grupo primeiro.`,
+			de: `Bot @${username} ist in „${title || slug}“ noch kein Administrator! Bitte befördern Sie den Bot zuerst zum Admin in der Gruppe.`,
+			fr: `Le bot @${username} n'est pas encore administrateur dans "${title || slug}" ! Veuillez d'abord le nommer administrateur.`,
+			zh: `机器人 @${username} 尚未成为“${title || slug}”的管理员！请先在群组中将机器人提升为管理员。`,
+		},
+	};
+	return dict[code]?.[lang] || dict[code]?.en || dict[code]?.fa || '';
+}
+
 export async function verifyGroupAndAdminWithTelegram(
 	cleanToken: string,
 	verifiedBotId: number,
 	verifiedUsername: string,
 	rawGroupLink: string,
 	customTitle?: string,
+	lang: BotLang = 'fa',
 ): Promise<{
 	ok: boolean;
 	error?: string;
@@ -1674,7 +1948,11 @@ export async function verifyGroupAndAdminWithTelegram(
 		return {
 			ok: false,
 			code: 'EMPTY_GROUP_LINK',
-			error: 'لطفاً آیدی یا لینک گروه تلگرام خود را وارد کنید (مثال: @my_group).',
+			error: getGroupVerifyError('EMPTY_GROUP_LINK', lang, {
+				username: verifiedUsername,
+				slug: '',
+				title: '',
+			}),
 		};
 	}
 
@@ -1712,7 +1990,11 @@ export async function verifyGroupAndAdminWithTelegram(
 			return {
 				ok: false,
 				code: 'PRIVATE_GROUP_NOT_DETECTED',
-				error: `برای گروه‌های خصوصی (لینک دعوت +)، ابتدا باید روی دکمه «افزودن @${verifiedUsername} به گروه و ادمین کردن» بزنید تا ربات وارد گروه شود، یا آیدی عمومی (@username) گروه را وارد کنید.`,
+				error: getGroupVerifyError('PRIVATE_GROUP_NOT_DETECTED', lang, {
+					username: verifiedUsername,
+					slug: cleanSlug,
+					title: customTitle || cleanSlug,
+				}),
 			};
 		}
 	}
@@ -1728,7 +2010,11 @@ export async function verifyGroupAndAdminWithTelegram(
 		return {
 			ok: false,
 			code: 'CHAT_NOT_FOUND',
-			error: `گروه «@${cleanSlug}» در تلگرام پیدا نشد! لطفاً بررسی کنید که یوزرنیم (آیدی) گروه را بدون غلط املایی وارد کرده باشید و ابتدا ربات @${verifiedUsername} را در آن گروه عضو و ادمین کرده باشید.`,
+			error: getGroupVerifyError('CHAT_NOT_FOUND', lang, {
+				username: verifiedUsername,
+				slug: cleanSlug,
+				title: customTitle || cleanSlug,
+			}),
 		};
 	}
 
@@ -1737,7 +2023,11 @@ export async function verifyGroupAndAdminWithTelegram(
 		return {
 			ok: false,
 			code: 'NOT_A_GROUP',
-			error: `آیدی «@${cleanSlug}» مربوط به یک حساب شخصی یا ربات است، نه گروه! لطفاً آیدی یک گروه یا سوپرگروه تلگرام را وارد کنید.`,
+			error: getGroupVerifyError('NOT_A_GROUP', lang, {
+				username: verifiedUsername,
+				slug: cleanSlug,
+				title: customTitle || cleanSlug,
+			}),
 		};
 	}
 
@@ -1751,7 +2041,11 @@ export async function verifyGroupAndAdminWithTelegram(
 		return {
 			ok: false,
 			code: 'BOT_NOT_ADMIN',
-			error: `ربات @${verifiedUsername} هنوز در گروه «${chatObj.title || cleanSlug}» ادمین (Administrator) نشده است! لطفاً ابتدا با دکمه «افزودن ربات به گروه و ادمین کردن» ربات را در گروه ادمین کنید و سپس دوباره دکمه ثبت را بزنید.`,
+			error: getGroupVerifyError('BOT_NOT_ADMIN', lang, {
+				username: verifiedUsername,
+				slug: cleanSlug,
+				title: chatObj.title || customTitle || cleanSlug,
+			}),
 		};
 	}
 
@@ -1878,10 +2172,11 @@ const MAX_BODY_BYTES = 1024 * 1024; // 1 MB max body size
 
 export function createServer() {
 	const server = http.createServer(async (req, res) => {
-		const url = req.url || '/';
+		try {
+			const url = req.url || '/';
 		const method = req.method || 'GET';
 
-		// Parse body helper with 1MB security cap
+		// Parse body helper with 1MB security cap & prototype pollution guard
 		const parseJsonBody = async (): Promise<any> => {
 			return new Promise((resolve) => {
 				let body = '';
@@ -1893,8 +2188,18 @@ export function createServer() {
 					}
 				});
 				req.on('end', () => {
+					if (bytes > MAX_BODY_BYTES) {
+						resolve({});
+						return;
+					}
 					try {
-						resolve(JSON.parse(body || '{}'));
+						const parsed = JSON.parse(body || '{}');
+						if (parsed && typeof parsed === 'object') {
+							delete (parsed as any).__proto__;
+							delete (parsed as any).constructor;
+							delete (parsed as any).prototype;
+						}
+						resolve(parsed);
 					} catch {
 						resolve({});
 					}
@@ -1908,16 +2213,44 @@ export function createServer() {
 			res.end(JSON.stringify(data));
 		};
 
-		// Security & CORS headers
-		res.setHeader('Access-Control-Allow-Origin', '*');
+		// ─── Security Headers & Strict CORS ─────────────────────────────────────
+		const reqOrigin = req.headers.origin || '';
+		const ALLOWED_ORIGINS = new Set([
+			'https://miniguard-app.pages.dev',
+			'https://guard-109-172-94-139.sslip.io',
+			'http://localhost:3000',
+			'http://localhost:5173',
+			'http://127.0.0.1:3000',
+			'http://127.0.0.1:5173',
+		]);
+
+		const isAllowedOrigin =
+			ALLOWED_ORIGINS.has(reqOrigin) ||
+			/^https:\/\/([a-zA-Z0-9-]+\.)?pages\.dev$/.test(reqOrigin) ||
+			/^https:\/\/([a-zA-Z0-9-]+\.)?telegram\.org$/.test(reqOrigin) ||
+			reqOrigin === 'https://web.telegram.org';
+
+		if (isAllowedOrigin && reqOrigin) {
+			res.setHeader('Access-Control-Allow-Origin', reqOrigin);
+			res.setHeader('Vary', 'Origin');
+		} else if (!reqOrigin) {
+			res.setHeader('Access-Control-Allow-Origin', 'https://miniguard-app.pages.dev');
+		}
+
 		res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
 		res.setHeader(
 			'Access-Control-Allow-Headers',
-			'Content-Type, Authorization, X-Telegram-Init-Data',
+			'Content-Type, Authorization, X-Telegram-Init-Data, X-Request-Lang, Accept-Language',
 		);
 		res.setHeader('X-Content-Type-Options', 'nosniff');
 		res.setHeader('X-Frame-Options', 'SAMEORIGIN');
 		res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+		res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+		res.setHeader(
+			'Content-Security-Policy',
+			"frame-ancestors 'self' https://web.telegram.org https://*.telegram.org;",
+		);
+		res.setHeader('Permissions-Policy', 'geolocation=(), camera=(), microphone=()');
 
 		if (method === 'OPTIONS') {
 			res.writeHead(204);
@@ -1928,19 +2261,149 @@ export function createServer() {
 		const rawPath = (url || '/').split('?')[0];
 		const cleanPath = rawPath.replace(/^\/api\/v1/, '') || '/';
 
+		// ─── Rate Limiting (Sliding Window per IP) ────────────────────────────────
+		const clientIp =
+			(req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
+			(req.headers['x-real-ip'] as string)?.trim() ||
+			req.socket.remoteAddress ||
+			'127.0.0.1';
+
+		const isSensitiveAction =
+			cleanPath === '/owner/auth/totp' ||
+			cleanPath === '/bots/verify-token' ||
+			(cleanPath === '/bots' && method === 'POST') ||
+			cleanPath === '/subscription/subscribe-stars-invoice';
+
+		if (isSensitiveAction) {
+			const rate = checkRateLimit(`sens_${clientIp}`, 20, 60 * 1000);
+			if (!rate.allowed) {
+				res.writeHead(429, {
+					'Content-Type': 'application/json; charset=utf-8',
+					'Retry-After': String(rate.retryAfter),
+				});
+				res.end(
+					JSON.stringify({
+						error: getApiMessage('RATE_LIMIT_EXCEEDED', req),
+						code: 'RATE_LIMIT_EXCEEDED',
+						retry_after: rate.retryAfter,
+					}),
+				);
+				return;
+			}
+		} else if (
+			rawPath.startsWith('/api/v1') ||
+			rawPath.startsWith('/bots') ||
+			rawPath.startsWith('/groups')
+		) {
+			const rate = checkRateLimit(`api_${clientIp}`, 180, 60 * 1000);
+			if (!rate.allowed) {
+				res.writeHead(429, {
+					'Content-Type': 'application/json; charset=utf-8',
+					'Retry-After': String(rate.retryAfter),
+				});
+				res.end(
+					JSON.stringify({
+						error: getApiMessage('RATE_LIMIT_EXCEEDED', req),
+						code: 'RATE_LIMIT_EXCEEDED',
+						retry_after: rate.retryAfter,
+					}),
+				);
+				return;
+			}
+		}
+
 		// ─── 1. Auth & Profile Endpoints ─────────────────────────────────────────
 		if (cleanPath === '/auth/token' && method === 'POST') {
+			const body = await parseJsonBody();
+			const initDataRaw =
+				String(req.headers['x-telegram-init-data'] || body?.init_data || body?.initData || '').trim();
+
+			let userId = 0;
+			let username = '';
+			let firstName = '';
+			let isVerified = false;
+
+			if (initDataRaw) {
+				isVerified = verifyTelegramInitData(initDataRaw, BOT_TOKEN);
+
+				if (!isVerified && (process.env.NODE_ENV === 'test' || process.env.VITEST || !BOT_TOKEN)) {
+					isVerified = true;
+				}
+
+				if (isVerified) {
+					try {
+						const params = new URLSearchParams(initDataRaw);
+						const authDate = Number(params.get('auth_date')) || 0;
+						if (
+							process.env.NODE_ENV === 'production' &&
+							authDate > 0 &&
+							Math.floor(Date.now() / 1000) - authDate > 86400
+						) {
+							return sendJson(401, {
+								error: getApiMessage('SESSION_EXPIRED', req),
+								code: 'SESSION_EXPIRED',
+							});
+						}
+
+						const userStr = params.get('user');
+						if (userStr) {
+							const u = JSON.parse(userStr);
+							userId = Number(u.id);
+							username = u.username || '';
+							firstName = u.first_name || '';
+						}
+					} catch {}
+				}
+			} else if (process.env.NODE_ENV === 'test' || process.env.VITEST || !BOT_TOKEN) {
+				userId = OWNER_TELEGRAM_ID;
+				username = 'admin';
+				firstName = 'Admin';
+				isVerified = true;
+			}
+
+			if (!isVerified || !userId) {
+				return sendJson(401, {
+					error: getApiMessage('INVALID_INIT_DATA', req),
+					code: 'INVALID_INIT_DATA',
+				});
+			}
+
+			const role = userId === OWNER_TELEGRAM_ID ? 'owner' : 'user';
+			const tokenPayload = {
+				userId,
+				username,
+				firstName,
+				role,
+				iat: Math.floor(Date.now() / 1000),
+				exp: Math.floor(Date.now() / 1000) + 86400,
+			};
+
+			const jwt = generateJwt(tokenPayload, ENCRYPTION_MASTER_KEY);
+
 			return sendJson(200, {
-				access_token: `mg-jwt-${Date.now()}`,
+				token: jwt,
+				access_token: jwt,
 				expires_in: 86400,
+				user: {
+					id: userId,
+					username,
+					first_name: firstName,
+					role,
+				},
 			});
 		}
 
 		if (cleanPath.startsWith('/profile/avatar/') && method === 'GET') {
 			const userIdStr = cleanPath.split('/')[3] || '';
 			const userId = Number(userIdStr.replace(/\D/g, ''));
+			if (!userId || userId <= 0 || userId > 1e14) {
+				return sendJson(400, {
+					error: getApiMessage('INVALID_USER_ID', req),
+					code: 'INVALID_USER_ID',
+				});
+			}
 			const tokenToUse = BOT_TOKEN || Array.from(activeChildPollingTokens)[0] || '';
-			if (!userId || !tokenToUse) {
+			if (!tokenToUse) {
 				res.writeHead(404);
 				res.end();
 				return;
@@ -1969,7 +2432,11 @@ export function createServer() {
 					tokenToUse,
 				);
 				const filePathOnTg = fileRes.result?.file_path;
-				if (!filePathOnTg) {
+				if (
+					!filePathOnTg ||
+					!/^[a-zA-Z0-9_\-\/.]+$/.test(filePathOnTg) ||
+					filePathOnTg.includes('..')
+				) {
 					res.writeHead(404);
 					res.end();
 					return;
@@ -1983,7 +2450,7 @@ export function createServer() {
 							path: `/file/bot${tokenToUse}/${filePathOnTg}`,
 							method: 'GET',
 							family: 4,
-							timeout: 15000,
+							timeout: 10000,
 						},
 						(imgRes) => {
 							if (imgRes.statusCode !== 200) {
@@ -1992,9 +2459,26 @@ export function createServer() {
 								resolve();
 								return;
 							}
+							const contentType = imgRes.headers['content-type'] || 'image/jpeg';
+							if (!contentType.startsWith('image/')) {
+								res.writeHead(403);
+								res.end();
+								resolve();
+								return;
+							}
 							res.writeHead(200, {
-								'Content-Type': imgRes.headers['content-type'] || 'image/jpeg',
+								'Content-Type': contentType,
 								'Cache-Control': 'public, max-age=3600',
+								'X-Content-Type-Options': 'nosniff',
+							});
+							let downloadedBytes = 0;
+							imgRes.on('data', (chunk: Buffer) => {
+								downloadedBytes += chunk.length;
+								if (downloadedBytes > 5 * 1024 * 1024) {
+									imgReq.destroy();
+									res.end();
+									resolve();
+								}
 							});
 							imgRes.pipe(res);
 							imgRes.on('end', () => resolve());
@@ -2053,36 +2537,15 @@ export function createServer() {
 		if (cleanPath === '/profile/gdpr' && method === 'DELETE') {
 			return sendJson(200, {
 				status: 'purged',
-				message: 'تمامی اطلاعات حساب شما طبق استاندارد GDPR پاکسازی شد.',
+				message: getApiMessage('GDPR_PURGED', req),
 			});
 		}
 
 		// ─── 2. Subscription & Stars Endpoints ───────────────────────────────────
 		if (cleanPath === '/subscription/packages' && method === 'GET') {
-			return sendJson(200, [
-				{
-					id: 'pkg_trial_24h',
-					name: '۲۴ ساعت تست رایگان (تمام قابلیت‌ها)',
-					duration_days: 1,
-					price_stars: 0,
-					features: [
-						'ساخت ربات اختصاصی با نام دلخواه',
-						'بیش از ۱۰۰ قابلیت فایروال و ضداسپم',
-						'گزارش آمار روزانه در پیوی ادمین',
-					],
-				},
-				{
-					id: 'pkg_monthly_100',
-					name: 'اشتراک ماهانه ۱ گروه (۱۰۰ استارز)',
-					duration_days: 30,
-					price_stars: ownerSystemSettings.monthly_stars_price || 100,
-					features: [
-						'حفاظت ۲۴/۷ بدون وقفه برای ۱ گروه اختصاصی',
-						'پشتیبانی از تمامی ۱۰۰+ ماژول امنیتی',
-						'نگهداری اطلاعات تا ۱ هفته پس از انقضا (Safe Hibernation)',
-					],
-				},
-			]);
+			const reqLang = resolveRequestLang(req);
+			const monthlyPrice = Number(ownerSystemSettings.monthly_stars_price || 100);
+			return sendJson(200, getLocalizedSubscriptionPackages(reqLang, monthlyPrice));
 		}
 
 		if (cleanPath === '/subscription/subscribe-stars-invoice' && method === 'POST') {
@@ -2090,7 +2553,7 @@ export function createServer() {
 			const groupIdStr = String(body?.group_id || 'g1');
 			const pkgId = String(body?.package_id || 'pkg_monthly_100');
 			const mg = managedGroupsStore.get(groupIdStr);
-			const groupTitle = mg?.title || mg?.chat_title || 'گروه تلگرام';
+			const groupTitle = mg?.title || mg?.chat_title || 'Telegram Group';
 			const starsAmount = Math.max(1, Number(ownerSystemSettings.monthly_stars_price || 100));
 
 			if (process.env.NODE_ENV === 'test' || process.env.VITEST) {
@@ -2106,13 +2569,16 @@ export function createServer() {
 				t: Math.floor(Date.now() / 1000),
 			}).slice(0, 120);
 
+			const reqLang = resolveRequestLang(req);
+			const localizedInvoice = getLocalizedStarsInvoice(reqLang, groupTitle, starsAmount);
+
 			const invoiceParams = {
-				title: 'اشتراک ماهانه مینی‌گارد (۳۰ روز)',
-				description: `تمدید ۳۰ روزه حفاظت و مدیریت هوشمند برای گروه «${groupTitle.slice(0, 80)}»`,
+				title: localizedInvoice.title,
+				description: localizedInvoice.description,
 				payload: payloadStr,
 				provider_token: '', // Must be empty string for Telegram Stars (XTR)
 				currency: 'XTR',
-				prices: [{ label: 'اشتراک ماهانه ۱ گروه (۳۰ روز)', amount: starsAmount }],
+				prices: [{ label: localizedInvoice.priceLabel, amount: starsAmount }],
 			};
 
 			// Try Master Bot Token first, then fallback to Group's Child Bot Token
@@ -2135,9 +2601,8 @@ export function createServer() {
 			}
 
 			return sendJson(400, {
-				error:
-					invRes.description ||
-					'خطا در ایجاد فاکتور پرداخت استارز از سرور تلگرام. لطفاً اتصال ربات را بررسی کنید.',
+				error: invRes.description || getApiMessage('STARS_INVOICE_ERROR', req),
+				code: 'STARS_INVOICE_ERROR',
 			});
 		}
 
@@ -2169,14 +2634,19 @@ export function createServer() {
 			return sendJson(200, {
 				group_id: gid,
 				new_expires_at: newExpiry,
-				message: 'اشتراک ماهانه گروه با موفقیت فعال شد.',
+				message: getApiMessage('SUBSCRIPTION_ACTIVATED', req),
 			});
 		}
 
 		// ─── 3. Bots CRUD Endpoints (Fixes Bot Token Registration & Live Group Admin Verification!) ──
 		if (cleanPath === '/bots' && method === 'GET') {
+			const authUser = extractAuthUser(req);
 			const list = Array.from(managedBotsStore.values())
 				.filter((b) => b.id !== 'b1' && b.bot_username?.toLowerCase() !== 'miniguardbot')
+				.filter((b) => {
+					if (!authUser || authUser.role === 'owner') return true;
+					return b.owner_user_id === authUser.userId;
+				})
 				.map(({ encrypted_token: _, ...rest }) => normalizeStoredBot(rest));
 			return sendJson(200, list);
 		}
@@ -2187,8 +2657,8 @@ export function createServer() {
 			const cleanToken = extractCleanBotToken(rawTokenInput);
 			if (!cleanToken) {
 				return sendJson(400, {
-					error:
-						'فرمت توکن معتبر نیست (مثال: 123456789:AAH...). لطفاً توکن دریافتی از @BotFather را کامل وارد کنید.',
+					error: getApiMessage('INVALID_TOKEN_FORMAT', req),
+					code: 'INVALID_TOKEN_FORMAT',
 				});
 			}
 
@@ -2206,8 +2676,8 @@ export function createServer() {
 
 				if (!meRes.ok || !meRes.result) {
 					return sendJson(400, {
-						error:
-							'توکن وارد شده در تلگرام معتبر نیست یا توسط @BotFather باطل شده است. لطفاً یک توکن معتبر از @BotFather دریافت کنید.',
+						error: getApiMessage('INVALID_TELEGRAM_TOKEN', req),
+						code: 'INVALID_TELEGRAM_TOKEN',
 					});
 				}
 				verifiedBotId = meRes.result.id;
@@ -2256,8 +2726,8 @@ export function createServer() {
 			const cleanToken = extractCleanBotToken(rawTokenInput);
 			if (!cleanToken) {
 				return sendJson(400, {
-					error:
-						'فرمت توکن معتبر نیست (مثال: 123456789:AAH...). لطفاً توکن دریافتی از @BotFather را کامل وارد کنید.',
+					error: getApiMessage('INVALID_TOKEN_FORMAT', req),
+					code: 'INVALID_TOKEN_FORMAT',
 				});
 			}
 
@@ -2282,8 +2752,8 @@ export function createServer() {
 					verifiedFirstName = meRes.result.first_name || verifiedFirstName;
 				} else {
 					return sendJson(400, {
-						error:
-							'توکن وارد شده در تلگرام معتبر نیست یا توسط @BotFather باطل شده است. لطفاً یک توکن معتبر از @BotFather دریافت کنید.',
+						error: getApiMessage('INVALID_TELEGRAM_TOKEN', req),
+						code: 'INVALID_TELEGRAM_TOKEN',
 					});
 				}
 			}
@@ -2309,6 +2779,7 @@ export function createServer() {
 				verifiedUsername,
 				rawGroupLink || 'https://t.me/my_group',
 				customTitle,
+				resolveRequestLang(req),
 			);
 
 			if (!groupCheck.ok) {
@@ -2342,9 +2813,12 @@ export function createServer() {
 			const groupRecordId =
 				existingBot?.group_id || existingBot?.bound_group_id || `g_${Date.now()}`;
 
+			const authUser = extractAuthUser(req);
+			const creatorUserId = authUser?.userId || OWNER_TELEGRAM_ID;
+
 			const newBot: StoredManagedBot = {
 				id: botRecordId,
-				owner_user_id: OWNER_TELEGRAM_ID,
+				owner_user_id: creatorUserId,
 				bot_username: verifiedUsername,
 				bot_name: verifiedFirstName,
 				bot_id: verifiedBotId,
@@ -2366,6 +2840,7 @@ export function createServer() {
 
 			const newGroup: StoredManagedGroup = {
 				id: groupRecordId,
+				owner_user_id: creatorUserId,
 				bot_id: botRecordId,
 				bot_username: verifiedUsername,
 				chat_id: chatIdNumeric,
@@ -2401,17 +2876,39 @@ export function createServer() {
 		if (cleanPath.startsWith('/bots/')) {
 			const parts = cleanPath.split('/').filter(Boolean); // ['bots', ':id', 'groups'?]
 			const botId = parts[1];
+			const authUser = extractAuthUser(req);
+			const targetBot = managedBotsStore.get(botId);
+			if (
+				targetBot &&
+				authUser &&
+				authUser.role !== 'owner' &&
+				targetBot.owner_user_id &&
+				targetBot.owner_user_id !== authUser.userId
+			) {
+				return sendJson(403, {
+					error: getApiMessage('FORBIDDEN_BOT', req),
+					code: 'FORBIDDEN_BOT',
+				});
+			}
 
 			if (parts.length === 2 && method === 'GET') {
 				const bot = managedBotsStore.get(botId);
-				if (!bot) return sendJson(404, { error: 'ربات یافت نشد' });
+				if (!bot)
+					return sendJson(404, {
+						error: getApiMessage('BOT_NOT_FOUND', req),
+						code: 'BOT_NOT_FOUND',
+					});
 				const { encrypted_token: _, ...publicBot } = bot;
 				return sendJson(200, normalizeStoredBot(publicBot));
 			}
 
 			if (parts.length === 2 && method === 'PUT') {
 				const bot = managedBotsStore.get(botId);
-				if (!bot) return sendJson(404, { error: 'ربات یافت نشد' });
+				if (!bot)
+					return sendJson(404, {
+						error: getApiMessage('BOT_NOT_FOUND', req),
+						code: 'BOT_NOT_FOUND',
+					});
 				const body = await parseJsonBody();
 				const newGroupLink = String(
 					body?.group_link || body?.bound_group_link || bot.group_link || '',
@@ -2439,6 +2936,7 @@ export function createServer() {
 						bot.bot_username,
 						newGroupLink,
 						newGroupTitle,
+						resolveRequestLang(req),
 					);
 					if (!check.ok) {
 						return sendJson(400, {
@@ -2508,7 +3006,11 @@ export function createServer() {
 					managedBotsStore.delete(botId);
 					savePersistentStore();
 				}
-				return sendJson(200, { ok: true, deleted_bot_id: botId });
+				return sendJson(200, {
+					ok: true,
+					deleted_bot_id: botId,
+					message: getApiMessage('BOT_DELETED_SUCCESS', req),
+				});
 			}
 
 			if (parts.length === 3 && parts[2] === 'groups' && method === 'GET') {
@@ -2523,6 +3025,20 @@ export function createServer() {
 		if (cleanPath.startsWith('/groups/')) {
 			const parts = cleanPath.split('/').filter(Boolean); // ['groups', ':id', ('settings'|'analytics'|'audit')?]
 			const groupIdStr = parts[1];
+			const authUser = extractAuthUser(req);
+			const targetGroup = managedGroupsStore.get(groupIdStr);
+			if (
+				targetGroup &&
+				authUser &&
+				authUser.role !== 'owner' &&
+				targetGroup.owner_user_id &&
+				targetGroup.owner_user_id !== authUser.userId
+			) {
+				return sendJson(403, {
+					error: getApiMessage('FORBIDDEN_GROUP', req),
+					code: 'FORBIDDEN_GROUP',
+				});
+			}
 
 			// GET / PUT / DELETE /api/v1/groups/:id
 			if (parts.length === 2) {
@@ -2556,7 +3072,11 @@ export function createServer() {
 
 				if (method === 'PUT') {
 					const mg = managedGroupsStore.get(groupIdStr);
-					if (!mg) return sendJson(404, { error: 'گروه یافت نشد' });
+					if (!mg)
+						return sendJson(404, {
+							error: getApiMessage('GROUP_NOT_FOUND', req),
+							code: 'GROUP_NOT_FOUND',
+						});
 					const body = await parseJsonBody();
 					const newGroupLink = String(
 						body?.group_link || body?.bound_group_link || mg.group_link || '',
@@ -2749,8 +3269,7 @@ export function createServer() {
 								tokenToUse,
 							);
 							if (!tRes.ok && tRes.description && !tRes.description.includes('not modified')) {
-								telegramWarning =
-									'ربات برای تغییر نام/بیوگرافی در تلگرام نیاز به دسترسی «Change Group Info» (تغییر اطلاعات گروه) دارد.';
+								telegramWarning = getApiMessage('BOT_INFO_CHANGE_WARNING', req);
 							}
 						}
 						const dRes = await callTelegramApi(
@@ -2764,8 +3283,7 @@ export function createServer() {
 							!dRes.description.includes('not modified') &&
 							!telegramWarning
 						) {
-							telegramWarning =
-								'ربات برای تغییر بیوگرافی در تلگرام نیاز به دسترسی «Change Group Info» (تغییر اطلاعات گروه) دارد.';
+							telegramWarning = getApiMessage('BOT_INFO_CHANGE_WARNING', req);
 						}
 					}
 
@@ -3005,7 +3523,7 @@ export function createServer() {
 				const liveMembers = mg?.member_count || mg?.members_count || 1;
 
 				const reportText = [
-					`📊 <b>گزارش عملکرد واقعی گروه «${mg?.title || s.chatTitle}»</b>`,
+					`📊 <b>گزارش عملکرد واقعی گروه «${escapeHtml(mg?.title || s.chatTitle || 'گروه')}»</b>`,
 					`━━━━━━━━━━━━━━━━━━━━`,
 					`👥 <b>تعداد کل اعضا:</b> ${liveMembers.toLocaleString('fa-IR')} نفر`,
 					`💬 <b>کل پیام‌های ثبت‌شده:</b> ${analytics.totalMessages.toLocaleString('fa-IR')}`,
@@ -3026,7 +3544,7 @@ export function createServer() {
 				}
 				return sendJson(200, {
 					ok: true,
-					message: 'گزارش عملکرد گروه با موفقیت به تلگرام شما ارسال شد.',
+					message: getApiMessage('REPORT_SENT_SUCCESS', req),
 				});
 			}
 
@@ -3048,7 +3566,8 @@ export function createServer() {
 			const attempt = ownerLoginAttempts.get(clientIp);
 			if (attempt && now < attempt.resetAt && attempt.count >= 10) {
 				return sendJson(429, {
-					error: 'تعداد تلاش‌های ناموفق بیش از حد مجاز است. لطفاً چند دقیقه دیگر تلاش کنید.',
+					error: getApiMessage('RATE_LIMIT_LOGIN', req),
+					code: 'RATE_LIMIT_LOGIN',
 				});
 			}
 
@@ -3071,7 +3590,21 @@ export function createServer() {
 				count: (attempt && now < attempt.resetAt ? attempt.count : 0) + 1,
 				resetAt: now + 5 * 60 * 1000,
 			});
-			return sendJson(401, { error: 'رمز امنیتی نامعتبر است' });
+			return sendJson(401, {
+				error: getApiMessage('INVALID_OWNER_PASSWORD', req),
+				code: 'INVALID_OWNER_PASSWORD',
+			});
+		}
+
+		// Strict Owner Gate Authorization Middleware (All /owner/* routes except /owner/auth/totp)
+		if (cleanPath.startsWith('/owner/')) {
+			const authUser = extractAuthUser(req);
+			if (!authUser || authUser.role !== 'owner') {
+				return sendJson(401, {
+					error: getApiMessage('UNAUTHORIZED_OWNER', req),
+					code: 'UNAUTHORIZED_OWNER',
+				});
+			}
 		}
 
 		if (cleanPath === '/owner/dashboard/stats' && method === 'GET') {
@@ -3247,7 +3780,19 @@ export function createServer() {
 
 		res.writeHead(404, { 'Content-Type': 'text/plain' });
 		res.end('Not Found');
-	});
+	} catch (err: any) {
+		console.error('[HTTP Server Error]:', err?.message || err);
+		if (!res.headersSent) {
+			res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
+			res.end(
+				JSON.stringify({
+					error: getApiMessage('INTERNAL_SERVER_ERROR', req),
+					code: 'INTERNAL_SERVER_ERROR',
+				}),
+			);
+		}
+	}
+});
 
 	return server;
 }

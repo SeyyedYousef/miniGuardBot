@@ -5,24 +5,7 @@ import { setLanguage } from '@/shared/api/profile.js';
 
 import { dict as en } from './en.js';
 
-export type Locale =
-	| 'fa'
-	| 'en'
-	| 'ar'
-	| 'ru'
-	| 'tr'
-	| 'es'
-	| 'hi'
-	| 'ur'
-	| 'ps'
-	| 'ku'
-	| 'az'
-	| 'uz'
-	| 'id'
-	| 'pt'
-	| 'fr'
-	| 'de'
-	| 'zh';
+export type Locale = 'fa' | 'en' | 'ar' | 'ru' | 'tr' | 'es' | 'pt' | 'de' | 'fr' | 'zh';
 
 export type Dictionary = typeof en;
 
@@ -41,28 +24,15 @@ export const SUPPORTED_LANGUAGES: readonly LanguageOption[] = [
 	{ code: 'ru', native: 'Русский', label: 'Русский (Russian)', flag: '🇷🇺', rtl: false },
 	{ code: 'tr', native: 'Türkçe', label: 'Türkçe (Turkish)', flag: '🇹🇷', rtl: false },
 	{ code: 'es', native: 'Español', label: 'Español (Spanish)', flag: '🇪🇸', rtl: false },
-	{ code: 'hi', native: 'हिन्दी', label: 'हिन्दी (Hindi)', flag: '🇮🇳', rtl: false },
-	{ code: 'ur', native: 'اردو', label: 'اردو (Urdu)', flag: '🇵🇰', rtl: true },
-	{ code: 'ps', native: 'پښتو', label: 'پښتو (Pashto)', flag: '🇦🇫', rtl: true },
-	{ code: 'ku', native: 'کوردی', label: 'کوردی (Kurdish)', flag: '☀️', rtl: true },
-	{
-		code: 'az',
-		native: 'Azərbaycanca',
-		label: 'Azərbaycanca (Azerbaijani)',
-		flag: '🇦🇿',
-		rtl: false,
-	},
-	{ code: 'uz', native: 'Oʻzbekcha', label: 'Oʻzbekcha (Uzbek)', flag: '🇺🇿', rtl: false },
-	{ code: 'id', native: 'Bahasa Indonesia', label: 'Bahasa Indonesia', flag: '🇮🇩', rtl: false },
 	{ code: 'pt', native: 'Português', label: 'Português (Portuguese)', flag: '🇧🇷', rtl: false },
-	{ code: 'fr', native: 'Français', label: 'Français (French)', flag: '🇫🇷', rtl: false },
 	{ code: 'de', native: 'Deutsch', label: 'Deutsch (German)', flag: '🇩🇪', rtl: false },
+	{ code: 'fr', native: 'Français', label: 'Français (French)', flag: '🇫🇷', rtl: false },
 	{ code: 'zh', native: '简体中文', label: '简体中文 (Chinese)', flag: '🇨🇳', rtl: false },
 ] as const;
 
 export const VALID_LOCALE_CODES = SUPPORTED_LANGUAGES.map((l) => l.code);
 
-export const RTL_LOCALES: Locale[] = ['fa', 'ps', 'ar', 'ur', 'ku'];
+export const RTL_LOCALES: Locale[] = ['fa', 'ar'];
 
 export const getLanguageLabel = (code?: Locale): string => {
 	const found = SUPPORTED_LANGUAGES.find((l) => l.code === code);
@@ -77,16 +47,9 @@ const mapLanguageCode = (code?: string): Locale => {
 	if (c.startsWith('ru') || c.startsWith('uk') || c.startsWith('be')) return 'ru';
 	if (c.startsWith('tr')) return 'tr';
 	if (c.startsWith('es')) return 'es';
-	if (c.startsWith('hi') || c.startsWith('bn')) return 'hi';
-	if (c.startsWith('ur')) return 'ur';
-	if (c.startsWith('ps') || c.startsWith('puk') || c.startsWith('pus')) return 'ps';
-	if (c.startsWith('ku') || c.startsWith('ckb')) return 'ku';
-	if (c.startsWith('az')) return 'az';
-	if (c.startsWith('uz')) return 'uz';
-	if (c.startsWith('id') || c.startsWith('ms')) return 'id';
 	if (c.startsWith('pt')) return 'pt';
-	if (c.startsWith('fr')) return 'fr';
 	if (c.startsWith('de')) return 'de';
+	if (c.startsWith('fr')) return 'fr';
 	if (c.startsWith('zh')) return 'zh';
 	if (c.startsWith('en')) return 'en';
 	return 'en';
@@ -131,17 +94,28 @@ export const loadDictionary = async (loc: Locale) => {
 		let module: { dict: any } | undefined;
 		switch (loc) {
 			case 'fa':
-			case 'ku':
 				module = await import('./fa.js');
 				break;
-			case 'ps':
-			case 'ur':
 			case 'ar':
-				module = await import('./ps.js');
+				module = await import('./ar.js');
 				break;
 			case 'ru':
-			case 'uz':
 				module = await import('./ru.js');
+				break;
+			case 'tr':
+				module = await import('./tr.js');
+				break;
+			case 'es':
+				module = await import('./es.js');
+				break;
+			case 'pt':
+				module = await import('./pt.js');
+				break;
+			case 'de':
+				module = await import('./de.js');
+				break;
+			case 'fr':
+				module = await import('./fr.js');
 				break;
 			case 'zh':
 				module = await import('./zh.js');

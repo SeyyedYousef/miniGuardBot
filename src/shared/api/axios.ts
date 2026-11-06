@@ -200,6 +200,16 @@ apiClient.interceptors.request.use(
 			config.headers['X-Telegram-Init-Data'] = initData;
 		}
 
+		// Pass user selected language to backend for localized API responses
+		try {
+			const activeLocale =
+				localStorage.getItem('user_selected_locale') ||
+				(typeof document !== 'undefined' ? document.documentElement.lang : '') ||
+				'fa';
+			config.headers['X-Request-Lang'] = activeLocale;
+			config.headers['Accept-Language'] = activeLocale;
+		} catch {}
+
 		return config;
 	},
 	(error: AxiosError) => {
