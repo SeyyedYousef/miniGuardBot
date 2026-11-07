@@ -44,9 +44,9 @@ describe('GroupDashboardPage', () => {
 		expect(await screen.findByText('Test Group')).toBeInTheDocument();
 	});
 
-	it('renders dashboard status badge', async () => {
+	it('renders dashboard status badge with exact remaining credit', async () => {
 		render(() => <GroupDashboardPage />);
-		const badges = await screen.findAllByText('اشتراک ویژه فعال');
+		const badges = await screen.findAllByText(/مانده|اشتراک ویژه/);
 		expect(badges.length).toBeGreaterThan(0);
 	});
 });

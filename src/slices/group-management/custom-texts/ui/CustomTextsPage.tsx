@@ -11,8 +11,8 @@ import {
 } from 'solid-js';
 import { createStore, reconcile } from 'solid-js/store';
 import { groupApi } from '@/shared/api/bot-management.js';
-import { uiText } from '@/shared/i18n/group-ui.js';
-import { isRtl, t } from '@/shared/i18n/index.js';
+import { getMinimalCustomTexts, uiText } from '@/shared/i18n/group-ui.js';
+import { isRtl, locale, t } from '@/shared/i18n/index.js';
 import { haptic } from '@/shared/lib/haptic.js';
 import { InlineButtonField } from '@/shared/ui/settings-controls.js';
 import { showToast } from '@/shared/ui/toast.js';
@@ -25,43 +25,73 @@ interface CustomTextsConfig {
 	rulesText: string;
 	forceJoinText: string;
 	forceAddText: string;
-	botStartText: string;
 	inlineButtons: { id: string; title: string; url: string }[];
 }
 
-const defaults: CustomTextsConfig = {
-	welcomeText: '👋 Welcome {user}',
-	warningText: '⚠️ {user} | Warning {count}/{threshold} ▫️ {reason}',
-	silenceStartText: '🔒 Quiet mode activated',
-	silenceEndText: '🔓 Quiet mode deactivated',
-	rulesText: '📜 Rules: Respect others • No spam or links',
-	forceJoinText: '📢 {user}, join required channels to chat:\n{channel_names}',
-	forceAddText: '👥 {user}, invite {remainadd} member(s) to chat ({added}/{number})',
-	botStartText:
-		'🛡️ سلام {user} عزیز!\nمن ربات اختصاصی مدیریت گروه «{group}» هستم.\n\n⚡ این ربات توسط @MiniGuardBot ساخته شده است! اگر می‌خواهید یک ربات مدیریت گروه با نام دلخواه و بیش از ۱۰۰ قابلیت پیشرفته داشته باشید، همین حالا آن را امتحان کنید.',
-	inlineButtons: [
-		{ id: 'btn-1', title: '🚀 ساخت ربات با @MiniGuardBot', url: 'https://t.me/MiniGuardBot' },
-	],
-};
+const LEGACY_DEFAULT_STRINGS = new Set([
+	'👋 Welcome {user}',
+	'⚠️ {user} | Warning {count}/{threshold} ▫️ {reason}',
+	'🔒 Quiet mode activated',
+	'🔓 Quiet mode deactivated',
+	'📜 Rules: Respect others • No spam or links',
+	'📢 {user}, join required channels to chat:\n{channel_names}',
+	'👥 {user}, invite {remainadd} member(s) to chat ({added}/{number})',
+]);
 
 export const CustomTextsPage: Component = () => {
 	const navigate = useNavigate();
 	const params = useParams();
 	const txt = () => uiText();
+	const minDefaults = () => getMinimalCustomTexts(locale());
 
 	const [isSaving, setIsSaving] = createSignal(false);
 	const [isDirty, setIsDirty] = createSignal(false);
 	const [settingsVersion, setSettingsVersion] = createSignal(1);
 
-	const [cfg, setCfg] = createStore<CustomTextsConfig>({ ...defaults });
+	const [cfg, setCfg] = createStore<CustomTextsConfig>({
+		welcomeText: minDefaults().welcomeText,
+		warningText: minDefaults().warningText,
+		silenceStartText: minDefaults().silenceStartText,
+		silenceEndText: minDefaults().silenceEndText,
+		rulesText: minDefaults().rulesText,
+		forceJoinText: minDefaults().forceJoinText,
+		forceAddText: minDefaults().forceAddText,
+		inlineButtons: [],
+	});
 
 	createResource(
 		() => params.id,
 		async (groupId) => {
 			const data = await groupApi.getSettings(groupId);
 			setSettingsVersion(data.version);
+			const groupLang = (data.general as any)?.language || locale();
+			const localizedDefaults = getMinimalCustomTexts(groupLang);
 			const ct = (data.custom_texts || {}) as Partial<CustomTextsConfig>;
-			setCfg(reconcile({ ...defaults, ...ct }));
+
+			const resolveField = (saved: string | undefined, fallback: string) => {
+				if (!saved || !saved.trim() || LEGACY_DEFAULT_STRINGS.has(saved.trim())) {
+					return fallback;
+				}
+				return saved;
+			};
+
+			// Filter out legacy platform promo button if it was auto-populated in user settings
+			const cleanButtons = (ct.inlineButtons || []).filter(
+				(b) => !b.url?.includes('t.me/MiniGuardBot') && !b.title?.includes('@MiniGuardBot'),
+			);
+
+			setCfg(
+				reconcile({
+					welcomeText: resolveField(ct.welcomeText, localizedDefaults.welcomeText),
+					warningText: resolveField(ct.warningText, localizedDefaults.warningText),
+					silenceStartText: resolveField(ct.silenceStartText, localizedDefaults.silenceStartText),
+					silenceEndText: resolveField(ct.silenceEndText, localizedDefaults.silenceEndText),
+					rulesText: resolveField(ct.rulesText, localizedDefaults.rulesText),
+					forceJoinText: resolveField(ct.forceJoinText, localizedDefaults.forceJoinText),
+					forceAddText: resolveField(ct.forceAddText, localizedDefaults.forceAddText),
+					inlineButtons: cleanButtons,
+				}),
+			);
 			setIsDirty(false);
 			return data;
 		},
@@ -80,6 +110,24 @@ export const CustomTextsPage: Component = () => {
 
 	const update = (key: keyof CustomTextsConfig, val: any) => {
 		setCfg(key, val);
+		setIsDirty(true);
+	};
+
+	const resetToMinimalDefaults = () => {
+		haptic.impact('medium');
+		const d = minDefaults();
+		setCfg(
+			reconcile({
+				welcomeText: d.welcomeText,
+				warningText: d.warningText,
+				silenceStartText: d.silenceStartText,
+				silenceEndText: d.silenceEndText,
+				rulesText: d.rulesText,
+				forceJoinText: d.forceJoinText,
+				forceAddText: d.forceAddText,
+				inlineButtons: cfg.inlineButtons,
+			}),
+		);
 		setIsDirty(true);
 	};
 
@@ -137,58 +185,23 @@ export const CustomTextsPage: Component = () => {
 				</div>
 			</header>
 
-			<main class="w-full max-w-md mx-auto flex-1 flex flex-col px-4 pt-5 gap-5">
-				{/* Child Bot /start Attribution & 4 Group Join Messages */}
-				<div>
-					<div class="tg-section-header">{txt().botHiddenFlowsTitle}</div>
-					<div class="tg-section p-4 flex flex-col gap-4">
-						<div class="flex flex-col gap-1.5">
-							<label class="text-[13.5px] font-bold text-[var(--tg-text)] flex items-center gap-1.5">
-								<span class="material-symbols-outlined text-[18px] text-[var(--tg-button)]">
-									smart_toy
-								</span>
-								<span>{txt().childStartPreviewTitle}</span>
-							</label>
-							<textarea
-								value={cfg.botStartText || txt().childStartPreviewBody}
-								onInput={(e) => update('botStartText', e.currentTarget.value)}
-								class="w-full h-28 bg-[var(--tg-secondary-bg)] border border-[var(--tg-separator)] text-[var(--tg-text)] text-[12.5px] leading-relaxed rounded-xl p-3 focus:outline-none focus:border-[var(--tg-button)] resize-none"
-							/>
-						</div>
-
-						<div class="flex flex-col gap-1.5">
-							<span class="text-[13.5px] font-bold text-[var(--tg-text)] flex items-center gap-1.5">
-								<span class="material-symbols-outlined text-[18px] text-[#34C759]">
-									playlist_add_check_circle
-								</span>
-								<span>{txt().join4MsgsTitle}</span>
-							</span>
-							<div class="flex flex-col gap-2 text-[12px] bg-[var(--tg-secondary-bg)] p-3 rounded-xl border border-[var(--tg-separator)] leading-relaxed">
-								<p class="text-[var(--tg-text)]">{txt().joinMsg1}</p>
-								<p class="text-[var(--tg-text)]">{txt().joinMsg2}</p>
-								<p class="text-[var(--tg-text)]">{txt().joinMsg3}</p>
-								<p class="text-[var(--tg-text)]">{txt().joinMsg4}</p>
-							</div>
-						</div>
-
-						<div class="flex flex-col gap-1.5">
-							<span class="text-[13.5px] font-bold text-[var(--tg-text)] flex items-center gap-1.5">
-								<span class="material-symbols-outlined text-[18px] text-[#F59E0B]">verified</span>
-								<span>{txt().masterStartPreviewTitle}</span>
-							</span>
-							<div class="p-3 rounded-xl bg-[var(--tg-secondary-bg)] text-[12px] text-[var(--tg-text)] whitespace-pre-line leading-relaxed border border-[var(--tg-separator)]">
-								{txt().masterStartPreviewBody}
-							</div>
-						</div>
+			<main class="w-full max-w-md mx-auto flex-1 flex flex-col px-4 pt-5 gap-4">
+				{/* Dynamic Variables Reference + Minimal Reset */}
+				<div class="tg-section p-3.5 flex flex-col gap-2.5">
+					<div class="flex items-center justify-between gap-2">
+						<span class="text-[12.5px] font-bold text-[var(--tg-text)]">
+							{t('customTextsSettings.placeholders')}
+						</span>
+						<button
+							type="button"
+							onClick={resetToMinimalDefaults}
+							class="text-[11.5px] font-semibold text-[var(--tg-link)] flex items-center gap-1 active:opacity-70"
+						>
+							<span class="material-symbols-outlined text-[15px]">restart_alt</span>
+							<span>{minDefaults().resetToDefaultLabel}</span>
+						</button>
 					</div>
-				</div>
-
-				{/* Dynamic Variables Reference */}
-				<div class="tg-section p-4 flex flex-col gap-2.5">
-					<span class="text-[13px] font-bold text-[var(--tg-text)]">
-						{t('customTextsSettings.placeholders')}
-					</span>
-					<div class="flex flex-wrap gap-1.5">
+					<div class="flex flex-wrap gap-1.5" dir="ltr">
 						<For
 							each={[
 								'{user}',
@@ -199,6 +212,9 @@ export const CustomTextsPage: Component = () => {
 								'{count}',
 								'{threshold}',
 								'{channel_names}',
+								'{remainadd}',
+								'{added}',
+								'{number}',
 							]}
 						>
 							{(tag) => (
@@ -210,65 +226,96 @@ export const CustomTextsPage: Component = () => {
 					</div>
 				</div>
 
-				{/* Message Templates */}
-				<div class="tg-section p-4 flex flex-col gap-4">
-					<div class="flex flex-col gap-1.5">
-						<label class="text-[14px] font-semibold text-[var(--tg-text)]">
+				{/* Minimal Localized Group Message Templates */}
+				<div class="tg-section p-4 flex flex-col gap-3.5">
+					<div class="flex flex-col gap-1">
+						<label class="text-[13.5px] font-semibold text-[var(--tg-text)]">
 							{t('customTextsSettings.welcomeText')}
 						</label>
 						<textarea
 							value={cfg.welcomeText}
 							onInput={(e) => update('welcomeText', e.currentTarget.value)}
-							class="w-full h-20 bg-[var(--tg-secondary-bg)] border border-[var(--tg-separator)] text-[var(--tg-text)] text-[13px] rounded-xl p-3 focus:outline-none focus:border-[var(--tg-button)] resize-none"
+							rows={2}
+							class="w-full bg-[var(--tg-secondary-bg)] border border-[var(--tg-separator)] text-[var(--tg-text)] text-[13px] rounded-xl p-2.5 focus:outline-none focus:border-[var(--tg-button)] resize-none"
 						/>
 					</div>
 
-					<div class="flex flex-col gap-1.5">
-						<label class="text-[14px] font-semibold text-[var(--tg-text)]">
+					<div class="flex flex-col gap-1">
+						<label class="text-[13.5px] font-semibold text-[var(--tg-text)]">
 							{t('customTextsSettings.warningText')}
 						</label>
 						<textarea
 							value={cfg.warningText}
 							onInput={(e) => update('warningText', e.currentTarget.value)}
-							class="w-full h-20 bg-[var(--tg-secondary-bg)] border border-[var(--tg-separator)] text-[var(--tg-text)] text-[13px] rounded-xl p-3 focus:outline-none focus:border-[var(--tg-button)] resize-none"
+							rows={2}
+							class="w-full bg-[var(--tg-secondary-bg)] border border-[var(--tg-separator)] text-[var(--tg-text)] text-[13px] rounded-xl p-2.5 focus:outline-none focus:border-[var(--tg-button)] resize-none"
 						/>
 					</div>
 
-					<div class="flex flex-col gap-1.5">
-						<label class="text-[14px] font-semibold text-[var(--tg-text)]">
+					<div class="flex flex-col gap-1">
+						<label class="text-[13.5px] font-semibold text-[var(--tg-text)]">
 							{t('customTextsSettings.rulesText')}
 						</label>
 						<textarea
 							value={cfg.rulesText}
 							onInput={(e) => update('rulesText', e.currentTarget.value)}
-							class="w-full h-20 bg-[var(--tg-secondary-bg)] border border-[var(--tg-separator)] text-[var(--tg-text)] text-[13px] rounded-xl p-3 focus:outline-none focus:border-[var(--tg-button)] resize-none"
+							rows={2}
+							class="w-full bg-[var(--tg-secondary-bg)] border border-[var(--tg-separator)] text-[var(--tg-text)] text-[13px] rounded-xl p-2.5 focus:outline-none focus:border-[var(--tg-button)] resize-none"
 						/>
 					</div>
 
-					<div class="flex flex-col gap-1.5">
-						<label class="text-[14px] font-semibold text-[var(--tg-text)]">
-							{t('customTextsSettings.silenceStartText')}
+					<div class="flex flex-col gap-1">
+						<label class="text-[13.5px] font-semibold text-[var(--tg-text)]">
+							{minDefaults().forceJoinLabel}
 						</label>
 						<textarea
-							value={cfg.silenceStartText}
-							onInput={(e) => update('silenceStartText', e.currentTarget.value)}
-							class="w-full h-16 bg-[var(--tg-secondary-bg)] border border-[var(--tg-separator)] text-[var(--tg-text)] text-[13px] rounded-xl p-3 focus:outline-none focus:border-[var(--tg-button)] resize-none"
+							value={cfg.forceJoinText}
+							onInput={(e) => update('forceJoinText', e.currentTarget.value)}
+							rows={2}
+							class="w-full bg-[var(--tg-secondary-bg)] border border-[var(--tg-separator)] text-[var(--tg-text)] text-[13px] rounded-xl p-2.5 focus:outline-none focus:border-[var(--tg-button)] resize-none"
 						/>
 					</div>
 
-					<div class="flex flex-col gap-1.5">
-						<label class="text-[14px] font-semibold text-[var(--tg-text)]">
-							{t('customTextsSettings.silenceEndText')}
+					<div class="flex flex-col gap-1">
+						<label class="text-[13.5px] font-semibold text-[var(--tg-text)]">
+							{minDefaults().forceAddLabel}
 						</label>
 						<textarea
-							value={cfg.silenceEndText}
-							onInput={(e) => update('silenceEndText', e.currentTarget.value)}
-							class="w-full h-16 bg-[var(--tg-secondary-bg)] border border-[var(--tg-separator)] text-[var(--tg-text)] text-[13px] rounded-xl p-3 focus:outline-none focus:border-[var(--tg-button)] resize-none"
+							value={cfg.forceAddText}
+							onInput={(e) => update('forceAddText', e.currentTarget.value)}
+							rows={2}
+							class="w-full bg-[var(--tg-secondary-bg)] border border-[var(--tg-separator)] text-[var(--tg-text)] text-[13px] rounded-xl p-2.5 focus:outline-none focus:border-[var(--tg-button)] resize-none"
 						/>
+					</div>
+
+					<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+						<div class="flex flex-col gap-1">
+							<label class="text-[13px] font-semibold text-[var(--tg-text)]">
+								{t('customTextsSettings.silenceStartText')}
+							</label>
+							<input
+								type="text"
+								value={cfg.silenceStartText}
+								onInput={(e) => update('silenceStartText', e.currentTarget.value)}
+								class="w-full h-10 bg-[var(--tg-secondary-bg)] border border-[var(--tg-separator)] text-[var(--tg-text)] text-[13px] rounded-xl px-3 focus:outline-none focus:border-[var(--tg-button)]"
+							/>
+						</div>
+
+						<div class="flex flex-col gap-1">
+							<label class="text-[13px] font-semibold text-[var(--tg-text)]">
+								{t('customTextsSettings.silenceEndText')}
+							</label>
+							<input
+								type="text"
+								value={cfg.silenceEndText}
+								onInput={(e) => update('silenceEndText', e.currentTarget.value)}
+								class="w-full h-10 bg-[var(--tg-secondary-bg)] border border-[var(--tg-separator)] text-[var(--tg-text)] text-[13px] rounded-xl px-3 focus:outline-none focus:border-[var(--tg-button)]"
+							/>
+						</div>
 					</div>
 				</div>
 
-				{/* Inline Buttons */}
+				{/* Optional Welcome Inline Buttons */}
 				<div class="tg-section p-4 flex flex-col">
 					<InlineButtonField
 						label={t('customTextsSettings.inlineButtons')}

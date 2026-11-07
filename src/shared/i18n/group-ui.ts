@@ -78,8 +78,8 @@ const FA_UI = {
 	modQuietSub: 'زمان‌بندی خودکار تعطیلی چت در ساعات مشخص',
 	modMandatoryTitle: 'عضویت اجباری و دعوت اعضا',
 	modMandatorySub: 'الزام به اد کردن عضو یا عضویت در کانال مرجع',
-	modTextsTitle: 'متن‌های سفارشی، استارت و پیام‌های ورود ربات',
-	modTextsSub: 'پاسخ استارت (@MiniGuardBot)، ۴ پیام ورود به گروه و خوش‌آمدگویی',
+	modTextsTitle: 'متن‌های سفارشی گروه',
+	modTextsSub: 'خوش‌آمدگویی، اخطار، قوانین، سکوت و عضویت اجباری',
 	modBioTitle: 'بیوگرافی و نام داینامیک گروه',
 	modBioSub: 'مشاهده و ویرایش مستقیم نام و بیوی گروه + متغیرهای زنده',
 	modAnalyticsTitle: 'آمار و گزارش عملکرد گروه',
@@ -208,8 +208,8 @@ const EN_UI: typeof FA_UI = {
 	modQuietSub: 'Automatically schedule group chat silence intervals',
 	modMandatoryTitle: 'Mandatory Join & Invites',
 	modMandatorySub: 'Require new members to invite friends or join a channel',
-	modTextsTitle: 'Custom Texts, /start & 4 Join Messages',
-	modTextsSub: '@MiniGuardBot /start attribution, 4 group onboarding messages & rules',
+	modTextsTitle: 'Custom Group Texts',
+	modTextsSub: 'Welcome, warning, rules, quiet hours & force-join messages',
 	modBioTitle: 'Dynamic Group Bio & Title',
 	modBioSub: 'View & edit current group name/bio + live variables',
 	modAnalyticsTitle: 'Group Analytics & Logs',
@@ -1098,4 +1098,268 @@ export const uiText = () => {
 		default:
 			return EN_UI;
 	}
+};
+
+export interface MinimalCustomTexts {
+	welcomeText: string;
+	warningText: string;
+	rulesText: string;
+	silenceStartText: string;
+	silenceEndText: string;
+	forceJoinText: string;
+	forceAddText: string;
+	resetToDefaultLabel: string;
+	forceJoinLabel: string;
+	forceAddLabel: string;
+}
+
+const MINIMAL_TEXTS_BY_LANG: Record<string, MinimalCustomTexts> = {
+	fa: {
+		welcomeText: '👋 {user} به «{group}» خوش آمدید.',
+		warningText: '⚠️ {user} | اخطار {count}/{threshold} ({reason})',
+		rulesText: '📜 قوانین: احترام متقابل • ارسال لینک و اسپم ممنوع',
+		silenceStartText: '🌙 ساعات سکوت فعال شد.',
+		silenceEndText: '☀️ ساعات سکوت پایان یافت.',
+		forceJoinText: '📢 {user}، برای چت ابتدا عضو شوید: {channel_names}',
+		forceAddText: '👥 {user}، برای چت {remainadd} نفر دعوت کنید ({added}/{number}).',
+		resetToDefaultLabel: 'بازنشانی به متن مینیمال زبان فعلی',
+		forceJoinLabel: 'پیام عضویت اجباری کانال',
+		forceAddLabel: 'پیام دعوت اجباری عضو (اد اجباری)',
+	},
+	en: {
+		welcomeText: '👋 Welcome to {group}, {user}!',
+		warningText: '⚠️ {user} | Warning {count}/{threshold} ({reason})',
+		rulesText: '📜 Rules: Be respectful • No spam or links',
+		silenceStartText: '🌙 Quiet hours active.',
+		silenceEndText: '☀️ Quiet hours ended.',
+		forceJoinText: '📢 {user}, join first to chat: {channel_names}',
+		forceAddText: '👥 {user}, invite {remainadd} more to chat ({added}/{number}).',
+		resetToDefaultLabel: 'Reset to Minimal Defaults',
+		forceJoinLabel: 'Force Channel Join Message',
+		forceAddLabel: 'Force Member Invite Message',
+	},
+	ar: {
+		welcomeText: '👋 أهلاً {user} في «{group}».',
+		warningText: '⚠️ {user} | تحذير {count}/{threshold} ({reason})',
+		rulesText: '📜 القوانين: الاحترام المتبادل • يمنع الروابط والسبام',
+		silenceStartText: '🌙 بدأ وقت الهدوء.',
+		silenceEndText: '☀️ انتهى وقت الهدوء.',
+		forceJoinText: '📢 {user}، اشترك أولاً للمحادثة: {channel_names}',
+		forceAddText: '👥 {user}، قم بدعوة {remainadd} عضو للمحادثة ({added}/{number}).',
+		resetToDefaultLabel: 'إعادة ضبط للنصوص المختصرة',
+		forceJoinLabel: 'رسالة الاشتراك الإجباري بالقناة',
+		forceAddLabel: 'رسالة دعوة الأعضاء الإجبارية',
+	},
+	ru: {
+		welcomeText: '👋 {user}, добро пожаловать в «{group}»!',
+		warningText: '⚠️ {user} | Предупреждение {count}/{threshold} ({reason})',
+		rulesText: '📜 Правила: Уважение • Без спама и ссылок',
+		silenceStartText: '🌙 Тихий час включен.',
+		silenceEndText: '☀️ Тихий час завершен.',
+		forceJoinText: '📢 {user}, подпишитесь для общения: {channel_names}',
+		forceAddText: '👥 {user}, пригласите еще {remainadd} чел. ({added}/{number}).',
+		resetToDefaultLabel: 'Сбросить к минимальным текстам',
+		forceJoinLabel: 'Текст обязательной подписки',
+		forceAddLabel: 'Текст обязательного приглашения',
+	},
+	tr: {
+		welcomeText: '👋 {group} grubuna hoş geldin, {user}!',
+		warningText: '⚠️ {user} | Uyarı {count}/{threshold} ({reason})',
+		rulesText: '📜 Kurallar: Saygılı olun • Spam ve link yasaktır',
+		silenceStartText: '🌙 Sessiz saatler başladı.',
+		silenceEndText: '☀️ Sessiz saatler sona erdi.',
+		forceJoinText: '📢 {user}, yazmak için katılın: {channel_names}',
+		forceAddText: '👥 {user}, yazmak için {remainadd} kişi davet edin ({added}/{number}).',
+		resetToDefaultLabel: 'Minimal Varsayılanlara Sıfırla',
+		forceJoinLabel: 'Zorunlu Kanal Üyelik Mesajı',
+		forceAddLabel: 'Zorunlu Üye Davet Mesajı',
+	},
+	es: {
+		welcomeText: '👋 ¡Bienvenido a {group}, {user}!',
+		warningText: '⚠️ {user} | Aviso {count}/{threshold} ({reason})',
+		rulesText: '📜 Reglas: Respeto • Sin spam ni enlaces',
+		silenceStartText: '🌙 Horas de silencio activas.',
+		silenceEndText: '☀️ Horas de silencio finalizadas.',
+		forceJoinText: '📢 {user}, únete primero para chatear: {channel_names}',
+		forceAddText: '👥 {user}, invita a {remainadd} más para chatear ({added}/{number}).',
+		resetToDefaultLabel: 'Restablecer textos mínimos',
+		forceJoinLabel: 'Mensaje de unión obligatoria',
+		forceAddLabel: 'Mensaje de invitación obligatoria',
+	},
+	pt: {
+		welcomeText: '👋 Bem-vindo ao {group}, {user}!',
+		warningText: '⚠️ {user} | Aviso {count}/{threshold} ({reason})',
+		rulesText: '📜 Regras: Respeito • Sem spam ou links',
+		silenceStartText: '🌙 Horário de silêncio ativo.',
+		silenceEndText: '☀️ Horário de silêncio encerrado.',
+		forceJoinText: '📢 {user}, entre primeiro para conversar: {channel_names}',
+		forceAddText: '👥 {user}, convide mais {remainadd} para conversar ({added}/{number}).',
+		resetToDefaultLabel: 'Redefinir textos mínimos',
+		forceJoinLabel: 'Mensagem de inscrição obrigatória',
+		forceAddLabel: 'Mensagem de convite obrigatório',
+	},
+	de: {
+		welcomeText: '👋 Willkommen in {group}, {user}!',
+		warningText: '⚠️ {user} | Verwarnung {count}/{threshold} ({reason})',
+		rulesText: '📜 Regeln: Respekt • Kein Spam oder Links',
+		silenceStartText: '🌙 Ruhezeit aktiviert.',
+		silenceEndText: '☀️ Ruhezeit beendet.',
+		forceJoinText: '📢 {user}, zuerst beitreten zum Schreiben: {channel_names}',
+		forceAddText: '👥 {user}, lade noch {remainadd} Mitglieder ein ({added}/{number}).',
+		resetToDefaultLabel: 'Auf minimale Texte zurücksetzen',
+		forceJoinLabel: 'Pflichtbeitritt-Nachricht',
+		forceAddLabel: 'Pflichteinladung-Nachricht',
+	},
+	fr: {
+		welcomeText: '👋 Bienvenue dans {group}, {user} !',
+		warningText: '⚠️ {user} | Avertissement {count}/{threshold} ({reason})',
+		rulesText: '📜 Règles : Respect • Pas de spam ni de liens',
+		silenceStartText: '🌙 Heures calmes activées.',
+		silenceEndText: '☀️ Heures calmes terminées.',
+		forceJoinText: '📢 {user}, rejoignez d’abord : {channel_names}',
+		forceAddText: '👥 {user}, invitez encore {remainadd} membre(s) ({added}/{number}).',
+		resetToDefaultLabel: 'Réinitialiser aux textes courts',
+		forceJoinLabel: 'Message d’adhésion obligatoire',
+		forceAddLabel: 'Message d’invitation obligatoire',
+	},
+	zh: {
+		welcomeText: '👋 欢迎 {user} 加入「{group}」！',
+		warningText: '⚠️ {user} | 警告 {count}/{threshold} ({reason})',
+		rulesText: '📜 群规：互相尊重 • 禁止广告与链接',
+		silenceStartText: '🌙 静音时段已开启。',
+		silenceEndText: '☀️ 静音时段已结束。',
+		forceJoinText: '📢 {user}，请先关注后再发言：{channel_names}',
+		forceAddText: '👥 {user}，请再邀请 {remainadd} 人后发言 ({added}/{number})。',
+		resetToDefaultLabel: '重置为当前语言极简模板',
+		forceJoinLabel: '强制关注频道提示语',
+		forceAddLabel: '强制邀请成员提示语',
+	},
+};
+
+export const getMinimalCustomTexts = (lang?: string): MinimalCustomTexts => {
+	const l = (lang || locale() || 'fa').toLowerCase();
+	return MINIMAL_TEXTS_BY_LANG[l] || MINIMAL_TEXTS_BY_LANG.fa;
+};
+
+export interface RemainingCreditInfo {
+	isExpired: boolean;
+	isTrial: boolean;
+	totalMs: number;
+	remainingMs: number;
+	percentRemaining: number;
+	shortBadge: string;
+	detailedText: string;
+}
+
+export const getRemainingCreditInfo = (
+	group: {
+		subscription_status?: string;
+		trial_ends_at?: string;
+		subscription_expires_at?: string;
+		paid_until?: string;
+	} | null | undefined,
+	nowMs: number = Date.now(),
+): RemainingCreditInfo => {
+	const l = (locale() || 'fa').toLowerCase();
+	const status = group?.subscription_status || 'trial';
+	const isTrial = status === 'trial';
+	const expiresIso =
+		(status === 'paid' || status === 'active'
+			? group?.subscription_expires_at || group?.paid_until || group?.trial_ends_at
+			: group?.trial_ends_at || group?.subscription_expires_at || group?.paid_until) || '';
+
+	const totalMs = isTrial ? 24 * 3600 * 1000 : 30 * 24 * 3600 * 1000;
+	let remainingMs = expiresIso ? new Date(expiresIso).getTime() - nowMs : isTrial ? 24 * 3600 * 1000 : 30 * 24 * 3600 * 1000;
+	if (Number.isNaN(remainingMs)) remainingMs = 24 * 3600 * 1000;
+
+	if (status === 'expired' || remainingMs <= 0) {
+		const expiredMap: Record<string, { badge: string; detail: string }> = {
+			fa: { badge: 'منقضی شده (۰ ساعت)', detail: 'اعتبار به پایان رسیده است • برای ادامه حفاظت تمدید کنید' },
+			en: { badge: 'Expired (0h left)', detail: 'Credit expired • Renew to keep protection active' },
+			ar: { badge: 'منتهي (0 ساعة)', detail: 'انتهت الصلاحية • جدد لاستمرار الحماية' },
+			ru: { badge: 'Истек (0ч)', detail: 'Срок действия истек • Продлите подписку' },
+			tr: { badge: 'Süresi Doldu (0s)', detail: 'Süre doldu • Korumayı sürdürmek için yenileyin' },
+			es: { badge: 'Expirado (0h)', detail: 'Crédito expirado • Renueva para mantener la protección' },
+			pt: { badge: 'Expirado (0h)', detail: 'Crédito expirado • Renove para manter a proteção' },
+			de: { badge: 'Abgelaufen (0Std)', detail: 'Abgelaufen • Zum Schutz verlängern' },
+			fr: { badge: 'Expiré (0h)', detail: 'Crédit expiré • Renouvelez pour garder la protection' },
+			zh: { badge: '已过期 (剩余 0h)', detail: '额度已到期 • 请续订以保持群组防护' },
+		};
+		const msg = expiredMap[l] || expiredMap.en;
+		return {
+			isExpired: true,
+			isTrial,
+			totalMs,
+			remainingMs: 0,
+			percentRemaining: 0,
+			shortBadge: msg.badge,
+			detailedText: msg.detail,
+		};
+	}
+
+	const totalMinutes = Math.max(1, Math.floor(remainingMs / 60000));
+	const days = Math.floor(totalMinutes / (60 * 24));
+	const hours = Math.floor((totalMinutes % (60 * 24)) / 60);
+	const mins = totalMinutes % 60;
+	const totalHours = Math.floor(totalMinutes / 60);
+	const percentRemaining = Math.min(100, Math.max(3, Math.round((remainingMs / totalMs) * 100)));
+
+	if (l === 'fa') {
+		const timePart =
+			days > 0
+				? `${days} روز و ${hours} ساعت`
+				: totalHours > 0
+					? `${totalHours} ساعت و ${mins} دقیقه`
+					: `${mins} دقیقه`;
+		const prefix = isTrial ? 'تست رایگان' : 'اشتراک ویژه';
+		return {
+			isExpired: false,
+			isTrial,
+			totalMs,
+			remainingMs,
+			percentRemaining,
+			shortBadge: `⏳ ${timePart} مانده`,
+			detailedText: `${prefix}: ${timePart} از اعتبار شما باقی مانده است`,
+		};
+	}
+
+	if (l === 'ar') {
+		const timePart =
+			days > 0 ? `${days} يوم و ${hours} س` : totalHours > 0 ? `${totalHours} س و ${mins} د` : `${mins} د`;
+		return {
+			isExpired: false,
+			isTrial,
+			totalMs,
+			remainingMs,
+			percentRemaining,
+			shortBadge: `⏳ متبقي ${timePart}`,
+			detailedText: `${isTrial ? 'فترة تجريبية' : 'اشتراك نشط'}: متبقي ${timePart}`,
+		};
+	}
+
+	if (l === 'ru') {
+		const timePart =
+			days > 0 ? `${days}д ${hours}ч` : totalHours > 0 ? `${totalHours}ч ${mins}м` : `${mins}м`;
+		return {
+			isExpired: false,
+			isTrial,
+			totalMs,
+			remainingMs,
+			percentRemaining,
+			shortBadge: `⏳ Осталось ${timePart}`,
+			detailedText: `${isTrial ? 'Пробный период' : 'Подписка'}: осталось ${timePart}`,
+		};
+	}
+
+	const timePart =
+		days > 0 ? `${days}d ${hours}h` : totalHours > 0 ? `${totalHours}h ${mins}m` : `${mins}m`;
+	return {
+		isExpired: false,
+		isTrial,
+		totalMs,
+		remainingMs,
+		percentRemaining,
+		shortBadge: `⏳ ${timePart} left`,
+		detailedText: `${isTrial ? 'Free Trial' : 'Pro Active'}: ${timePart} remaining`,
+	};
 };

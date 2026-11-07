@@ -11,7 +11,7 @@ import {
 } from 'solid-js';
 import { botApi, groupApi, subscriptionApi } from '@/shared/api/bot-management.js';
 import { mockApiLogic } from '@/shared/api/mock-api.js';
-import { uiText } from '@/shared/i18n/group-ui.js';
+import { getRemainingCreditInfo, uiText } from '@/shared/i18n/group-ui.js';
 import { isRtl } from '@/shared/i18n/index.js';
 import { haptic } from '@/shared/lib/haptic.js';
 import { profileSettings, updateSetting } from '@/shared/store/profile.js';
@@ -61,8 +61,12 @@ export const GroupDashboardPage: Component = () => {
 
 	const isGroupLocked = () => (settings()?.quiet_hours as any)?.emergencyLock || false;
 	const isTrial = () => group()?.subscription_status === 'trial';
+	const [nowTick, setNowTick] = createSignal(Date.now());
+	const creditInfo = () => getRemainingCreditInfo(group() as any, nowTick());
 
 	onMount(() => {
+		const timer = setInterval(() => setNowTick(Date.now()), 30000);
+		onCleanup(() => clearInterval(timer));
 		try {
 			backButton.show();
 			const off = backButton.onClick(() => {
@@ -355,33 +359,56 @@ export const GroupDashboardPage: Component = () => {
 							<div
 								class="tg-icon-box"
 								style={{
-									'background-color': isTrial() ? '#F59E0B' : '#34C759',
+									'background-color': creditInfo().isExpired
+										? '#FF3B30'
+										: isTrial()
+											? '#F59E0B'
+											: '#34C759',
 								}}
 							>
 								<span
 									class="material-symbols-outlined text-[18px]"
 									style={{ 'font-variation-settings': '"FILL" 1' }}
 								>
-									{isTrial() ? 'timer' : 'verified'}
+									{creditInfo().isExpired ? 'error' : isTrial() ? 'timer' : 'verified'}
 								</span>
 							</div>
 							<div class="flex flex-col min-w-0">
 								<span class="text-[14.5px] font-bold text-[var(--tg-text)] truncate">
 									{txt().subCardTitle}
 								</span>
-								<span class="text-[12px] text-[var(--tg-hint)] truncate">
-									{isTrial() ? txt().subTrialDesc : txt().subPaidDesc}
+								<span class="text-[12px] text-[var(--tg-hint)] truncate font-medium">
+									{creditInfo().detailedText}
 								</span>
 							</div>
 						</div>
 
 						<span
-							class={`text-[11.5px] font-bold px-2.5 py-1 rounded-lg shrink-0 ${
-								isTrial() ? 'bg-[#F59E0B]/15 text-[#F59E0B]' : 'bg-[#34C759]/15 text-[#34C759]'
+							class={`text-[11.5px] font-bold px-2.5 py-1 rounded-lg shrink-0 font-mono ${
+								creditInfo().isExpired
+									? 'bg-[var(--tg-destructive)]/15 text-[var(--tg-destructive)]'
+									: isTrial()
+										? 'bg-[#F59E0B]/15 text-[#F59E0B]'
+										: 'bg-[#34C759]/15 text-[#34C759]'
 							}`}
 						>
-							{isTrial() ? txt().trialBadge : txt().paidBadge}
+							{creditInfo().shortBadge}
 						</span>
+					</div>
+
+					{/* Visual Remaining Credit Progress Bar */}
+					<div class="w-full h-1.5 rounded-full bg-[var(--tg-secondary-bg)] overflow-hidden">
+						<div
+							class="h-full rounded-full transition-all duration-500"
+							style={{
+								width: `${creditInfo().percentRemaining}%`,
+								'background-color': creditInfo().isExpired
+									? '#FF3B30'
+									: isTrial()
+										? '#F59E0B'
+										: '#34C759',
+							}}
+						/>
 					</div>
 
 					<Show when={group()?.group_link || group()?.bot_username}>

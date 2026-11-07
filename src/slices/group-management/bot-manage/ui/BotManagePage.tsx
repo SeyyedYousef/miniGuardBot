@@ -199,39 +199,6 @@ export const BotManagePage: Component = () => {
 						</Show>
 					</div>
 				</div>
-
-				{/* Default Bot /start & 4 Group Join Onboarding Messages Preview */}
-				<div>
-					<div class="tg-section-header">{txt().botHiddenFlowsTitle}</div>
-					<div class="tg-section p-4 flex flex-col gap-3.5">
-						<div class="flex flex-col gap-1.5">
-							<div class="flex items-center gap-2 text-[13.5px] font-bold text-[var(--tg-text)]">
-								<span class="material-symbols-outlined text-[18px] text-[var(--tg-button)]">
-									smart_toy
-								</span>
-								<span>{txt().childStartPreviewTitle}</span>
-							</div>
-							<div class="p-3 rounded-xl bg-[var(--tg-secondary-bg)] text-[12.5px] text-[var(--tg-text)] whitespace-pre-line leading-relaxed border border-[var(--tg-separator)]">
-								{txt().childStartPreviewBody}
-							</div>
-						</div>
-
-						<div class="flex flex-col gap-1.5 pt-1">
-							<div class="flex items-center gap-2 text-[13.5px] font-bold text-[var(--tg-text)]">
-								<span class="material-symbols-outlined text-[18px] text-[#34C759]">
-									playlist_add_check_circle
-								</span>
-								<span>{txt().join4MsgsTitle}</span>
-							</div>
-							<div class="flex flex-col gap-2 text-[12px] text-[var(--tg-hint)] bg-[var(--tg-secondary-bg)] p-3 rounded-xl border border-[var(--tg-separator)]">
-								<p class="text-[var(--tg-text)]">{txt().joinMsg1}</p>
-								<p class="text-[var(--tg-text)]">{txt().joinMsg2}</p>
-								<p class="text-[var(--tg-text)]">{txt().joinMsg3}</p>
-								<p class="text-[var(--tg-text)]">{txt().joinMsg4}</p>
-							</div>
-						</div>
-					</div>
-				</div>
 			</main>
 
 			<BottomNav />

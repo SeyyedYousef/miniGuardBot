@@ -38,6 +38,12 @@ export interface SystemSettings {
 	trial_hours?: number;
 	monthly_stars_price?: number;
 	max_bots_per_admin?: number;
+	master_start_text?: string;
+	child_start_text?: string;
+	onboarding_msg_1?: string;
+	onboarding_msg_2?: string;
+	onboarding_msg_3?: string;
+	onboarding_msg_4?: string;
 }
 
 export interface BroadcastMessage {

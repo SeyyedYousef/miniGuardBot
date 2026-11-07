@@ -3,7 +3,7 @@ import { backButton } from '@tma.js/sdk-solid';
 import { type Component, createResource, For, onMount, Show } from 'solid-js';
 import type { ManagedBot, ManagedGroup } from '@/shared/api/bot-management.js';
 import { botApi, groupApi } from '@/shared/api/bot-management.js';
-import { uiText } from '@/shared/i18n/group-ui.js';
+import { getRemainingCreditInfo, uiText } from '@/shared/i18n/group-ui.js';
 import { isRtl } from '@/shared/i18n/index.js';
 import { haptic } from '@/shared/lib/haptic.js';
 import { colorScheme, toggleThemeScheme } from '@/shared/lib/tg-theme.js';
@@ -140,7 +140,7 @@ export const DashboardPage: Component = () => {
 							<div class="tg-section">
 								<For each={groups()}>
 									{(group) => {
-										const isTrial = () => (group.subscription_status || 'trial') === 'trial';
+										const credit = () => getRemainingCreditInfo(group as any);
 										const title = () => group.chat_title || (group as any).title || 'Group';
 										const count = () =>
 											Number(
@@ -169,12 +169,14 @@ export const DashboardPage: Component = () => {
 														<span>•</span>
 														<span
 															class={
-																isTrial()
-																	? 'text-[#F59E0B] font-semibold'
-																	: 'text-[#34C759] font-semibold'
+																credit().isExpired
+																	? 'text-[var(--tg-destructive)] font-semibold'
+																	: credit().isTrial
+																		? 'text-[#F59E0B] font-semibold'
+																		: 'text-[#34C759] font-semibold'
 															}
 														>
-															{isTrial() ? txt().trialBadge : txt().paidBadge}
+															{credit().shortBadge}
 														</span>
 													</div>
 													<Show when={group.group_link}>

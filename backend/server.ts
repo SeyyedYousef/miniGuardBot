@@ -489,9 +489,41 @@ const defaultFullSettings = (groupId: string) => ({
 		countResetDays: 0,
 		rewardExemptAfterAdd: true,
 	},
+	mandatory_membership: {
+		forced_add_enabled: false,
+		forced_add_count: 0,
+		force_join_enabled: false,
+		required_channels: [] as string[],
+		verification_enabled: false,
+		exemptions: [] as string[],
+	},
+	custom_texts: {
+		welcomeText: '👋 {user} به «{group}» خوش آمدید.',
+		warningText: '⚠️ {user} | اخطار {count}/{threshold} ({reason})',
+		rulesText: '📜 قوانین: احترام متقابل • ارسال لینک و اسپم ممنوع',
+		silenceStartText: '🌙 ساعات سکوت فعال شد.',
+		silenceEndText: '☀️ ساعات سکوت پایان یافت.',
+		forceJoinText: '📢 {user}، برای چت ابتدا عضو شوید: {channel_names}',
+		forceAddText: '👥 {user}، برای چت {remainadd} نفر دعوت کنید ({added}/{number}).',
+		inlineButtons: [] as Array<{ id: string; title: string; url: string }>,
+	},
 	general: {
+		botEnabled: true,
 		timezone: 'Asia/Tehran',
 		language: 'fa',
+		welcomeMessage: true,
+		warningMessage: true,
+		silentModeAnnouncements: true,
+		hideJoinLeave: true,
+		autoDeleteBot: true,
+		autoDeleteDelay: 60,
+		ephemeralWelcome: true,
+		ephemeralWarnings: true,
+		countAdminsInStats: false,
+		defaultPenalty: 'delete',
+		autoWarning: false,
+		warningThreshold: 3,
+		warningFinalPenalty: 'mute_24h',
 		deleteSystemMessages: true,
 		antiAnonChannel: true,
 		autoUnpinChannelPosts: false,
@@ -626,13 +658,19 @@ const userMessageHistory = new Map<string, number[]>(); // `${chatId}:${userId}`
 const activeChildPollingTokens = new Set<string>();
 const ownerLoginAttempts = new Map<string, { count: number; resetAt: number }>();
 
-let ownerSystemSettings = {
+let ownerSystemSettings: Record<string, any> = {
 	maintenance_mode: false,
 	trial_hours: 24,
 	monthly_stars_price: 100,
 	max_bots_per_admin: 20,
 	support_username: 'MiniGuardSupport',
 	announcement_text: '۲۴ ساعت تست رایگان و سپس تنها ۱۰۰ استارز ماهانه برای هر گروه!',
+	master_start_text: '',
+	child_start_text: '',
+	onboarding_msg_1: '',
+	onboarding_msg_2: '',
+	onboarding_msg_3: '',
+	onboarding_msg_4: '',
 };
 
 // ─── Persistent Disk Store (data/store.json) ────────────────────────────────
@@ -959,19 +997,33 @@ function syncRuntimeFromFullSettings(s: GroupRuntimeSettings) {
 	const full = s.fullSettings;
 	if (!full) return;
 	const cr = full.content_restrictions || {};
-	if (cr.removeLinks?.enabled !== undefined) s.removeLinks = Boolean(cr.removeLinks.enabled);
-	if (cr.blockBots?.enabled !== undefined) s.blockBots = Boolean(cr.blockBots.enabled);
-	if (cr.blockExternalReplies?.enabled !== undefined) {
-		s.blockCrossChatReplies = Boolean(cr.blockExternalReplies.enabled);
+	if (cr.removeLinks !== undefined) {
+		s.removeLinks =
+			typeof cr.removeLinks === 'boolean' ? cr.removeLinks : Boolean(cr.removeLinks?.enabled);
 	}
-	if (cr.blockStories?.enabled !== undefined) {
-		s.blockStoryForwards = Boolean(cr.blockStories.enabled);
+	if (cr.blockBots !== undefined) {
+		s.blockBots =
+			typeof cr.blockBots === 'boolean' ? cr.blockBots : Boolean(cr.blockBots?.enabled);
 	}
-	if (cr.blockCustomEmoji?.enabled !== undefined) {
-		s.blockPremiumCustomEmojis = Boolean(cr.blockCustomEmoji.enabled);
+	const extReply = cr.blockCrossChatReplies ?? cr.blockExternalReplies;
+	if (extReply !== undefined) {
+		s.blockCrossChatReplies =
+			typeof extReply === 'boolean' ? extReply : Boolean(extReply?.enabled);
 	}
-	if (cr.blockSpoilers?.enabled !== undefined) {
-		s.blockSpoilerMessages = Boolean(cr.blockSpoilers.enabled);
+	const storyFwd = cr.blockStoryForwards ?? cr.blockStories;
+	if (storyFwd !== undefined) {
+		s.blockStoryForwards =
+			typeof storyFwd === 'boolean' ? storyFwd : Boolean(storyFwd?.enabled);
+	}
+	const custEmoji = cr.blockPremiumCustomEmojis ?? cr.blockCustomEmoji;
+	if (custEmoji !== undefined) {
+		s.blockPremiumCustomEmojis =
+			typeof custEmoji === 'boolean' ? custEmoji : Boolean(custEmoji?.enabled);
+	}
+	const spoilers = cr.blockSpoilerMessages ?? cr.blockSpoilers;
+	if (spoilers !== undefined) {
+		s.blockSpoilerMessages =
+			typeof spoilers === 'boolean' ? spoilers : Boolean(spoilers?.enabled);
 	}
 	if (full.limits?.floodMessages !== undefined) {
 		s.floodLimit = Number(full.limits.floodMessages) || 5;
@@ -984,6 +1036,9 @@ function syncRuntimeFromFullSettings(s: GroupRuntimeSettings) {
 	}
 	if (full.quiet_hours?.enabled !== undefined) {
 		s.quietHoursActive = Boolean(full.quiet_hours.enabled);
+	}
+	if (Array.isArray(full.quiet_hours?.periods) && full.quiet_hours.periods.length > 0) {
+		s.quietHoursActive = true;
 	}
 }
 
@@ -1176,13 +1231,26 @@ export const telegram = {
 			{ chat_id: chatId },
 			token,
 		),
+
+	getChatMember: (chatId: number | string, userId: number, token?: string) =>
+		callTelegramApi<{ user: { id: number; is_bot: boolean }; status: string }>(
+			'getChatMember',
+			{ chat_id: chatId, user_id: userId },
+			token,
+		),
 };
 
-// ─── Sliding-Window Anti-Flood Rate Limiter ────────────────────────────────
+// ─── Sliding-Window Anti-Flood & Duplicate Rate Limiters ───────────────────
+const userDuplicateHistory = new Map<string, Array<{ hash: string; ts: number }>>();
+const userInviteCounter = new Map<string, number>(); // `${chatId}:${userId}` -> invited count
+const lastWelcomeMessageId = new Map<number, number>(); // chatId -> message_id
+const recentWelcomedUsers = new Map<string, number>(); // `${chatId}:${userId}` -> timestamp
+
 function checkUserFlood(chatId: number, userId: number, limit: number, windowSec: number): boolean {
+	if (!limit || limit <= 0) return false;
 	const key = `${chatId}:${userId}`;
 	const now = Date.now();
-	const windowMs = windowSec * 1000;
+	const windowMs = Math.max(1, windowSec) * 1000;
 
 	let timestamps = userMessageHistory.get(key) || [];
 	timestamps = timestamps.filter((t) => now - t <= windowMs);
@@ -1190,6 +1258,646 @@ function checkUserFlood(chatId: number, userId: number, limit: number, windowSec
 	userMessageHistory.set(key, timestamps);
 
 	return timestamps.length > limit;
+}
+
+function checkUserDuplicate(
+	chatId: number,
+	userId: number,
+	text: string,
+	limit: number,
+	windowSec: number,
+): boolean {
+	if (!limit || limit <= 1 || !text || text.trim().length < 2) return false;
+	const key = `${chatId}:${userId}`;
+	const now = Date.now();
+	const windowMs = Math.max(5, windowSec || 60) * 1000;
+	const normalized = text.trim().toLowerCase().slice(0, 200);
+
+	let entries = userDuplicateHistory.get(key) || [];
+	entries = entries.filter((e) => now - e.ts <= windowMs);
+	entries.push({ hash: normalized, ts: now });
+	userDuplicateHistory.set(key, entries);
+
+	const sameCount = entries.filter((e) => e.hash === normalized).length;
+	return sameCount >= limit;
+}
+
+interface BackendMinimalLocalePack {
+	welcomeText: string;
+	warningText: string;
+	rulesText: string;
+	silenceStartText: string;
+	silenceEndText: string;
+	forceJoinText: string;
+	forceAddText: string;
+	floodNotice: string;
+	reportSent: string;
+	banButton: string;
+}
+
+const BACKEND_MINIMAL_PACKS: Record<string, BackendMinimalLocalePack> = {
+	fa: {
+		welcomeText: '👋 {user} به «{group}» خوش آمدید.',
+		warningText: '⚠️ {user} | اخطار {count}/{threshold} ({reason})',
+		rulesText: '📜 قوانین: احترام متقابل • ارسال لینک و اسپم ممنوع',
+		silenceStartText: '🌙 ساعات سکوت فعال است.',
+		silenceEndText: '☀️ ساعات سکوت پایان یافت.',
+		forceJoinText: '📢 {user}، برای چت ابتدا عضو شوید: {channel_names}',
+		forceAddText: '👥 {user}، برای چت {remainadd} نفر دعوت کنید ({added}/{number}).',
+		floodNotice: '⚡ {user} | ۱۵ دقیقه سکوت (ارسال رگباری)',
+		reportSent: '🚨 گزارش پیام {target} توسط {user} ثبت شد.',
+		banButton: '🚫 اخراج متخلف',
+	},
+	en: {
+		welcomeText: '👋 Welcome to {group}, {user}!',
+		warningText: '⚠️ {user} | Warning {count}/{threshold} ({reason})',
+		rulesText: '📜 Rules: Be respectful • No spam or links',
+		silenceStartText: '🌙 Quiet hours active.',
+		silenceEndText: '☀️ Quiet hours ended.',
+		forceJoinText: '📢 {user}, join first to chat: {channel_names}',
+		forceAddText: '👥 {user}, invite {remainadd} more to chat ({added}/{number}).',
+		floodNotice: '⚡ {user} | Muted 15m (Flood)',
+		reportSent: '🚨 Reported {target} by {user}.',
+		banButton: '🚫 Ban User',
+	},
+	ar: {
+		welcomeText: '👋 أهلاً {user} في «{group}».',
+		warningText: '⚠️ {user} | تحذير {count}/{threshold} ({reason})',
+		rulesText: '📜 القوانين: الاحترام المتبادل • يمنع الروابط والسبام',
+		silenceStartText: '🌙 ساعات الهدوء نشطة.',
+		silenceEndText: '☀️ انتهى وقت الهدوء.',
+		forceJoinText: '📢 {user}، اشترك أولاً للمحادثة: {channel_names}',
+		forceAddText: '👥 {user}، قم بدعوة {remainadd} عضو للمحادثة ({added}/{number}).',
+		floodNotice: '⚡ {user} | كتم 15 دقيقة (تكرار)',
+		reportSent: '🚨 تم الإبلاغ عن {target} بواسطة {user}.',
+		banButton: '🚫 حظر المخالف',
+	},
+	ru: {
+		welcomeText: '👋 {user}, добро пожаловать в «{group}»!',
+		warningText: '⚠️ {user} | Предупреждение {count}/{threshold} ({reason})',
+		rulesText: '📜 Правила: Уважение • Без спама и ссылок',
+		silenceStartText: '🌙 Тихий час активен.',
+		silenceEndText: '☀️ Тихий час завершен.',
+		forceJoinText: '📢 {user}, подпишитесь для общения: {channel_names}',
+		forceAddText: '👥 {user}, пригласите еще {remainadd} чел. ({added}/{number}).',
+		floodNotice: '⚡ {user} | Мут 15м (Флуд)',
+		reportSent: '🚨 Жалоба на {target} от {user}.',
+		banButton: '🚫 Забанить',
+	},
+	tr: {
+		welcomeText: '👋 {group} grubuna hoş geldin, {user}!',
+		warningText: '⚠️ {user} | Uyarı {count}/{threshold} ({reason})',
+		rulesText: '📜 Kurallar: Saygılı olun • Spam ve link yasaktır',
+		silenceStartText: '🌙 Sessiz saatler aktif.',
+		silenceEndText: '☀️ Sessiz saatler sona erdi.',
+		forceJoinText: '📢 {user}, yazmak için katılın: {channel_names}',
+		forceAddText: '👥 {user}, yazmak için {remainadd} kişi davet edin ({added}/{number}).',
+		floodNotice: '⚡ {user} | 15dk susturuldu (Flood)',
+		reportSent: '🚨 {target}, {user} tarafından bildirildi.',
+		banButton: '🚫 Yasakla',
+	},
+};
+
+function getBackendMinimalPack(lang?: string): BackendMinimalLocalePack {
+	const l = (lang || 'fa').toLowerCase().slice(0, 2);
+	return BACKEND_MINIMAL_PACKS[l] || BACKEND_MINIMAL_PACKS.en;
+}
+
+const LEGACY_CUSTOM_TEXT_SET = new Set([
+	'👋 Welcome {user}',
+	'⚠️ {user} | Warning {count}/{threshold} ▫️ {reason}',
+	'🔒 Quiet mode activated',
+	'🔓 Quiet mode deactivated',
+	'📜 Rules: Respect others • No spam or links',
+	'📢 {user}, join required channels to chat:\n{channel_names}',
+	'👥 {user}, invite {remainadd} member(s) to chat ({added}/{number})',
+	'سلام {name} عزیز! به گروه {group} خوش آمدی 🌹',
+]);
+
+function resolveCustomTemplate(
+	savedValue: string | undefined,
+	fallbackValue: string,
+): string {
+	if (!savedValue || !savedValue.trim() || LEGACY_CUSTOM_TEXT_SET.has(savedValue.trim())) {
+		return fallbackValue;
+	}
+	return savedValue;
+}
+
+function formatGroupTemplate(
+	template: string,
+	vars: {
+		user?: string;
+		name?: string;
+		id?: number | string;
+		group?: string;
+		time?: string;
+		reason?: string;
+		count?: number | string;
+		threshold?: number | string;
+		channel_names?: string;
+		remainadd?: number | string;
+		added?: number | string;
+		number?: number | string;
+	},
+): string {
+	const userStr = escapeHtml(vars.user || vars.name || 'کاربر');
+	const groupStr = escapeHtml(vars.group || 'گروه');
+	const nowTime =
+		vars.time ||
+		new Intl.DateTimeFormat('en-GB', {
+			timeZone: 'Asia/Tehran',
+			hour: '2-digit',
+			minute: '2-digit',
+		}).format(new Date());
+
+	return template
+		.replace(/\{user\}/gi, `<b>${userStr}</b>`)
+		.replace(/\{name\}/gi, `<b>${userStr}</b>`)
+		.replace(/\{id\}/gi, String(vars.id ?? ''))
+		.replace(/\{group\}/gi, `<b>${groupStr}</b>`)
+		.replace(/\{time\}/gi, nowTime)
+		.replace(/\{reason\}/gi, escapeHtml(vars.reason || ''))
+		.replace(/\{count\}/gi, String(vars.count ?? 1))
+		.replace(/\{threshold\}/gi, String(vars.threshold ?? 3))
+		.replace(/\{channel_names\}/gi, escapeHtml(vars.channel_names || ''))
+		.replace(/\{remainadd\}/gi, String(vars.remainadd ?? 0))
+		.replace(/\{added\}/gi, String(vars.added ?? 0))
+		.replace(/\{number\}/gi, String(vars.number ?? 0));
+}
+
+function getCurrentTimeHHMM(timezone: string = 'Asia/Tehran'): string {
+	try {
+		return new Intl.DateTimeFormat('en-GB', {
+			timeZone: timezone || 'Asia/Tehran',
+			hour: '2-digit',
+			minute: '2-digit',
+			hour12: false,
+		}).format(new Date());
+	} catch {
+		const d = new Date();
+		return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+	}
+}
+
+function isTimeWithinRange(currentHHMM: string, startHHMM: string, endHHMM: string): boolean {
+	if (!startHHMM || !endHHMM) return true;
+	if (startHHMM <= endHHMM) {
+		return currentHHMM >= startHHMM && currentHHMM <= endHHMM;
+	}
+	return currentHHMM >= startHHMM || currentHHMM <= endHHMM;
+}
+
+function isRuleActiveNow(
+	ruleObj: any,
+	currentHHMM: string,
+): { active: boolean; penalty: string } {
+	if (ruleObj === undefined || ruleObj === null) return { active: false, penalty: 'default' };
+	if (typeof ruleObj === 'boolean') return { active: ruleObj, penalty: 'default' };
+	if (typeof ruleObj === 'object') {
+		if (!ruleObj.enabled) return { active: false, penalty: ruleObj.penalty || 'default' };
+		const win = String(ruleObj.window || 'Always');
+		if (win === 'Night') {
+			if (!isTimeWithinRange(currentHHMM, '23:00', '07:00')) {
+				return { active: false, penalty: ruleObj.penalty || 'default' };
+			}
+		} else if (win === 'Custom' && ruleObj.start && ruleObj.end) {
+			if (!isTimeWithinRange(currentHHMM, ruleObj.start, ruleObj.end)) {
+				return { active: false, penalty: ruleObj.penalty || 'default' };
+			}
+		}
+		return { active: true, penalty: ruleObj.penalty || 'default' };
+	}
+	return { active: false, penalty: 'default' };
+}
+
+async function sendWelcomeForNewMember(params: {
+	chatId: number;
+	chatTitle: string;
+	member: { id: number; first_name?: string; last_name?: string; username?: string; is_bot?: boolean };
+	settings: GroupRuntimeSettings;
+	token: string;
+}): Promise<void> {
+	const { chatId, chatTitle, member, settings, token } = params;
+	if (!member || member.is_bot) return;
+
+	// Deduplicate if both new_chat_members and chat_member fire for the same join within 10s
+	const dedupKey = `${chatId}:${member.id}`;
+	const now = Date.now();
+	const prevTs = recentWelcomedUsers.get(dedupKey) || 0;
+	if (now - prevTs < 10000) return;
+	recentWelcomedUsers.set(dedupKey, now);
+
+	const full = settings.fullSettings || defaultFullSettings(settings.groupId);
+	const generalCfg = full.general || {};
+	const welcomeCfg = full.welcome || {};
+	if (generalCfg.botEnabled === false) return;
+	if (generalCfg.welcomeMessage === false || welcomeCfg.enabled === false) return;
+
+	const groupLang = generalCfg.language || settings.language || 'fa';
+	const pack = getBackendMinimalPack(groupLang);
+	const customTexts = full.custom_texts || {};
+
+	const rawTemplate = resolveCustomTemplate(
+		customTexts.welcomeText || welcomeCfg.message,
+		pack.welcomeText,
+	);
+	const displayName =
+		`${member.first_name || ''} ${member.last_name || ''}`.trim() ||
+		(member.username ? `@${member.username}` : 'کاربر');
+
+	const formattedText = formatGroupTemplate(rawTemplate, {
+		user: displayName,
+		name: displayName,
+		id: member.id,
+		group: chatTitle || settings.chatTitle || 'گروه',
+		time: getCurrentTimeHHMM(generalCfg.timezone || 'Asia/Tehran'),
+	});
+
+	const rawButtons = Array.isArray(customTexts.inlineButtons) ? customTexts.inlineButtons : [];
+	const cleanButtons = rawButtons.filter(
+		(b: any) =>
+			b?.title &&
+			b?.url &&
+			/^https?:\/\//i.test(String(b.url).trim()) &&
+			!String(b.url).includes('t.me/MiniGuardBot') &&
+			!String(b.title).includes('@MiniGuardBot'),
+	);
+
+	const replyMarkup =
+		cleanButtons.length > 0
+			? {
+					inline_keyboard: cleanButtons.map((b: any) => [
+						{ text: String(b.title).trim(), url: String(b.url).trim() },
+					]),
+				}
+			: undefined;
+
+	// Clean previous welcome message if enabled
+	if (welcomeCfg.cleanPreviousWelcome !== false) {
+		const prevMsgId = lastWelcomeMessageId.get(chatId);
+		if (prevMsgId) {
+			telegram.deleteMessage(chatId, prevMsgId, token).catch(() => {});
+		}
+	}
+
+	const sent = await telegram.sendMessage(
+		chatId,
+		formattedText,
+		{ reply_markup: replyMarkup },
+		token,
+	);
+	if (sent.ok && sent.result?.message_id) {
+		const msgId = sent.result.message_id;
+		lastWelcomeMessageId.set(chatId, msgId);
+		const shouldAutoDelete =
+			generalCfg.ephemeralWelcome !== false || generalCfg.autoDeleteBot !== false;
+		const delaySec = Math.max(5, Number(generalCfg.autoDeleteDelay || welcomeCfg.autoDeleteSec || 60));
+		if (shouldAutoDelete && process.env.NODE_ENV !== 'test' && !process.env.VITEST) {
+			setTimeout(() => {
+				telegram.deleteMessage(chatId, msgId, token).catch(() => {});
+			}, delaySec * 1000).unref?.();
+		}
+	}
+}
+
+function evaluateGroupContentAndLimits(params: {
+	msg: any;
+	text: string;
+	settings: GroupRuntimeSettings;
+	currentHHMM: string;
+}): { allowed: boolean; reasonFa: string; reasonEn: string; penalty: string } {
+	const { msg, text, settings, currentHHMM } = params;
+	const full = settings.fullSettings || defaultFullSettings(settings.groupId);
+	const cr = full.content_restrictions || {};
+	const lim = full.limits || {};
+
+	// 1. Message Length Limits (LimitsPage: minMessageLength / maxMessageLength / minChars / maxChars)
+	if (text && text.length > 0) {
+		const minLen = Number(lim.minMessageLength ?? lim.minChars ?? 0);
+		const maxLen = Number(lim.maxMessageLength ?? lim.maxChars ?? 0);
+		if (minLen > 0 && text.trim().length < minLen) {
+			return {
+				allowed: false,
+				reasonFa: `کوتاه‌تر از حد مجاز (${minLen} کاراکتر)`,
+				reasonEn: `Too short (min ${minLen} chars)`,
+				penalty: 'delete',
+			};
+		}
+		if (maxLen > 0 && maxLen < 10000 && text.length > maxLen) {
+			return {
+				allowed: false,
+				reasonFa: `طولانی‌تر از حد مجاز (${maxLen} کاراکتر)`,
+				reasonEn: `Too long (max ${maxLen} chars)`,
+				penalty: 'delete',
+			};
+		}
+	}
+
+	const checkRule = (keys: string[]) => {
+		for (const k of keys) {
+			if (cr[k] !== undefined) {
+				const r = isRuleActiveNow(cr[k], currentHHMM);
+				if (r.active) return r;
+			}
+		}
+		return { active: false, penalty: 'default' };
+	};
+
+	// 2. Media Restrictions
+	if (msg.photo) {
+		const r = checkRule(['blockPhotos', 'LockPhotos']);
+		if (r.active) return { allowed: false, reasonFa: 'ارسال تصویر', reasonEn: 'Photo blocked', penalty: r.penalty };
+	}
+	if (msg.video) {
+		const r = checkRule(['blockVideos', 'LockVideos']);
+		if (r.active) return { allowed: false, reasonFa: 'ارسال ویدیو', reasonEn: 'Video blocked', penalty: r.penalty };
+	}
+	if (msg.sticker) {
+		const r = checkRule(['blockStickers', 'LockStickers', 'LockAnimatedStickers']);
+		if (r.active) return { allowed: false, reasonFa: 'ارسال استیکر', reasonEn: 'Sticker blocked', penalty: r.penalty };
+	}
+	if (msg.animation) {
+		const r = checkRule(['blockGifs', 'LockGIFs']);
+		if (r.active) return { allowed: false, reasonFa: 'ارسال گیف', reasonEn: 'GIF blocked', penalty: r.penalty };
+	}
+	if (msg.voice || msg.video_note) {
+		const r = checkRule(['blockVoiceMessages', 'LockVoice', 'LockRoundVideos']);
+		if (r.active) return { allowed: false, reasonFa: 'ارسال ویس/ویدیو مسیج', reasonEn: 'Voice blocked', penalty: r.penalty };
+	}
+	if (msg.audio) {
+		const r = checkRule(['blockAudio', 'LockAudio']);
+		if (r.active) return { allowed: false, reasonFa: 'ارسال فایل صوتی', reasonEn: 'Audio blocked', penalty: r.penalty };
+	}
+	if (msg.document) {
+		const r = checkRule(['blockFiles', 'LockFiles']);
+		if (r.active) return { allowed: false, reasonFa: 'ارسال فایل', reasonEn: 'File blocked', penalty: r.penalty };
+	}
+	if (msg.location || msg.venue) {
+		const r = checkRule(['blockLocations', 'LockLocations', 'LockLiveLocations']);
+		if (r.active) return { allowed: false, reasonFa: 'ارسال لوکیشن', reasonEn: 'Location blocked', penalty: r.penalty };
+	}
+	if (msg.contact) {
+		const r = checkRule(['blockContacts', 'LockContacts']);
+		if (r.active) return { allowed: false, reasonFa: 'ارسال مخاطب', reasonEn: 'Contact blocked', penalty: r.penalty };
+	}
+	if (
+		(msg.photo || msg.video || msg.document || msg.animation || msg.audio) &&
+		(!msg.caption || !msg.caption.trim())
+	) {
+		const r = checkRule(['blockCaptionless']);
+		if (r.active) return { allowed: false, reasonFa: 'رسانه بدون کپشن', reasonEn: 'Captionless media', penalty: r.penalty };
+	}
+
+	// 3. Interactions & Forwards
+	const isForwarded = Boolean(
+		msg.forward_origin || msg.forward_from || msg.forward_from_chat || msg.forward_date,
+	);
+	if (isForwarded) {
+		const rAll = checkRule(['blockForwards']);
+		if (rAll.active) {
+			return { allowed: false, reasonFa: 'فوروارد پیام', reasonEn: 'Forward blocked', penalty: rAll.penalty };
+		}
+		const isChannelFwd =
+			msg.forward_from_chat?.type === 'channel' ||
+			msg.forward_origin?.type === 'channel' ||
+			Boolean(msg.sender_chat);
+		if (isChannelFwd) {
+			const rChan = checkRule(['restrictChannelForwards', 'blockChannelForwards']);
+			if (rChan.active) {
+				return { allowed: false, reasonFa: 'فوروارد از کانال', reasonEn: 'Channel forward', penalty: rChan.penalty };
+			}
+		}
+	}
+	if (msg.via_bot) {
+		const r = checkRule(['blockAppMessages', 'blockInlineBots', 'blockViaBot']);
+		if (r.active) return { allowed: false, reasonFa: 'ربات اینلاین', reasonEn: 'Inline bot', penalty: r.penalty };
+	}
+	if (msg.poll) {
+		const r = checkRule(['blockPolls', 'LockPolls']);
+		if (r.active) return { allowed: false, reasonFa: 'ارسال نظرسنجی', reasonEn: 'Poll blocked', penalty: r.penalty };
+	}
+	if (msg.game) {
+		const r = checkRule(['blockGames', 'LockGames']);
+		if (r.active) return { allowed: false, reasonFa: 'ارسال بازی', reasonEn: 'Game blocked', penalty: r.penalty };
+	}
+	if (msg.reply_markup?.inline_keyboard) {
+		const r = checkRule(['blockInlineKeyboards']);
+		if (r.active) return { allowed: false, reasonFa: 'دکمه شیشه‌ای', reasonEn: 'Inline keyboard', penalty: r.penalty };
+	}
+	if (msg.reply_to_message && !msg.forum_topic_created) {
+		const r = checkRule(['blockUserReplies', 'blockQuoteReplies']);
+		if (r.active) return { allowed: false, reasonFa: 'ریپلای غیرمجاز', reasonEn: 'Reply blocked', penalty: r.penalty };
+	}
+
+	// 4. Text, Links, Mentions, Hashtags, Phones, Scripts & Keywords
+	if (text) {
+		if (text.startsWith('/') || text.startsWith('!')) {
+			const r = checkRule(['blockSlashCommands', 'blockCommands']);
+			if (r.active) return { allowed: false, reasonFa: 'ارسال دستور ربات', reasonEn: 'Command blocked', penalty: r.penalty };
+		}
+		if (/#[\p{L}\p{N}_]+/u.test(text)) {
+			const r = checkRule(['blockHashtags', 'removeHashtags']);
+			if (r.active) return { allowed: false, reasonFa: 'ارسال هشتگ', reasonEn: 'Hashtag blocked', penalty: r.penalty };
+		}
+		if (/@[A-Za-z0-9_]{4,}/i.test(text)) {
+			const r = checkRule(['blockUsernames', 'removeMentions']);
+			if (r.active) return { allowed: false, reasonFa: 'ارسال یوزرنیم/منشن', reasonEn: 'Mention blocked', penalty: r.penalty };
+		}
+		if (/(?:\+?\d{1,3}[\s-]?)?(?:\(?\d{3,4}\)?[\s-]?)?\d{3}[\s-]?\d{4}/.test(text)) {
+			const r = checkRule(['blockPhoneNumbers']);
+			if (r.active) return { allowed: false, reasonFa: 'شماره تماس', reasonEn: 'Phone number', penalty: r.penalty };
+		}
+		if (/\b[a-z0-9-]+\.(?:com|org|net|io|ir|me|co|info|xyz|app|dev|gg|link|shop|top|club|site)\b/i.test(text)) {
+			const r = checkRule(['blockDomains', 'removeShortLinks']);
+			if (r.active) return { allowed: false, reasonFa: 'ارسال دامنه/سایت', reasonEn: 'Domain blocked', penalty: r.penalty };
+		}
+		const hasEmoji = /\p{Extended_Pictographic}/u.test(text);
+		if (hasEmoji) {
+			const rAllEmoji = checkRule(['blockEmojis']);
+			if (rAllEmoji.active) return { allowed: false, reasonFa: 'ارسال ایموجی', reasonEn: 'Emoji blocked', penalty: rAllEmoji.penalty };
+			const stripped = text.replace(/[\p{Extended_Pictographic}\uFE0F\u200D\s]/gu, '');
+			if (stripped.length === 0) {
+				const rOnly = checkRule(['blockEmojiOnly', 'blockEmojisOnly']);
+				if (rOnly.active) return { allowed: false, reasonFa: 'پیام فقط ایموجی', reasonEn: 'Emoji-only', penalty: rOnly.penalty };
+			}
+		}
+		if (/[A-Za-z]/.test(text)) {
+			const r = checkRule(['blockLatinLetters']);
+			if (r.active) return { allowed: false, reasonFa: 'حروف لاتین/انگلیسی', reasonEn: 'Latin letters', penalty: r.penalty };
+		}
+		if (/[\u0600-\u06FF]/.test(text)) {
+			const r = checkRule(['blockPersianArabicLetters', 'blockArabicScript']);
+			if (r.active) return { allowed: false, reasonFa: 'حروف فارسی/عربی', reasonEn: 'Persian/Arabic script', penalty: r.penalty };
+		}
+		if (/[\u0400-\u04FF]/.test(text)) {
+			const r = checkRule(['blockCyrillicLetters', 'blockCyrillicScript']);
+			if (r.active) return { allowed: false, reasonFa: 'حروف سیریلیک/روسی', reasonEn: 'Cyrillic script', penalty: r.penalty };
+		}
+		if (/[\u4E00-\u9FFF]/.test(text)) {
+			const r = checkRule(['blockChineseCharacters', 'blockChineseScript']);
+			if (r.active) return { allowed: false, reasonFa: 'کاراکتر چینی', reasonEn: 'Chinese characters', penalty: r.penalty };
+		}
+		// Banned Keywords (ContentRestrictionsPage: bannedKeywords + warnings.blacklistedWords)
+		const lowerText = text.toLowerCase();
+		const bannedList: string[] = [
+			...(Array.isArray(cr.bannedKeywords) ? cr.bannedKeywords : []),
+			...(Array.isArray(full.warnings?.blacklistedWords) ? full.warnings.blacklistedWords : []),
+		];
+		for (const kw of bannedList) {
+			const cleanKw = String(kw || '').trim().toLowerCase();
+			if (cleanKw && lowerText.includes(cleanKw)) {
+				return { allowed: false, reasonFa: 'کلمه ممنوعه', reasonEn: 'Banned keyword', penalty: 'default' };
+			}
+		}
+		// Required Keywords
+		const reqList: string[] = Array.isArray(cr.requiredKeywords) ? cr.requiredKeywords : [];
+		if (reqList.length > 0) {
+			const hasRequired = reqList.some((kw) => {
+				const cleanKw = String(kw || '').trim().toLowerCase();
+				return cleanKw && lowerText.includes(cleanKw);
+			});
+			if (!hasRequired) {
+				return { allowed: false, reasonFa: 'عدم وجود کلمه الزامی', reasonEn: 'Missing required keyword', penalty: 'delete' };
+			}
+		}
+	}
+
+	return { allowed: true, reasonFa: '', reasonEn: '', penalty: 'default' };
+}
+
+async function sendAutoDeletingNotice(
+	chatId: number,
+	htmlText: string,
+	settings: GroupRuntimeSettings,
+	token: string,
+	fallbackDelaySec: number = 15,
+	replyMarkup?: any,
+): Promise<void> {
+	const full = settings.fullSettings || defaultFullSettings(settings.groupId);
+	const generalCfg = full.general || {};
+	const sent = await telegram.sendMessage(
+		chatId,
+		htmlText,
+		{ reply_markup: replyMarkup },
+		token,
+	);
+	if (sent.ok && sent.result?.message_id) {
+		const msgId = sent.result.message_id;
+		const shouldAutoDelete =
+			generalCfg.ephemeralWarnings !== false || generalCfg.autoDeleteBot !== false;
+		const delaySec = Math.max(
+			5,
+			Math.min(120, Number(generalCfg.autoDeleteDelay || fallbackDelaySec)),
+		);
+		if (shouldAutoDelete && process.env.NODE_ENV !== 'test' && !process.env.VITEST) {
+			setTimeout(() => {
+				telegram.deleteMessage(chatId, msgId, token).catch(() => {});
+			}, delaySec * 1000).unref?.();
+		}
+	}
+}
+
+async function applyViolationPenaltyAndNotify(params: {
+	chatId: number;
+	fromUser: any;
+	settings: GroupRuntimeSettings;
+	analytics: GroupAnalyticsData;
+	todayStat: GroupDailyStatEntry;
+	reasonFa: string;
+	reasonEn: string;
+	rulePenalty: string;
+	token: string;
+}): Promise<void> {
+	const {
+		chatId,
+		fromUser,
+		settings,
+		analytics,
+		todayStat,
+		reasonFa,
+		reasonEn,
+		rulePenalty,
+		token,
+	} = params;
+	if (!fromUser) return;
+
+	const full = settings.fullSettings || defaultFullSettings(settings.groupId);
+	const generalCfg = full.general || {};
+	const customTexts = full.custom_texts || {};
+	const groupLang = generalCfg.language || settings.language || 'fa';
+	const pack = getBackendMinimalPack(groupLang);
+	const reasonText = groupLang === 'fa' || groupLang === 'ar' ? reasonFa : reasonEn || reasonFa;
+
+	const uidStr = String(fromUser.id);
+	const userName =
+		`${fromUser.first_name || ''} ${fromUser.last_name || ''}`.trim() || 'کاربر';
+	if (!analytics.topUsers[uidStr]) {
+		analytics.topUsers[uidStr] = {
+			id: fromUser.id,
+			name: userName,
+			username: fromUser.username,
+			messages: 1,
+			warns: 0,
+		};
+	}
+	analytics.topUsers[uidStr].warns += 1;
+	analytics.warningsIssued += 1;
+	todayStat.warnings_issued += 1;
+
+	const warnCount = analytics.topUsers[uidStr].warns;
+	const warnThreshold = Math.max(
+		1,
+		Number(generalCfg.warningThreshold || full.warnings?.maxWarnings || 3),
+	);
+
+	// Resolve effective penalty
+	let effectivePenalty =
+		rulePenalty && rulePenalty !== 'default'
+			? rulePenalty
+			: String(generalCfg.defaultPenalty || 'delete');
+
+	if (
+		(generalCfg.autoWarning || effectivePenalty === 'warn') &&
+		warnCount >= warnThreshold
+	) {
+		effectivePenalty = String(generalCfg.warningFinalPenalty || full.warnings?.penalty || 'mute_24h');
+		analytics.topUsers[uidStr].warns = 0;
+	}
+
+	if (effectivePenalty === 'mute' || effectivePenalty === 'mute_1h') {
+		const until = Math.floor(Date.now() / 1000) + 3600;
+		await telegram.restrictChatMember(chatId, fromUser.id, { can_send_messages: false }, until, token);
+		analytics.mutedUsers += 1;
+		todayStat.muted_users += 1;
+	} else if (effectivePenalty === 'mute_24h') {
+		const until = Math.floor(Date.now() / 1000) + 86400;
+		await telegram.restrictChatMember(chatId, fromUser.id, { can_send_messages: false }, until, token);
+		analytics.mutedUsers += 1;
+		todayStat.muted_users += 1;
+	} else if (effectivePenalty === 'kick') {
+		await telegram.banChatMember(chatId, fromUser.id, { revoke_messages: false }, token);
+		await telegram.unbanChatMember(chatId, fromUser.id, token);
+	} else if (effectivePenalty === 'ban') {
+		await telegram.banChatMember(chatId, fromUser.id, { revoke_messages: true }, token);
+		analytics.bannedUsers += 1;
+		todayStat.banned_users += 1;
+	}
+
+	// Send minimal localized warning message if enabled
+	if (generalCfg.warningMessage !== false) {
+		const rawWarnTpl = resolveCustomTemplate(customTexts.warningText, pack.warningText);
+		const formattedWarn = formatGroupTemplate(rawWarnTpl, {
+			user: userName,
+			name: userName,
+			id: fromUser.id,
+			group: settings.chatTitle,
+			reason: reasonText,
+			count: warnCount,
+			threshold: warnThreshold,
+		});
+		await sendAutoDeletingNotice(chatId, formattedWarn, settings, token, 10);
+	}
 }
 
 // ─── Telegram Update Handler ───────────────────────────────────────────────
@@ -1277,6 +1985,32 @@ export async function processTelegramUpdate(
 				for (const msg of onboarding) {
 					await telegram.sendMessage(chatId, msg.text, { reply_markup: msg.reply_markup }, token);
 				}
+			}
+			return;
+		}
+
+		// 2.5 Handle Supergroup Member Join Events via chat_member update
+		if (update.chat_member) {
+			const cm = update.chat_member;
+			const chatId = cm.chat?.id;
+			const oldStatus = cm.old_chat_member?.status;
+			const newStatus = cm.new_chat_member?.status;
+			const joinedUser = cm.new_chat_member?.user;
+			if (
+				chatId &&
+				joinedUser &&
+				!joinedUser.is_bot &&
+				(oldStatus === 'left' || oldStatus === 'kicked' || !oldStatus) &&
+				(newStatus === 'member' || newStatus === 'restricted')
+			) {
+				const settings = getGroupSettings(chatId, cm.chat?.title);
+				await sendWelcomeForNewMember({
+					chatId,
+					chatTitle: cm.chat?.title || settings.chatTitle,
+					member: joinedUser,
+					settings,
+					token,
+				});
 			}
 			return;
 		}
@@ -1414,8 +2148,8 @@ export async function processTelegramUpdate(
 			return;
 		}
 
-		// 4. Handle Incoming Messages
-		const msg = update.message;
+		// 4. Handle Incoming Messages (including edited_message so edited spam/links are also caught!)
+		const msg = update.message || update.edited_message;
 		if (!msg?.chat) return;
 
 		const chatId = msg.chat.id;
@@ -1480,17 +2214,26 @@ export async function processTelegramUpdate(
 						groupLink: childBotMeta.bound_group_link || 'https://t.me/MiniGuardBot',
 						miniAppUrl: MINI_APP_URL,
 					});
+					const customChildText = ownerSystemSettings.child_start_text
+						? formatGroupTemplate(String(ownerSystemSettings.child_start_text), {
+								user: fromUser?.first_name || 'کاربر',
+								group: childBotMeta.bound_group_title || childBotMeta.bot_name,
+							})
+						: childStart.text;
 					await telegram.sendMessage(
 						chatId,
-						childStart.text,
+						customChildText,
 						{ reply_markup: childStart.reply_markup },
 						token,
 					);
 				} else {
 					const startMsg = buildMasterBotStartMessage(lang, MINI_APP_URL);
+					const customMasterText = ownerSystemSettings.master_start_text
+						? String(ownerSystemSettings.master_start_text)
+						: startMsg.text;
 					await telegram.sendMessage(
 						chatId,
-						startMsg.text,
+						customMasterText,
 						{ reply_markup: startMsg.reply_markup },
 						token,
 					);
@@ -1504,9 +2247,27 @@ export async function processTelegramUpdate(
 			const settings = getGroupSettings(chatId, msg.chat.title);
 			const analytics = getOrCreateGroupAnalytics(settings);
 			const todayStat = getOrCreateDailyStatEntry(analytics);
-			const generalCfg = settings.fullSettings?.general || {};
+			const full = settings.fullSettings || defaultFullSettings(settings.groupId);
+			const generalCfg = full.general || {};
+			const crCfg = full.content_restrictions || {};
+			const groupLang = generalCfg.language || settings.language || fromUser?.language_code || 'fa';
+			const pack = getBackendMinimalPack(groupLang);
 
-			// Track real member joins & leaves
+			// Populate admin cache if empty
+			if (settings.adminUserIds.length === 0) {
+				const admins = await telegram.getChatAdministrators(chatId, token);
+				if (admins.ok && Array.isArray(admins.result)) {
+					settings.adminUserIds = admins.result.map((a) => a.user.id);
+				}
+			}
+			const isAdmin = fromUser ? settings.adminUserIds.includes(fromUser.id) : false;
+
+			// If master bot switch is turned off in General Settings, skip moderation
+			if (generalCfg.botEnabled === false) {
+				return;
+			}
+
+			// 1. Handle Member Joins (new_chat_members): Bot Blocking, Invite Counting, Service Deletion & Welcome Message
 			if (Array.isArray(msg.new_chat_members) && msg.new_chat_members.length > 0) {
 				const addedCount = msg.new_chat_members.length;
 				analytics.newMembers += addedCount;
@@ -1517,7 +2278,61 @@ export async function processTelegramUpdate(
 						mg.member_count = mg.members_count;
 					}
 				}
+
+				const currentHHMM = getCurrentTimeHHMM(generalCfg.timezone || 'Asia/Tehran');
+				const blockBotsActive =
+					settings.blockBots ||
+					isRuleActiveNow(crCfg.blockBots, currentHHMM).active;
+				const removeBotInvitersActive =
+					isRuleActiveNow(crCfg.removeBotInviters ?? crCfg.blockBotInvites, currentHHMM).active;
+
+				let humanAddedByInviter = 0;
+				for (const newMember of msg.new_chat_members) {
+					if (newMember.is_bot) {
+						// Kick unauthorized bots added by non-admins
+						if (!isAdmin && blockBotsActive) {
+							await telegram.banChatMember(chatId, newMember.id, { revoke_messages: true }, token);
+							if (removeBotInvitersActive && fromUser && !fromUser.is_bot) {
+								await telegram.banChatMember(chatId, fromUser.id, { revoke_messages: false }, token);
+								await telegram.unbanChatMember(chatId, fromUser.id, token);
+							}
+						}
+					} else {
+						if (fromUser && fromUser.id !== newMember.id) {
+							humanAddedByInviter += 1;
+						}
+						await sendWelcomeForNewMember({
+							chatId,
+							chatTitle: msg.chat.title || settings.chatTitle,
+							member: newMember,
+							settings,
+							token,
+						});
+					}
+				}
+
+				// Credit inviter for Mandatory Add (forceAdd)
+				if (fromUser && humanAddedByInviter > 0) {
+					const invKey = `${chatId}:${fromUser.id}`;
+					userInviteCounter.set(
+						invKey,
+						(userInviteCounter.get(invKey) || 0) + humanAddedByInviter,
+					);
+				}
+
+				// Delete Join Service Message if hideJoinLeave / deleteSystemMessages is enabled
+				if (
+					generalCfg.hideJoinLeave !== false ||
+					generalCfg.deleteSystemMessages !== false ||
+					isRuleActiveNow(crCfg.removeSystemMsgs, currentHHMM).active
+				) {
+					await telegram.deleteMessage(chatId, msg.message_id, token).catch(() => {});
+				}
+				savePersistentStore();
+				return;
 			}
+
+			// 2. Handle Member Leave Service Message
 			if (msg.left_chat_member) {
 				analytics.membersLeft += 1;
 				todayStat.left_members += 1;
@@ -1527,31 +2342,52 @@ export async function processTelegramUpdate(
 						mg.member_count = mg.members_count;
 					}
 				}
+				const currentHHMM = getCurrentTimeHHMM(generalCfg.timezone || 'Asia/Tehran');
+				if (
+					generalCfg.hideJoinLeave !== false ||
+					generalCfg.deleteSystemMessages !== false ||
+					isRuleActiveNow(crCfg.removeLeaveMsgs, currentHHMM).active
+				) {
+					await telegram.deleteMessage(chatId, msg.message_id, token).catch(() => {});
+				}
+				savePersistentStore();
+				return;
 			}
 
-			// Track real message telemetry
-			analytics.totalMessages += 1;
-			todayStat.total_messages += 1;
-			const currentHour = new Date().getHours();
-			analytics.hourlyMessages[currentHour] = (analytics.hourlyMessages[currentHour] || 0) + 1;
+			// 3. Handle Pinned Service Message cleanup if enabled
+			if (
+				msg.pinned_message &&
+				isRuleActiveNow(crCfg.removePinMsgs, getCurrentTimeHHMM(generalCfg.timezone || 'Asia/Tehran')).active
+			) {
+				await telegram.deleteMessage(chatId, msg.message_id, token).catch(() => {});
+				return;
+			}
 
-			if (fromUser && !fromUser.is_bot) {
-				const uidStr = String(fromUser.id);
-				const fullName =
-					`${fromUser.first_name || ''} ${fromUser.last_name || ''}`.trim() || 'کاربر';
-				if (!analytics.topUsers[uidStr]) {
-					analytics.topUsers[uidStr] = {
-						id: fromUser.id,
-						name: fullName,
-						username: fromUser.username,
-						messages: 0,
-						warns: 0,
-					};
+			// Track real message telemetry (respect countAdminsInStats setting)
+			if (!isAdmin || generalCfg.countAdminsInStats) {
+				analytics.totalMessages += 1;
+				todayStat.total_messages += 1;
+				const currentHour = new Date().getHours();
+				analytics.hourlyMessages[currentHour] = (analytics.hourlyMessages[currentHour] || 0) + 1;
+
+				if (fromUser && !fromUser.is_bot) {
+					const uidStr = String(fromUser.id);
+					const fullName =
+						`${fromUser.first_name || ''} ${fromUser.last_name || ''}`.trim() || 'کاربر';
+					if (!analytics.topUsers[uidStr]) {
+						analytics.topUsers[uidStr] = {
+							id: fromUser.id,
+							name: fullName,
+							username: fromUser.username,
+							messages: 0,
+							warns: 0,
+						};
+					}
+					analytics.topUsers[uidStr].name = fullName;
+					if (fromUser.username) analytics.topUsers[uidStr].username = fromUser.username;
+					analytics.topUsers[uidStr].messages += 1;
+					todayStat.active_users = Object.keys(analytics.topUsers).length;
 				}
-				analytics.topUsers[uidStr].name = fullName;
-				if (fromUser.username) analytics.topUsers[uidStr].username = fromUser.username;
-				analytics.topUsers[uidStr].messages += 1;
-				todayStat.active_users = Object.keys(analytics.topUsers).length;
 			}
 
 			if (msg.message_thread_id) {
@@ -1568,46 +2404,54 @@ export async function processTelegramUpdate(
 				analytics.topicMessages[tidStr].messages += 1;
 			}
 
-			// Populate admin cache if empty
-			if (settings.adminUserIds.length === 0) {
-				const admins = await telegram.getChatAdministrators(chatId, token);
-				if (admins.ok && Array.isArray(admins.result)) {
-					settings.adminUserIds = admins.result.map((a) => a.user.id);
-				}
+			const trimmedText = text.trim();
+
+			// Handle Public /rules or قوانین Command
+			if (/^([/!]rules)\b/i.test(trimmedText) || /^قوانین(\s|$)/.test(trimmedText)) {
+				const rawRules = resolveCustomTemplate(
+					full.custom_texts?.rulesText,
+					pack.rulesText,
+				);
+				const formattedRules = formatGroupTemplate(rawRules, {
+					user: fromUser?.first_name || 'کاربر',
+					group: settings.chatTitle,
+				});
+				await sendAutoDeletingNotice(chatId, formattedRules, settings, token, 45);
+				return;
 			}
 
-			const isAdmin = fromUser ? settings.adminUserIds.includes(fromUser.id) : false;
-
 			// Handle Public /report Command for Regular Members (if enabled in General Settings)
-			const trimmedText = text.trim();
 			if (
 				generalCfg.publicReportCommand !== false &&
 				(/^([/!]report)\b/i.test(trimmedText) || /^گزارش(\s|$)/.test(trimmedText)) &&
 				msg.reply_to_message?.from
 			) {
 				const reportedUser = msg.reply_to_message.from;
-				const reporterName = fromUser?.first_name || 'کاربر';
-				const reportedName =
-					`${reportedUser.first_name || ''} ${reportedUser.last_name || ''}`.trim() || 'کاربر';
-				await telegram.sendMessage(
+				const reporterName = escapeHtml(fromUser?.first_name || 'کاربر');
+				const reportedName = escapeHtml(
+					`${reportedUser.first_name || ''} ${reportedUser.last_name || ''}`.trim() || 'کاربر',
+				);
+				const reportNotice = pack.reportSent
+					.replace('{target}', `<b>${reportedName}</b>`)
+					.replace('{user}', `<b>${reporterName}</b>`);
+				await sendAutoDeletingNotice(
 					chatId,
-					`🚨 گزارش تخلف پیام کاربر <b>${reportedName}</b> توسط <b>${reporterName}</b> ثبت و برای مدیران گروه ارسال شد.`,
-					{
-						reply_markup:
-							generalCfg.inlineActionButtons !== false
-								? {
-										inline_keyboard: [
-											[
-												{
-													text: '🚫 اخراج متخلف (Ban)',
-													callback_data: `mg:ban:${reportedUser.id}`,
-												},
-											],
-										],
-									}
-								: undefined,
-					},
+					reportNotice,
+					settings,
 					token,
+					30,
+					generalCfg.inlineActionButtons !== false
+						? {
+								inline_keyboard: [
+									[
+										{
+											text: pack.banButton,
+											callback_data: `mg:ban:${reportedUser.id}`,
+										},
+									],
+								],
+							}
+						: undefined,
 				);
 				return;
 			}
@@ -1635,11 +2479,9 @@ export async function processTelegramUpdate(
 				const showInlineBtns = generalCfg.inlineActionButtons !== false;
 
 				if (parsedCmd.commandId === 'panel') {
-					const groupLang = resolveBotLang(
-						settings.general?.language || settings.language || fromUser?.language_code || 'fa',
-					);
+					const resolvedLang = resolveBotLang(groupLang);
 					const panelMsg = buildInChatControlPanelMessage({
-						lang: groupLang,
+						lang: resolvedLang,
 						groupId: settings.groupId,
 						groupTitle: settings.chatTitle,
 						emergencyLock: settings.emergencyLock,
@@ -1672,16 +2514,15 @@ export async function processTelegramUpdate(
 						fromUser?.id,
 					);
 					savePersistentStore();
-					await telegram.sendMessage(
+					await sendAutoDeletingNotice(
 						chatId,
 						parsedCmd.responsePreviewFa,
-						{
-							reply_markup:
-								showInlineBtns && parsedCmd.inlineButtons
-									? { inline_keyboard: parsedCmd.inlineButtons }
-									: undefined,
-						},
+						settings,
 						token,
+						15,
+						showInlineBtns && parsedCmd.inlineButtons
+							? { inline_keyboard: parsedCmd.inlineButtons }
+							: undefined,
 					);
 					return;
 				}
@@ -1704,16 +2545,15 @@ export async function processTelegramUpdate(
 						fromUser?.id,
 					);
 					savePersistentStore();
-					await telegram.sendMessage(
+					await sendAutoDeletingNotice(
 						chatId,
 						parsedCmd.responsePreviewFa,
-						{
-							reply_markup:
-								showInlineBtns && parsedCmd.inlineButtons
-									? { inline_keyboard: parsedCmd.inlineButtons }
-									: undefined,
-						},
+						settings,
 						token,
+						15,
+						showInlineBtns && parsedCmd.inlineButtons
+							? { inline_keyboard: parsedCmd.inlineButtons }
+							: undefined,
 					);
 					return;
 				}
@@ -1733,13 +2573,13 @@ export async function processTelegramUpdate(
 						0,
 						token,
 					);
-					await telegram.sendMessage(chatId, parsedCmd.responsePreviewFa, {}, token);
+					await sendAutoDeletingNotice(chatId, parsedCmd.responsePreviewFa, settings, token, 12);
 					return;
 				}
 
 				if (parsedCmd.commandId === 'unban' && msg.reply_to_message?.from) {
 					await telegram.unbanChatMember(chatId, msg.reply_to_message.from.id, token);
-					await telegram.sendMessage(chatId, parsedCmd.responsePreviewFa, {}, token);
+					await sendAutoDeletingNotice(chatId, parsedCmd.responsePreviewFa, settings, token, 12);
 					return;
 				}
 
@@ -1753,13 +2593,24 @@ export async function processTelegramUpdate(
 					for (let i = 1; i <= count; i++) {
 						telegram.deleteMessage(chatId, msg.message_id - i, token).catch(() => {});
 					}
-					await telegram.sendMessage(chatId, `🧹 ${count} پیام اخیر پاکسازی شد.`, {}, token);
+					await sendAutoDeletingNotice(chatId, `🧹 ${count} پیام اخیر پاکسازی شد.`, settings, token, 8);
 					return;
 				}
 			}
 
-			// If Emergency Lock is active and user is not admin, delete immediately
-			if (settings.emergencyLock && !isAdmin) {
+			// 4. Emergency Lock & Scheduled Quiet Hours (QuietHoursPage)
+			const qhCfg = full.quiet_hours || {};
+			const currentHHMM = getCurrentTimeHHMM(generalCfg.timezone || 'Asia/Tehran');
+			const qhPeriods: Array<{ start: string; end: string }> = Array.isArray(qhCfg.periods)
+				? qhCfg.periods
+				: Array.isArray(qhCfg.schedules)
+					? qhCfg.schedules
+					: [];
+			const isInQuietPeriod =
+				(settings.quietHoursActive || qhPeriods.length > 0) &&
+				qhPeriods.some((p) => isTimeWithinRange(currentHHMM, p.start, p.end));
+
+			if ((settings.emergencyLock || qhCfg.emergencyLock || isInQuietPeriod) && !isAdmin) {
 				await telegram.deleteMessage(chatId, msg.message_id, token);
 				return;
 			}
@@ -1767,11 +2618,117 @@ export async function processTelegramUpdate(
 			// Exempt admins from firewall checks
 			if (isAdmin) return;
 
-			// Anti-Flood Protection
-			if (
-				fromUser &&
-				checkUserFlood(chatId, fromUser.id, settings.floodLimit, settings.floodWindowSec)
-			) {
+			// 5. Mandatory Membership & Forced Invites (MandatoryPage)
+			const mmCfg = full.mandatory_membership || full.forced_Simembership || {};
+			if (fromUser && !fromUser.is_bot) {
+				const exemptions: string[] = Array.isArray(mmCfg.exemptions)
+					? mmCfg.exemptions
+					: Array.isArray(mmCfg.excludedUsers)
+						? mmCfg.excludedUsers
+						: [];
+				const isExempt = exemptions.some((ex) => {
+					const cleanEx = String(ex || '').trim().replace(/^@/, '').toLowerCase();
+					return (
+						cleanEx === String(fromUser.id) ||
+						(fromUser.username && cleanEx === fromUser.username.toLowerCase())
+					);
+				});
+
+				if (!isExempt) {
+					// 5a. Forced Member Invite Check
+					const forcedAddCount = Number(mmCfg.forced_add_count ?? mmCfg.forcedAddCount ?? 0);
+					const forcedAddEnabled =
+						mmCfg.forced_add_enabled !== undefined
+							? Boolean(mmCfg.forced_add_enabled)
+							: forcedAddCount > 0;
+					if (forcedAddEnabled && forcedAddCount > 0) {
+						const addedSoFar = userInviteCounter.get(`${chatId}:${fromUser.id}`) || 0;
+						if (addedSoFar < forcedAddCount) {
+							await telegram.deleteMessage(chatId, msg.message_id, token);
+							const remain = forcedAddCount - addedSoFar;
+							const rawAddTpl = resolveCustomTemplate(
+								full.custom_texts?.forceAddText,
+								pack.forceAddText,
+							);
+							const notice = formatGroupTemplate(rawAddTpl, {
+								user: fromUser.first_name || 'کاربر',
+								id: fromUser.id,
+								group: settings.chatTitle,
+								remainadd: remain,
+								added: addedSoFar,
+								number: forcedAddCount,
+							});
+							await sendAutoDeletingNotice(chatId, notice, settings, token, 15);
+							return;
+						}
+					}
+
+					// 5b. Force Join Required Channels Check
+					const reqChannels: string[] = Array.isArray(mmCfg.required_channels)
+						? mmCfg.required_channels
+						: Array.isArray(mmCfg.channels)
+							? mmCfg.channels
+							: [];
+					const forceJoinEnabled =
+						mmCfg.force_join_enabled !== undefined
+							? Boolean(mmCfg.force_join_enabled)
+							: reqChannels.length > 0;
+					if (forceJoinEnabled && reqChannels.length > 0) {
+						const missingChannels: string[] = [];
+						for (const rawCh of reqChannels) {
+							const cleanCh = String(rawCh || '')
+								.trim()
+								.replace(/^https?:\/\/t\.me\//i, '@');
+							if (!cleanCh) continue;
+							const targetCh = cleanCh.startsWith('@') || cleanCh.startsWith('-') ? cleanCh : `@${cleanCh}`;
+							const memRes = await telegram.getChatMember(targetCh, fromUser.id, token);
+							if (
+								memRes.ok &&
+								memRes.result?.status &&
+								(memRes.result.status === 'left' || memRes.result.status === 'kicked')
+							) {
+								missingChannels.push(targetCh);
+							}
+						}
+						if (missingChannels.length > 0) {
+							await telegram.deleteMessage(chatId, msg.message_id, token);
+							const rawJoinTpl = resolveCustomTemplate(
+								full.custom_texts?.forceJoinText,
+								pack.forceJoinText,
+							);
+							const notice = formatGroupTemplate(rawJoinTpl, {
+								user: fromUser.first_name || 'کاربر',
+								id: fromUser.id,
+								group: settings.chatTitle,
+								channel_names: missingChannels.join(' , '),
+							});
+							const joinButtons = missingChannels
+								.filter((c) => c.startsWith('@'))
+								.map((c) => [
+									{
+										text: `📢 ${c}`,
+										url: `https://t.me/${c.replace(/^@/, '')}`,
+									},
+								]);
+							await sendAutoDeletingNotice(
+								chatId,
+								notice,
+								settings,
+								token,
+								20,
+								joinButtons.length > 0 ? { inline_keyboard: joinButtons } : undefined,
+							);
+							return;
+						}
+					}
+				}
+			}
+
+			// 6. Anti-Flood & Duplicate Message Rate Limiting (LimitsPage)
+			const limCfg = full.limits || {};
+			const floodMax = Number(limCfg.floodMessages ?? settings.floodLimit ?? 5);
+			const floodWin = Number(limCfg.floodWindow ?? settings.floodWindowSec ?? 5);
+			if (fromUser && checkUserFlood(chatId, fromUser.id, floodMax, floodWin)) {
 				await telegram.deleteMessage(chatId, msg.message_id, token);
 				const until = Math.floor(Date.now() / 1000) + 900;
 				await telegram.restrictChatMember(
@@ -1792,19 +2749,72 @@ export async function processTelegramUpdate(
 				}
 				savePersistentStore();
 
-				const warn = await telegram.sendMessage(
-					chatId,
-					`⚡ کاربر <b>${fromUser.first_name}</b> به دلیل ارسال رگباری پیام (Flood) به مدت ۱۵ دقیقه سکوت شد.`,
-					{},
-					token,
-				);
-				if (warn.ok && warn.result?.message_id) {
-					setTimeout(() => telegram.deleteMessage(chatId, warn.result.message_id, token), 8000);
-				}
+				const floodMsg = formatGroupTemplate(pack.floodNotice, {
+					user: fromUser.first_name || 'کاربر',
+					group: settings.chatTitle,
+				});
+				await sendAutoDeletingNotice(chatId, floodMsg, settings, token, 10);
 				return;
 			}
 
-			// Pure Binary & Protocol Firewall Rules
+			const dupLimit = Number(limCfg.duplicateCount ?? limCfg.duplicateLimit ?? 0);
+			const dupWin = Number(limCfg.duplicateWindow ?? 60);
+			if (fromUser && dupLimit > 1 && checkUserDuplicate(chatId, fromUser.id, text, dupLimit, dupWin)) {
+				await telegram.deleteMessage(chatId, msg.message_id, token);
+				analytics.spamBlocked += 1;
+				todayStat.spam_blocked += 1;
+				const dupKey = 'پیام تکراری (Duplicate)';
+				analytics.violationsByReason[dupKey] = (analytics.violationsByReason[dupKey] || 0) + 1;
+				savePersistentStore();
+				await applyViolationPenaltyAndNotify({
+					chatId,
+					fromUser,
+					settings,
+					analytics,
+					todayStat,
+					reasonFa: 'ارسال پیام تکراری',
+					reasonEn: 'Duplicate spam',
+					rulePenalty: 'default',
+					token,
+				});
+				return;
+			}
+
+			// 7. Comprehensive Content Restrictions & Message Length Limits (ContentRestrictionsPage + LimitsPage)
+			const contentVerdict = evaluateGroupContentAndLimits({
+				msg,
+				text,
+				settings,
+				currentHHMM,
+			});
+			if (!contentVerdict.allowed) {
+				await telegram.deleteMessage(chatId, msg.message_id, token);
+				analytics.spamBlocked += 1;
+				todayStat.spam_blocked += 1;
+				analytics.violationsByReason[contentVerdict.reasonFa] =
+					(analytics.violationsByReason[contentVerdict.reasonFa] || 0) + 1;
+				recordGroupAuditLog(
+					settings,
+					`حذف پیام متخلف (${contentVerdict.reasonFa})`,
+					{ user_id: fromUser?.id, reason: contentVerdict.reasonEn },
+					0,
+				);
+				savePersistentStore();
+				await applyViolationPenaltyAndNotify({
+					chatId,
+					fromUser,
+					settings,
+					analytics,
+					todayStat,
+					reasonFa: contentVerdict.reasonFa,
+					reasonEn: contentVerdict.reasonEn,
+					rulePenalty: contentVerdict.penalty,
+					token,
+				});
+				return;
+			}
+
+			// 8. Pure Binary & Protocol Firewall Rules (Anti-Link, Zero-Width, Homograph, Stories, External Replies)
 			const incomingMsg: IncomingGroupMessage = {
 				message_id: msg.message_id,
 				user_id: fromUser?.id || 0,
@@ -1822,18 +2832,37 @@ export async function processTelegramUpdate(
 				caption_entities: msg.caption_entities,
 			};
 
+			const removeLinksRule =
+				crCfg.removeLinks !== undefined
+					? isRuleActiveNow(crCfg.removeLinks, currentHHMM)
+					: { active: settings.removeLinks, penalty: 'delete' };
+
 			const firewallConfig: BinaryFirewallConfig = {
-				forumTopicsMode: true,
-				whitelistedTopicIds: [],
-				lockTopicCreation: false,
+				forumTopicsMode: crCfg.forumTopicsMode !== false,
+				whitelistedTopicIds: Array.isArray(crCfg.whitelistedTopics)
+					? crCfg.whitelistedTopics.map(Number).filter(Boolean)
+					: [],
+				lockTopicCreation: Boolean(crCfg.lockTopicCreation),
 				blockZeroWidthChars: settings.blockZeroWidthChars,
 				blockHomographImpersonation: settings.blockHomographImpersonation,
 				protectedAdminNames: settings.protectedAdminNames,
-				blockExternalReplies: settings.blockCrossChatReplies,
-				blockStoryForwards: settings.blockStoryForwards,
-				blockPremiumCustomEmojis: settings.blockPremiumCustomEmojis,
-				blockSpoilerMessages: settings.blockSpoilerMessages,
-				removeLinks: settings.removeLinks,
+				blockExternalReplies:
+					crCfg.blockCrossChatReplies !== undefined
+						? isRuleActiveNow(crCfg.blockCrossChatReplies, currentHHMM).active
+						: settings.blockCrossChatReplies,
+				blockStoryForwards:
+					crCfg.blockStoryForwards !== undefined
+						? isRuleActiveNow(crCfg.blockStoryForwards, currentHHMM).active
+						: settings.blockStoryForwards,
+				blockPremiumCustomEmojis:
+					crCfg.blockPremiumCustomEmojis !== undefined
+						? isRuleActiveNow(crCfg.blockPremiumCustomEmojis, currentHHMM).active
+						: settings.blockPremiumCustomEmojis,
+				blockSpoilerMessages:
+					crCfg.blockSpoilerMessages !== undefined
+						? isRuleActiveNow(crCfg.blockSpoilerMessages, currentHHMM).active
+						: settings.blockSpoilerMessages,
+				removeLinks: removeLinksRule.active,
 			};
 
 			const verdict = evaluateBinaryMessageFirewall(incomingMsg, firewallConfig);
@@ -1842,42 +2871,48 @@ export async function processTelegramUpdate(
 				// Instantly delete violating message!
 				await telegram.deleteMessage(chatId, msg.message_id, token);
 
-				let alertReason = 'حذف لینک‌های تبلیغاتی (Anti-Link)';
-				if (verdict.reason === 'zero_width_obfuscation')
-					alertReason = 'کاراکترهای مخفی و نامرئی (Zero-Width)';
-				if (verdict.reason === 'homograph_admin_impersonation')
-					alertReason = 'جعل نام مدیر گروه (Homograph)';
-				if (verdict.reason === 'external_reply_blocked')
-					alertReason = 'ریپلای کانال‌ها و گروه‌های دیگر';
-				if (verdict.reason === 'story_forward_blocked') alertReason = 'فوروارد استوری';
-				if (verdict.reason === 'premium_custom_emoji_blocked')
-					alertReason = 'استیکر/اموجی سفارشی بنری';
+				let alertReasonFa = 'ارسال لینک';
+				let alertReasonEn = 'Link blocked';
+				if (verdict.reason === 'zero_width_obfuscation') {
+					alertReasonFa = 'کاراکتر مخفی';
+					alertReasonEn = 'Hidden characters';
+				} else if (verdict.reason === 'homograph_admin_impersonation') {
+					alertReasonFa = 'جعل نام مدیر';
+					alertReasonEn = 'Admin impersonation';
+				} else if (verdict.reason === 'external_reply_blocked') {
+					alertReasonFa = 'ریپلای خارجی';
+					alertReasonEn = 'External reply';
+				} else if (verdict.reason === 'story_forward_blocked') {
+					alertReasonFa = 'فوروارد استوری';
+					alertReasonEn = 'Story forward';
+				} else if (verdict.reason === 'premium_custom_emoji_blocked') {
+					alertReasonFa = 'ایموجی پریمیوم';
+					alertReasonEn = 'Custom emoji';
+				}
 
 				analytics.spamBlocked += 1;
 				todayStat.spam_blocked += 1;
-				analytics.violationsByReason[alertReason] =
-					(analytics.violationsByReason[alertReason] || 0) + 1;
-				if (fromUser && analytics.topUsers[String(fromUser.id)]) {
-					analytics.topUsers[String(fromUser.id)].warns += 1;
-				}
+				analytics.violationsByReason[alertReasonFa] =
+					(analytics.violationsByReason[alertReasonFa] || 0) + 1;
 				recordGroupAuditLog(
 					settings,
-					`حذف خودکار پیام متخلف (${alertReason})`,
+					`حذف خودکار پیام متخلف (${alertReasonFa})`,
 					{ user_id: fromUser?.id, reason: verdict.reason },
 					0,
 				);
 				savePersistentStore();
 
-				const warnMsg = await telegram.sendMessage(
+				await applyViolationPenaltyAndNotify({
 					chatId,
-					`🛡️ پیام کاربر <b>${fromUser?.first_name || 'کاربر'}</b> به دلیل <b>«${alertReason}»</b> حذف شد.`,
-					{},
+					fromUser,
+					settings,
+					analytics,
+					todayStat,
+					reasonFa: alertReasonFa,
+					reasonEn: alertReasonEn,
+					rulePenalty: removeLinksRule.penalty || 'default',
 					token,
-				);
-
-				if (warnMsg.ok && warnMsg.result?.message_id) {
-					setTimeout(() => telegram.deleteMessage(chatId, warnMsg.result.message_id, token), 5000);
-				}
+				});
 			}
 		}
 	} catch (err: any) {
@@ -2139,8 +3174,10 @@ export async function startChildBotPolling(
 					timeout: 25,
 					allowed_updates: [
 						'message',
+						'edited_message',
 						'callback_query',
 						'my_chat_member',
+						'chat_member',
 						'chat_join_request',
 						'pre_checkout_query',
 					],
@@ -2198,8 +3235,10 @@ export async function startLongPolling(token: string = BOT_TOKEN): Promise<void>
 					timeout: 25,
 					allowed_updates: [
 						'message',
+						'edited_message',
 						'callback_query',
 						'my_chat_member',
+						'chat_member',
 						'chat_join_request',
 						'pre_checkout_query',
 					],
@@ -2920,10 +3959,23 @@ export function createServer() {
 				}
 
 				const nowIso = new Date().toISOString();
-				const trialExpiryIso = new Date(Date.now() + 24 * 3600 * 1000).toISOString();
+				const configuredTrialHours = Math.max(1, Number(ownerSystemSettings.trial_hours || 24));
+				const trialExpiryIso = new Date(
+					Date.now() + configuredTrialHours * 3600 * 1000,
+				).toISOString();
 				const botRecordId = existingBot?.id || `b_${Date.now()}`;
 				const groupRecordId =
 					existingBot?.group_id || existingBot?.bound_group_id || `g_${Date.now()}`;
+				const existingGroup = managedGroupsStore.get(groupRecordId);
+				const preservedTrialEndsAt =
+					existingGroup?.trial_ends_at || existingBot?.trial_expires_at || trialExpiryIso;
+				const preservedSubExpiresAt =
+					existingGroup?.subscription_expires_at ||
+					existingBot?.subscription_expires_at ||
+					preservedTrialEndsAt;
+				const preservedStatus =
+					existingGroup?.subscription_status ||
+					(existingBot?.subscription_status === 'active' ? 'paid' : 'trial');
 
 				const authUser = extractAuthUser(req);
 				const creatorUserId = authUser?.userId || OWNER_TELEGRAM_ID;
@@ -2944,8 +3996,9 @@ export function createServer() {
 					status: 'active',
 					managed_groups_count: 1,
 					subscription_status: existingBot?.subscription_status || 'trial',
-					trial_expires_at: existingBot?.trial_expires_at || trialExpiryIso,
-					monthly_stars_price: 100,
+					trial_expires_at: preservedTrialEndsAt,
+					subscription_expires_at: preservedSubExpiresAt,
+					monthly_stars_price: Number(ownerSystemSettings.monthly_stars_price || 100),
 					created_at: existingBot?.created_at || nowIso,
 					updated_at: nowIso,
 				};
@@ -2964,11 +4017,11 @@ export function createServer() {
 					members_count: realMembersCount,
 					member_count: realMembersCount,
 					is_active: true,
-					subscription_status: 'trial',
-					trial_ends_at: trialExpiryIso,
-					subscription_expires_at: trialExpiryIso,
+					subscription_status: preservedStatus,
+					trial_ends_at: preservedTrialEndsAt,
+					subscription_expires_at: preservedSubExpiresAt,
 					trial_used: true,
-					created_at: nowIso,
+					created_at: existingGroup?.created_at || nowIso,
 					updated_at: nowIso,
 				};
 
@@ -3467,14 +4520,25 @@ export function createServer() {
 					}
 
 					if (method === 'GET') {
-						// Ensure live toggles are reflected in fullSettings
+						// Ensure live toggles are reflected in fullSettings safely
 						s.fullSettings.group_id = groupIdStr;
-						s.fullSettings.content_restrictions.removeLinks.enabled = s.removeLinks;
-						s.fullSettings.content_restrictions.blockBots.enabled = s.blockBots;
-						s.fullSettings.content_restrictions.blockExternalReplies.enabled =
-							s.blockCrossChatReplies;
+						if (!s.fullSettings.content_restrictions) {
+							s.fullSettings.content_restrictions = {};
+						}
+						const cr = s.fullSettings.content_restrictions;
+						if (typeof cr.removeLinks === 'object' && cr.removeLinks !== null) {
+							cr.removeLinks.enabled = s.removeLinks;
+						}
+						if (typeof cr.blockBots === 'object' && cr.blockBots !== null) {
+							cr.blockBots.enabled = s.blockBots;
+						}
+						if (typeof cr.blockExternalReplies === 'object' && cr.blockExternalReplies !== null) {
+							cr.blockExternalReplies.enabled = s.blockCrossChatReplies;
+						}
+						if (!s.fullSettings.limits) s.fullSettings.limits = {};
 						s.fullSettings.limits.floodMessages = s.floodLimit;
 						s.fullSettings.limits.floodWindow = s.floodWindowSec;
+						if (!s.fullSettings.quiet_hours) s.fullSettings.quiet_hours = {};
 						s.fullSettings.quiet_hours.emergencyLock = s.emergencyLock;
 						s.fullSettings.quiet_hours.enabled = s.quietHoursActive;
 						return sendJson(200, s.fullSettings);
@@ -3508,6 +4572,18 @@ export function createServer() {
 								s.fullSettings.forced_Simembership = {
 									...s.fullSettings.forced_Simembership,
 									...body.forced_Simembership,
+								};
+							}
+							if (body?.mandatory_membership) {
+								s.fullSettings.mandatory_membership = {
+									...(s.fullSettings.mandatory_membership || {}),
+									...body.mandatory_membership,
+								};
+							}
+							if (body?.custom_texts) {
+								s.fullSettings.custom_texts = {
+									...(s.fullSettings.custom_texts || {}),
+									...body.custom_texts,
 								};
 							}
 							if (body?.general) {
