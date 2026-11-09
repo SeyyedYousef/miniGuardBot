@@ -7,6 +7,8 @@ interface DashboardStats {
 	dau: number;
 	mau: number;
 	total_users: number;
+	active_groups_count?: number;
+	active_bots_count?: number;
 	stars_volume: number;
 	recent_activity: Array<{
 		id: string;
@@ -42,8 +44,10 @@ export const OwnerDashboard: Component = () => {
 		fetchStats();
 	});
 
-	const activeGroupsCount = () => ((window as any).__mockGroups || []).length || 2;
-	const activeBotsCount = () => ((window as any).__mockBots || []).length || 1;
+	const activeGroupsCount = () =>
+		stats()?.active_groups_count ?? (((window as any).__mockGroups || []).length || 0);
+	const activeBotsCount = () =>
+		stats()?.active_bots_count ?? (((window as any).__mockBots || []).length || 0);
 
 	return (
 		<div class="space-y-5">

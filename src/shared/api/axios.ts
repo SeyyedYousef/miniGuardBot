@@ -172,7 +172,9 @@ apiClient.interceptors.request.use(
 		// Attempt to retrieve a valid JWT token (Prefer impersonation session token if active, then owner token if administrative path, then standard user token)
 		const impersonationToken = getActiveImpersonationToken();
 		const isOwnerRequest = isOwnerPath(config.url);
-		const ownerToken = isOwnerRequest ? sessionStorage.getItem('owner_token') : null;
+		const ownerToken = isOwnerRequest
+			? sessionStorage.getItem('owner_token') || localStorage.getItem('owner_token')
+			: null;
 
 		// STRICT TOKEN SEPARATION: administrative requests only send owner token, standard requests only send standard token
 		let token = null;

@@ -53,6 +53,8 @@ export const OwnerLayout: Component<OwnerLayoutProps> = (props) => {
 						onClick={() => {
 							sessionStorage.removeItem('owner_token');
 							sessionStorage.removeItem('owner_telegram_id');
+							localStorage.removeItem('owner_token');
+							localStorage.removeItem('owner_telegram_id');
 							navigate('/profile');
 						}}
 						class="h-8 px-3 rounded-lg bg-[var(--tg-destructive)]/12 text-[var(--tg-destructive)] text-[12px] font-semibold flex items-center gap-1"

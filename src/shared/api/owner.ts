@@ -82,10 +82,16 @@ export interface OwnerEntityItem {
 	type: 'group';
 	title: string;
 	username?: string;
+	bot_username?: string;
+	members_count?: number;
 	telegram_id: number;
 	owner_id: number;
 	owner_username?: string;
 	credit_balance: number;
+	remaining_hours?: number;
+	remaining_label?: string;
+	subscription_status?: 'trial' | 'paid' | 'active' | 'expired';
+	expires_at?: string;
 	status: 'active' | 'suspended' | 'expired';
 	created_at: string;
 }
@@ -153,6 +159,12 @@ export const ownerApi = {
 			monthly_stars_price:
 				settingsPayload.monthly_stars_price ?? existing?.monthly_stars_price ?? 100,
 			max_bots_per_admin: settingsPayload.max_bots_per_admin ?? existing?.max_bots_per_admin ?? 20,
+			master_start_text: settingsPayload.master_start_text ?? existing?.master_start_text ?? '',
+			child_start_text: settingsPayload.child_start_text ?? existing?.child_start_text ?? '',
+			onboarding_msg_1: settingsPayload.onboarding_msg_1 ?? existing?.onboarding_msg_1 ?? '',
+			onboarding_msg_2: settingsPayload.onboarding_msg_2 ?? existing?.onboarding_msg_2 ?? '',
+			onboarding_msg_3: settingsPayload.onboarding_msg_3 ?? existing?.onboarding_msg_3 ?? '',
+			onboarding_msg_4: settingsPayload.onboarding_msg_4 ?? existing?.onboarding_msg_4 ?? '',
 		};
 
 		return (await apiClient.put<SystemSettings>('/owner/settings', mergedPayload)).data;
@@ -196,11 +208,32 @@ export const ownerApi = {
 			.catch(() => ({ data: [] }));
 		return (groupsRes.data || []).map((g: any) => ({ ...g, type: 'group' as const }));
 	},
-	addEntityCredit: (id: string | number, amount: number, _reason: string) =>
+	addEntityCredit: (
+		id: string | number,
+		amountDays: number,
+		reason = 'Owner manual extension',
+		amountHours = 0,
+	) =>
 		apiClient
-			.post<{ success: boolean }>('/owner/entities/add-credit', {
+			.post<{
+				success: boolean;
+				status?: string;
+				expires_at?: string;
+				remaining_days?: number;
+				remaining_hours?: number;
+				remaining_label?: string;
+			}>('/owner/entities/add-credit', {
 				entity_id: String(id),
-				days: amount,
+				days: amountDays,
+				hours: amountHours,
+				reason,
+			})
+			.then((r) => r.data),
+	toggleEntityStatus: (id: string | number, isActive: boolean) =>
+		apiClient
+			.post<{ success: boolean; status: string }>('/owner/entities/toggle-status', {
+				entity_id: String(id),
+				is_active: isActive,
 			})
 			.then((r) => r.data),
 };

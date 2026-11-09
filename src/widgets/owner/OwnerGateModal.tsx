@@ -8,6 +8,7 @@ import { haptic } from '@/shared/lib/haptic.js';
 interface OwnerGateModalProps {
 	isOpen: boolean;
 	onClose: () => void;
+	onSuccess?: () => void;
 }
 
 export const OwnerGateModal: Component<OwnerGateModalProps> = (props) => {
@@ -65,17 +66,27 @@ export const OwnerGateModal: Component<OwnerGateModalProps> = (props) => {
 		} catch {}
 
 		try {
+			const cleanPassword = password().trim();
 			const resp = await apiClient.post('/owner/auth/totp', {
 				init_data: initDataStr,
-				password: password(),
+				password: cleanPassword,
 			});
 
 			const token = resp?.data?.token || 'mock-owner-jwt-token';
+			const ownerUid = String(resp?.data?.user?.id || tgUser?.id || 5076130392);
 			haptic.notify('success');
-			sessionStorage.setItem('owner_token', token);
-			sessionStorage.setItem('owner_telegram_id', String(tgUser?.id || 99281932));
-			props.onClose();
-			navigate('/owner/dashboard');
+			try {
+				sessionStorage.setItem('owner_token', token);
+				sessionStorage.setItem('owner_telegram_id', ownerUid);
+				localStorage.setItem('owner_token', token);
+				localStorage.setItem('owner_telegram_id', ownerUid);
+			} catch {}
+			if (props.onSuccess) {
+				props.onSuccess();
+			} else {
+				props.onClose();
+				navigate('/owner/dashboard');
+			}
 		} catch (err: any) {
 			haptic.notify('error');
 			setErrorMsg(err.response?.data?.error || t('ownerGate.errorAuth') || 'Authentication failed');

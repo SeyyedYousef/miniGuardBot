@@ -103,7 +103,7 @@ export const OwnerFinance: Component = () => {
 										</span>
 									</div>
 									<span class="text-[12px] font-bold text-[#34C759] px-2.5 py-1 rounded-lg bg-[#34C759]/12 shrink-0">
-										اشتراک فعال ({sub.credit_balance || 30} روز)
+										{sub.remaining_label || `اشتراک فعال (${sub.credit_balance || 30} روز)`}
 									</span>
 								</div>
 							)}

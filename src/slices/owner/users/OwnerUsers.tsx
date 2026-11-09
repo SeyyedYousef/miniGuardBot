@@ -1,4 +1,4 @@
-import { type Component, createSignal, For, onCleanup, Show } from 'solid-js';
+import { type Component, createSignal, For, onCleanup, onMount, Show } from 'solid-js';
 import { ownerApi, type SearchedUser } from '@/shared/api/owner.js';
 import { haptic } from '@/shared/lib/haptic.js';
 import { DangerActionDialog } from '@/widgets/owner/DangerActionDialog.js';
@@ -26,6 +26,10 @@ export const OwnerUsers: Component = () => {
 	let searchDebounceTimer: any;
 	let searchAbortController: AbortController | null = null;
 
+	onMount(() => {
+		executeSearch('*');
+	});
+
 	onCleanup(() => {
 		if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
 		if (searchAbortController) searchAbortController.abort();
@@ -35,12 +39,7 @@ export const OwnerUsers: Component = () => {
 		setQuery(value);
 		if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
 		if (!value.trim()) {
-			if (searchAbortController) {
-				searchAbortController.abort();
-				searchAbortController = null;
-			}
-			setUsers([]);
-			setError('');
+			executeSearch('*');
 			return;
 		}
 
@@ -50,7 +49,7 @@ export const OwnerUsers: Component = () => {
 	};
 
 	const executeSearch = async (searchStr: string) => {
-		if (!searchStr) return;
+		const targetQuery = searchStr.trim() || '*';
 		if (searchAbortController) {
 			searchAbortController.abort();
 		}
@@ -61,7 +60,7 @@ export const OwnerUsers: Component = () => {
 		setLoading(true);
 
 		try {
-			const data = await ownerApi.searchUsers(searchStr, { signal });
+			const data = await ownerApi.searchUsers(targetQuery, { signal });
 			if (signal.aborted) return;
 			setUsers(data || []);
 			if (!data || data.length === 0) {
@@ -390,6 +389,31 @@ export const OwnerUsers: Component = () => {
 								</div>
 
 								<div class="pt-2.5 border-t border-[var(--tg-separator)] flex gap-2 flex-wrap">
+									<button
+										onClick={async () => {
+											haptic.impact('medium');
+											try {
+												await ownerApi.addEntityCredit(
+													user.telegram_id,
+													30,
+													'Owner manual user credit',
+												);
+												haptic.notify('success');
+												setUsers(
+													users().map((u) =>
+														u.telegram_id === user.telegram_id ? { ...u, is_premium: true } : u,
+													),
+												);
+											} catch {
+												haptic.notify('error');
+											}
+										}}
+										class="h-8 px-3 rounded-lg bg-[#34C759]/12 text-[#34C759] text-[11.5px] font-bold flex items-center gap-1"
+									>
+										<span class="material-symbols-outlined text-[15px]">add_card</span>
+										+۳۰ روز اعتبار
+									</button>
+
 									<button
 										onClick={() => openImpersonateModal(user)}
 										class="h-8 px-3 rounded-lg bg-[var(--tg-accent-soft)] text-[var(--tg-link)] text-[11.5px] font-semibold flex items-center gap-1"

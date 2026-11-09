@@ -15,7 +15,8 @@ export const OwnerRouteGuard: Component<OwnerRouteGuardProps> = (props) => {
 	const [showAuthGate, setShowAuthGate] = createSignal(false);
 
 	const verifySession = () => {
-		const token = sessionStorage.getItem('owner_token');
+		const token =
+			sessionStorage.getItem('owner_token') || localStorage.getItem('owner_token');
 		if (!token) {
 			setStatus('unauthorized');
 			setShowAuthGate(true);
@@ -26,11 +27,14 @@ export const OwnerRouteGuard: Component<OwnerRouteGuardProps> = (props) => {
 			console.warn('[OwnerGuard] Session expired. Clearing token.');
 			sessionStorage.removeItem('owner_token');
 			sessionStorage.removeItem('owner_telegram_id');
+			localStorage.removeItem('owner_token');
+			localStorage.removeItem('owner_telegram_id');
 			setStatus('unauthorized');
 			setShowAuthGate(true);
 			return false;
 		}
 
+		sessionStorage.setItem('owner_token', token);
 		setStatus('authenticated');
 		return true;
 	};
@@ -57,7 +61,14 @@ export const OwnerRouteGuard: Component<OwnerRouteGuardProps> = (props) => {
 
 			<Show when={status() === 'authenticated'}>{props.children}</Show>
 
-			<OwnerGateModal isOpen={showAuthGate()} onClose={handleGateClose} />
+			<OwnerGateModal
+				isOpen={showAuthGate()}
+				onClose={handleGateClose}
+				onSuccess={() => {
+					setShowAuthGate(false);
+					setStatus('authenticated');
+				}}
+			/>
 		</>
 	);
 };
