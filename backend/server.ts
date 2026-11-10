@@ -3575,6 +3575,9 @@ export function createServer() {
 
 			const rawPath = (url || '/').split('?')[0];
 			const cleanPath = rawPath.replace(/^\/api\/v1/, '') || '/';
+			const parsedUrl = {
+				query: Object.fromEntries(new URLSearchParams((url || '/').split('?')[1] || '')),
+			};
 
 			// ─── Rate Limiting (Sliding Window per IP) ────────────────────────────────
 			const clientIp =
@@ -5076,6 +5079,33 @@ export function createServer() {
 			}
 
 			if (cleanPath === '/owner/entities/groups' && method === 'GET') {
+				const ownerKey = String(OWNER_TELEGRAM_ID);
+				if (
+					(!ownerUsersMeta[ownerKey]?.first_name || !ownerUsersMeta[ownerKey]?.username) &&
+					BOT_TOKEN &&
+					process.env.NODE_ENV !== 'test' &&
+					!process.env.VITEST
+				) {
+					const chatInfo = await callTelegramApi<{
+						id: number;
+						first_name?: string;
+						last_name?: string;
+						username?: string;
+					}>('getChat', { chat_id: OWNER_TELEGRAM_ID }, BOT_TOKEN).catch(() => ({ ok: false, result: undefined }));
+					if (chatInfo.ok && chatInfo.result) {
+						ownerUsersMeta[ownerKey] = {
+							...ownerUsersMeta[ownerKey],
+							telegram_id: OWNER_TELEGRAM_ID,
+							first_name: chatInfo.result.first_name || 'مالک کل پلتفرم',
+							last_name: chatInfo.result.last_name || '',
+							username: chatInfo.result.username || '',
+							is_premium: true,
+							created_at: ownerUsersMeta[ownerKey]?.created_at || new Date().toISOString(),
+						};
+						savePersistentStore();
+					}
+				}
+
 				const entityList: any[] = [];
 				const seenGroupIds = new Set<string>();
 				const seenAbsChatIds = new Set<number>();
