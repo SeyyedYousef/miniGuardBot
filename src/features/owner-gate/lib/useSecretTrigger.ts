@@ -24,7 +24,7 @@ export function useSecretTrigger() {
 			setTapCount(0);
 		}, 2500);
 
-		if (tapCount() >= 5) {
+		if (tapCount() >= 3) {
 			try {
 				haptic.notify('success');
 			} catch {}

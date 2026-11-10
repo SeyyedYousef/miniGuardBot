@@ -51,13 +51,8 @@ export const OwnerSettings: Component = () => {
 
 	const handleSaveInitiate = (e: Event) => {
 		e.preventDefault();
-		if (!settings() || !isDirty()) return;
-
-		if (initialSettings()?.maintenance_mode !== settings()?.maintenance_mode) {
-			setShowConfirmDialog(true);
-		} else {
-			executeSave('بروزرسانی پارامترهای اشتراک و فایروال پلتفرم');
-		}
+		if (!settings()) return;
+		executeSave('بروزرسانی پارامترهای اشتراک و متون پلتفرم');
 	};
 
 	const executeSave = async (_reason: string) => {
@@ -206,14 +201,34 @@ export const OwnerSettings: Component = () => {
 
 					{/* Platform-Wide Bot Texts (Moved from User Custom Texts to Owner Panel) */}
 					<div class="tg-section p-4 space-y-4">
-						<div class="border-b border-[var(--tg-separator)] pb-2.5">
-							<h3 class="text-[14px] font-bold text-[var(--tg-text)]">
-								{txt().botHiddenFlowsTitle} (مخصوص مالک کل پلتفرم)
-							</h3>
-							<p class="text-[11.5px] text-[var(--tg-hint)] mt-0.5">
-								تنظیم متن استارت ربات مادر (@MiniGuardBot)، متن معرفی در پیوی ربات‌های ساخته شده و ۴ پیام
-								خودکار هنگام عضویت ربات در گروه
-							</p>
+						<div class="border-b border-[var(--tg-separator)] pb-2.5 flex items-center justify-between gap-2">
+							<div>
+								<h3 class="text-[14px] font-bold text-[var(--tg-text)]">
+									{txt().botHiddenFlowsTitle} (مخصوص مالک کل پلتفرم)
+								</h3>
+								<p class="text-[11.5px] text-[var(--tg-hint)] mt-0.5">
+									تنظیم متن استارت ربات مادر (@MiniGuardBot)، متن معرفی در پیوی ربات‌های ساخته شده و ۴ پیام
+									خودکار هنگام عضویت ربات در گروه
+								</p>
+							</div>
+							<button
+								type="button"
+								onClick={() => {
+									haptic.impact('light');
+									setSettings((s) => ({
+										...s!,
+										master_start_text: txt().masterStartPreviewBody,
+										child_start_text: txt().childStartPreviewBody,
+										onboarding_msg_1: txt().joinMsg1,
+										onboarding_msg_2: txt().joinMsg2,
+										onboarding_msg_3: txt().joinMsg3,
+										onboarding_msg_4: txt().joinMsg4,
+									}));
+								}}
+								class="h-8 px-2.5 rounded-lg bg-[var(--tg-secondary-bg)] border border-[var(--tg-separator)] text-[11px] font-semibold text-[var(--tg-link)] shrink-0"
+							>
+								متن پیش‌فرض
+							</button>
 						</div>
 
 						<div class="space-y-3">
@@ -297,11 +312,11 @@ export const OwnerSettings: Component = () => {
 					<div class="flex justify-end">
 						<button
 							type="submit"
-							disabled={saving() || !isDirty()}
-							class="tg-btn-primary h-10 px-6 text-[13.5px] disabled:opacity-40 flex items-center gap-1.5"
+							disabled={saving()}
+							class="tg-btn-primary h-11 px-6 text-[13.5px] font-bold disabled:opacity-40 flex items-center gap-1.5 w-full md:w-auto justify-center"
 						>
 							<span class="material-symbols-outlined text-[18px]">save</span>
-							<span>ذخیره تنظیمات پلتفرم</span>
+							<span>{saving() ? 'در حال ذخیره...' : 'ذخیره تنظیمات پلتفرم'}</span>
 						</button>
 					</div>
 				</form>

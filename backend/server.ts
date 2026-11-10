@@ -93,8 +93,11 @@ loadEnvFile();
 
 const PORT = Number(process.env.PORT || 3000);
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || process.env.BOT_TOKEN || '';
-const MINI_APP_URL =
-	process.env.MINI_APP_URL || process.env.APP_URL || 'https://miniguard-app.pages.dev';
+const rawMiniAppUrl =
+	process.env.MINI_APP_URL || process.env.APP_URL || 'https://guard-109-172-94-139.sslip.io';
+const MINI_APP_URL = rawMiniAppUrl.includes('miniguard-app.pages.dev')
+	? 'https://guard-109-172-94-139.sslip.io'
+	: rawMiniAppUrl;
 const WEBHOOK_URL = process.env.WEBHOOK_URL || '';
 const OWNER_PASSWORD = process.env.OWNER_PASSWORD || 'mta@88';
 const OWNER_TELEGRAM_ID = Number(
@@ -3685,6 +3688,18 @@ export function createServer() {
 				}
 
 				const role = userId === OWNER_TELEGRAM_ID ? 'owner' : 'user';
+				if (userId) {
+					const uKey = String(userId);
+					const prev = ownerUsersMeta[uKey];
+					ownerUsersMeta[uKey] = {
+						...prev,
+						telegram_id: userId,
+						username: username || prev?.username || '',
+						first_name: firstName || prev?.first_name || 'کاربر',
+						created_at: prev?.created_at || new Date().toISOString(),
+					};
+					savePersistentStore();
+				}
 				const tokenPayload = {
 					userId,
 					username,
@@ -4996,15 +5011,33 @@ export function createServer() {
 				for (const uidStr of Object.keys(ownerUsersMeta)) {
 					if (Number(uidStr)) uniqueUsers.add(Number(uidStr));
 				}
-				for (const g of groupsStore.values()) {
-					for (const aid of g.adminUserIds || []) {
-						if (aid) uniqueUsers.add(Number(aid));
+
+				const totalStarsVolume = ownerFinanceOrders
+					.filter((o) => o.status === 'paid' && Number(o.amount_stars) > 0)
+					.reduce((acc, o) => acc + (Number(o.amount_stars) || 0), 0);
+
+				const uniqueChatIds = new Set<number>();
+				let totalMembersProtected = 0;
+				for (const mg of managedGroupsStore.values()) {
+					const cid = Math.abs(Number(mg.telegram_chat_id || mg.chat_id));
+					if (cid && !uniqueChatIds.has(cid)) {
+						uniqueChatIds.add(cid);
+						totalMembersProtected += Number(mg.members_count || mg.member_count || 1);
 					}
 				}
-				const totalStarsVolume = ownerFinanceOrders
-					.filter((o) => o.status === 'paid')
-					.reduce((acc, o) => acc + (Number(o.amount_stars) || 0), 0);
-				const activeGroupsCount = managedGroupsStore.size || groupsStore.size;
+				let totalMessagesProcessed = 0;
+				let totalSpamBlocked = 0;
+				for (const [cid, rt] of groupsStore.entries()) {
+					const absCid = Math.abs(Number(cid));
+					if (absCid && !uniqueChatIds.has(absCid)) {
+						uniqueChatIds.add(absCid);
+						totalMembersProtected += 1;
+					}
+					totalMessagesProcessed += Number(rt.analytics?.totalMessages || 0);
+					totalSpamBlocked += Number(rt.analytics?.spamBlocked || 0);
+				}
+
+				const activeGroupsCount = uniqueChatIds.size;
 				const activeBotsCount = managedBotsStore.size;
 
 				return sendJson(200, {
@@ -5013,6 +5046,9 @@ export function createServer() {
 					total_users: uniqueUsers.size,
 					active_groups_count: activeGroupsCount,
 					active_bots_count: activeBotsCount,
+					total_members_protected: totalMembersProtected,
+					total_messages_processed: totalMessagesProcessed,
+					total_spam_blocked: totalSpamBlocked,
 					active_subscriptions: activeGroupsCount,
 					stars_volume: totalStarsVolume,
 					mrr_stars: activeGroupsCount * (Number(ownerSystemSettings.monthly_stars_price) || 100),
@@ -5042,26 +5078,41 @@ export function createServer() {
 			if (cleanPath === '/owner/entities/groups' && method === 'GET') {
 				const entityList: any[] = [];
 				const seenGroupIds = new Set<string>();
+				const seenAbsChatIds = new Set<number>();
 
 				for (const mg of managedGroupsStore.values()) {
 					seenGroupIds.add(String(mg.id));
+					const chatNum = Number(mg.telegram_chat_id || mg.chat_id);
+					if (chatNum) seenAbsChatIds.add(Math.abs(chatNum));
+
 					const boundBot = Array.from(managedBotsStore.values()).find(
 						(b) => b.id === mg.bot_id || b.bound_group_id === mg.id || b.group_id === mg.id,
 					);
+					const rt = groupsStore.get(chatNum);
 					const expIso = mg.subscription_expires_at || mg.trial_ends_at;
 					const creditInfo = computeRemainingCredit(expIso);
-					const ownerId = boundBot?.owner_user_id || OWNER_TELEGRAM_ID;
+					const ownerId = boundBot?.owner_user_id || mg.owner_user_id || OWNER_TELEGRAM_ID;
 					const ownerMeta = ownerUsersMeta[String(ownerId)];
 
 					entityList.push({
 						id: mg.id,
 						type: 'group',
 						title: mg.title || mg.chat_title || 'گروه',
-						bot_username: boundBot?.bot_username || 'MiniGuardBot',
+						group_link: mg.group_link || boundBot?.group_link || '',
+						bot_id: boundBot?.id || mg.bot_id,
+						bot_name: boundBot?.bot_name || '',
+						bot_username: boundBot?.bot_username || mg.bot_username || 'MiniGuardBot',
 						members_count: mg.members_count || mg.member_count || 1,
-						telegram_id: mg.telegram_chat_id || mg.chat_id,
+						total_messages: rt?.analytics?.totalMessages || 0,
+						spam_blocked: rt?.analytics?.spamBlocked || 0,
+						telegram_id: chatNum,
 						owner_id: ownerId,
-						owner_username: ownerMeta?.username || (ownerId === OWNER_TELEGRAM_ID ? 'owner' : `user_${ownerId}`),
+						owner_name: ownerMeta?.first_name
+							? `${ownerMeta.first_name} ${ownerMeta.last_name || ''}`.trim()
+							: ownerId === OWNER_TELEGRAM_ID
+								? 'مالک کل پلتفرم'
+								: 'مدیر گروه',
+						owner_username: ownerMeta?.username || '',
 						credit_balance: creditInfo.remaining_days,
 						remaining_hours: creditInfo.remaining_hours,
 						remaining_label: creditInfo.remaining_label,
@@ -5072,20 +5123,31 @@ export function createServer() {
 					});
 				}
 
-				// Include any runtime groups not yet in managedGroupsStore
+				// Include any runtime groups that are NOT already in managedGroupsStore
+				const botUserIds = new Set<number>(
+					Array.from(managedBotsStore.values()).map((b) => Number(b.bot_id || 0)),
+				);
 				for (const [cid, rt] of groupsStore.entries()) {
-					if (seenGroupIds.has(String(rt.groupId))) continue;
+					const absCid = Math.abs(Number(cid));
+					if (seenGroupIds.has(String(rt.groupId)) || seenAbsChatIds.has(absCid)) continue;
+					seenAbsChatIds.add(absCid);
+
 					const expIso = new Date(Date.now() + 24 * 3600 * 1000).toISOString();
 					const creditInfo = computeRemainingCredit(expIso);
+					const humanOwnerId =
+						(rt.adminUserIds || []).find((id) => !botUserIds.has(Number(id))) || OWNER_TELEGRAM_ID;
 					entityList.push({
 						id: rt.groupId,
 						type: 'group',
 						title: rt.chatTitle || 'گروه',
 						bot_username: 'MiniGuardBot',
 						members_count: 1,
+						total_messages: rt.analytics?.totalMessages || 0,
+						spam_blocked: rt.analytics?.spamBlocked || 0,
 						telegram_id: cid,
-						owner_id: rt.adminUserIds?.[0] || OWNER_TELEGRAM_ID,
-						owner_username: 'admin',
+						owner_id: humanOwnerId,
+						owner_name: 'مدیر گروه',
+						owner_username: '',
 						credit_balance: creditInfo.remaining_days,
 						remaining_hours: creditInfo.remaining_hours,
 						remaining_label: creditInfo.remaining_label,
@@ -5110,10 +5172,23 @@ export function createServer() {
 				).trim();
 				const daysToAdd = Number(body?.days ?? body?.amount ?? 30);
 				const hoursToAdd = Number(body?.hours ?? 0);
+				const mode: 'add' | 'set' = body?.mode === 'set' ? 'set' : 'add';
 				const deltaMs = daysToAdd * 86400 * 1000 + hoursToAdd * 3600 * 1000;
 
 				let updatedGroup: StoredManagedGroup | null = null;
 				let updatedExpiryIso = new Date(Date.now() + Math.max(0, deltaMs)).toISOString();
+
+				const computeNextMs = (curExpIso?: string): number => {
+					if (mode === 'set') {
+						if (daysToAdd <= 0 && hoursToAdd <= 0) {
+							return Date.now() - 1000;
+						}
+						return Date.now() + deltaMs;
+					}
+					const curExpMs = new Date(curExpIso || Date.now()).getTime();
+					const baseMs = deltaMs >= 0 ? Math.max(Date.now(), curExpMs) : curExpMs;
+					return Math.max(Date.now() - 1000, baseMs + deltaMs);
+				};
 
 				// 1. Check direct match in managedGroupsStore (by id or chat_id)
 				for (const [gid, mg] of managedGroupsStore.entries()) {
@@ -5123,18 +5198,14 @@ export function createServer() {
 						String(Math.abs(Number(mg.telegram_chat_id))) === rawTarget ||
 						mg.bot_id === rawTarget
 					) {
-						const curExpMs = new Date(
-							mg.subscription_expires_at || mg.trial_ends_at || Date.now(),
-						).getTime();
-						const baseMs = deltaMs >= 0 ? Math.max(Date.now(), curExpMs) : curExpMs;
-						const nextMs = Math.max(Date.now() - 1000, baseMs + deltaMs);
+						const nextMs = computeNextMs(mg.subscription_expires_at || mg.trial_ends_at);
 						updatedExpiryIso = new Date(nextMs).toISOString();
 						mg.subscription_expires_at = updatedExpiryIso;
 						mg.trial_ends_at = updatedExpiryIso;
 						mg.is_active = nextMs > Date.now();
 						mg.subscription_status =
 							nextMs > Date.now()
-								? daysToAdd >= 2 || mg.subscription_status === 'paid'
+								? daysToAdd >= 2 || (mode === 'add' && mg.subscription_status === 'paid')
 									? 'paid'
 									: 'trial'
 								: 'expired';
@@ -5144,7 +5215,7 @@ export function createServer() {
 					}
 				}
 
-				// 2. If target is a user ID (e.g. 5076130392), apply credit to all bots & groups owned by that user
+				// 2. Also update matching bots & user-owned groups
 				const targetUserNum = Number(rawTarget.replace(/^@/, ''));
 				for (const [bid, b] of managedBotsStore.entries()) {
 					const isBotMatch =
@@ -5154,25 +5225,23 @@ export function createServer() {
 						(updatedGroup && b.id === updatedGroup.bot_id) ||
 						(targetUserNum && b.owner_user_id === targetUserNum);
 					if (isBotMatch) {
-						const curExpMs = new Date(
-							b.subscription_expires_at || b.trial_expires_at || Date.now(),
-						).getTime();
-						const baseMs = deltaMs >= 0 ? Math.max(Date.now(), curExpMs) : curExpMs;
-						const nextMs = Math.max(Date.now() - 1000, baseMs + deltaMs);
+						const nextMs = updatedGroup
+							? new Date(updatedExpiryIso).getTime()
+							: computeNextMs(b.subscription_expires_at || b.trial_expires_at);
 						updatedExpiryIso = new Date(nextMs).toISOString();
 						b.subscription_expires_at = updatedExpiryIso;
 						b.trial_expires_at = updatedExpiryIso;
 						b.subscription_status = nextMs > Date.now() ? 'active' : 'expired';
 						managedBotsStore.set(bid, b);
 
-						// Also update the group bound to this bot if not updated yet
 						const boundGid = b.bound_group_id || b.group_id;
 						if (boundGid && managedGroupsStore.has(boundGid) && !updatedGroup) {
 							const mg = managedGroupsStore.get(boundGid)!;
 							mg.subscription_expires_at = updatedExpiryIso;
 							mg.trial_ends_at = updatedExpiryIso;
 							mg.is_active = nextMs > Date.now();
-							mg.subscription_status = nextMs > Date.now() ? 'paid' : 'expired';
+							mg.subscription_status =
+								nextMs > Date.now() ? (daysToAdd >= 2 ? 'paid' : 'trial') : 'expired';
 							mg.updated_at = new Date().toISOString();
 							managedGroupsStore.set(boundGid, mg);
 							updatedGroup = mg;
@@ -5185,25 +5254,26 @@ export function createServer() {
 					ownerUsersMeta[uKey] = {
 						...ownerUsersMeta[uKey],
 						telegram_id: targetUserNum,
-						is_premium: deltaMs > 0,
+						is_premium: new Date(updatedExpiryIso).getTime() > Date.now(),
 						created_at: ownerUsersMeta[uKey]?.created_at || new Date().toISOString(),
 					};
 				}
 
 				const creditInfo = computeRemainingCredit(updatedExpiryIso);
+				const actionDesc =
+					mode === 'set'
+						? `تنظیم دقیق اعتبار روی ${creditInfo.remaining_label} برای «${updatedGroup?.title || rawTarget}»`
+						: `افزودن ${daysToAdd} روز اعتبار به «${updatedGroup?.title || rawTarget}» (${creditInfo.remaining_label})`;
+
 				ownerFinanceOrders.unshift({
 					id: `manual_${Date.now()}`,
 					user_id: targetUserNum || OWNER_TELEGRAM_ID,
 					amount_stars: 0,
 					status: 'paid',
-					item_type: `شارژ دستی مالک (${daysToAdd >= 0 ? `+${daysToAdd}` : daysToAdd} روز${hoursToAdd ? ` و ${hoursToAdd} ساعت` : ''}) برای ${updatedGroup?.title || rawTarget}`,
+					item_type: actionDesc,
 					created_at: new Date().toISOString(),
 				});
-				recordOwnerAuditLog(
-					`شارژ دستی اعتبار (${daysToAdd} روز و ${hoursToAdd} ساعت) برای ${updatedGroup?.title || rawTarget}`,
-					clientIp,
-					targetUserNum || undefined,
-				);
+				recordOwnerAuditLog(actionDesc, clientIp, targetUserNum || undefined);
 				savePersistentStore();
 
 				return sendJson(200, {
@@ -5221,14 +5291,22 @@ export function createServer() {
 				const body = await parseJsonBody();
 				const targetId = String(body?.entity_id || '').trim();
 				const nextActive = Boolean(body?.is_active);
-				const mg = managedGroupsStore.get(targetId);
-				if (mg) {
-					mg.is_active = nextActive;
-					mg.updated_at = new Date().toISOString();
-					managedGroupsStore.set(targetId, mg);
+				let matchedTitle = targetId;
+
+				for (const [gid, mg] of managedGroupsStore.entries()) {
+					if (
+						gid === targetId ||
+						String(mg.telegram_chat_id) === targetId ||
+						String(Math.abs(Number(mg.telegram_chat_id))) === targetId
+					) {
+						mg.is_active = nextActive;
+						mg.updated_at = new Date().toISOString();
+						managedGroupsStore.set(gid, mg);
+						matchedTitle = mg.title || gid;
+					}
 				}
 				recordOwnerAuditLog(
-					`${nextActive ? 'فعال‌سازی' : 'تعلیق'} گروه ${mg?.title || targetId}`,
+					`${nextActive ? 'فعال‌سازی ربات گروه' : 'تعلیق ربات گروه'} «${matchedTitle}»`,
 					clientIp,
 				);
 				savePersistentStore();
@@ -5243,39 +5321,101 @@ export function createServer() {
 					.trim()
 					.replace(/^@/, '')
 					.toLowerCase();
+
+				// Lazy fetch owner profile from Telegram API if not cached yet
+				const ownerKey = String(OWNER_TELEGRAM_ID);
+				if (
+					(!ownerUsersMeta[ownerKey]?.first_name || !ownerUsersMeta[ownerKey]?.username) &&
+					BOT_TOKEN &&
+					process.env.NODE_ENV !== 'test' &&
+					!process.env.VITEST
+				) {
+					const chatInfo = await callTelegramApi<{
+						id: number;
+						first_name?: string;
+						last_name?: string;
+						username?: string;
+					}>('getChat', { chat_id: OWNER_TELEGRAM_ID }, BOT_TOKEN).catch(() => ({ ok: false, result: undefined }));
+					if (chatInfo.ok && chatInfo.result) {
+						ownerUsersMeta[ownerKey] = {
+							...ownerUsersMeta[ownerKey],
+							telegram_id: OWNER_TELEGRAM_ID,
+							first_name: chatInfo.result.first_name || 'مالک پلتفرم',
+							last_name: chatInfo.result.last_name || '',
+							username: chatInfo.result.username || '',
+							is_premium: true,
+							created_at: ownerUsersMeta[ownerKey]?.created_at || new Date().toISOString(),
+						};
+						savePersistentStore();
+					}
+				}
+
+				const buildUserBotsList = (uid: number) => {
+					const list: any[] = [];
+					for (const b of managedBotsStore.values()) {
+						if (Number(b.owner_user_id || OWNER_TELEGRAM_ID) === uid) {
+							const mg =
+								managedGroupsStore.get(String(b.bound_group_id || b.group_id)) ||
+								Array.from(managedGroupsStore.values()).find((g) => g.bot_id === b.id);
+							const expIso =
+								mg?.subscription_expires_at ||
+								mg?.trial_ends_at ||
+								b.subscription_expires_at ||
+								b.trial_expires_at;
+							const credit = computeRemainingCredit(expIso);
+							list.push({
+								id: b.id,
+								username: b.bot_username,
+								name: b.bot_name,
+								group_id: mg?.id || b.bound_group_id || '',
+								group_title: mg?.title || b.bound_group_title || b.bot_name,
+								remaining_label: credit.remaining_label,
+								status: mg?.is_active && !credit.is_expired ? 'active' : 'suspended',
+							});
+						}
+					}
+					return list;
+				};
+
 				const usersMap = new Map<number, any>();
 
-				// 1. Seed Platform Owner (5076130392)
+				// 1. Platform Owner (5076130392)
+				const ownerBots = buildUserBotsList(OWNER_TELEGRAM_ID);
+				const ownerMeta = ownerUsersMeta[ownerKey];
 				usersMap.set(OWNER_TELEGRAM_ID, {
 					telegram_id: OWNER_TELEGRAM_ID,
-					username: ownerUsersMeta[String(OWNER_TELEGRAM_ID)]?.username || 'owner',
-					first_name: ownerUsersMeta[String(OWNER_TELEGRAM_ID)]?.first_name || 'مالک کل پلتفرم',
-					last_name: ownerUsersMeta[String(OWNER_TELEGRAM_ID)]?.last_name || '',
+					username: ownerMeta?.username || '',
+					first_name: ownerMeta?.first_name || 'مالک کل پلتفرم',
+					last_name: ownerMeta?.last_name || '',
+					role_label: '👑 مالک کل پلتفرم',
 					language_code: 'fa',
-					created_at:
-						ownerUsersMeta[String(OWNER_TELEGRAM_ID)]?.created_at || new Date().toISOString(),
-					managed_groups_count: managedGroupsStore.size || 1,
+					created_at: ownerMeta?.created_at || new Date().toISOString(),
+					managed_groups_count: ownerBots.length || managedGroupsStore.size || 1,
+					bots_list: ownerBots,
 					is_premium: true,
-					is_flagged: Boolean(ownerUsersMeta[String(OWNER_TELEGRAM_ID)]?.is_flagged),
-					fraud_reason: ownerUsersMeta[String(OWNER_TELEGRAM_ID)]?.fraud_reason || '',
-					is_banned: Boolean(ownerUsersMeta[String(OWNER_TELEGRAM_ID)]?.is_banned),
-					ban_reason: ownerUsersMeta[String(OWNER_TELEGRAM_ID)]?.ban_reason,
+					is_flagged: Boolean(ownerMeta?.is_flagged),
+					fraud_reason: ownerMeta?.fraud_reason || '',
+					is_banned: Boolean(ownerMeta?.is_banned),
+					ban_reason: ownerMeta?.ban_reason,
 				});
 
-				// 2. Add users from managedBotsStore
+				// 2. Dedicated Bot Owners
 				for (const b of managedBotsStore.values()) {
 					const uid = Number(b.owner_user_id || OWNER_TELEGRAM_ID);
 					if (!usersMap.has(uid)) {
 						const meta = ownerUsersMeta[String(uid)];
+						const uBots = buildUserBotsList(uid);
 						usersMap.set(uid, {
 							telegram_id: uid,
-							username: meta?.username || `admin_${uid}`,
+							username: meta?.username || '',
 							first_name: meta?.first_name || `مدیر ربات (@${b.bot_username})`,
 							last_name: meta?.last_name || '',
+							role_label: '🛡️ مدیر گروه و بات',
 							language_code: meta?.language_code || 'fa',
 							created_at: b.created_at || new Date().toISOString(),
-							managed_groups_count: 1,
-							is_premium: b.subscription_status === 'active' || Boolean(meta?.is_premium),
+							managed_groups_count: uBots.length,
+							bots_list: uBots,
+							is_premium: uBots.some((x) => x.status === 'active') || Boolean(meta?.is_premium),
 							is_flagged: Boolean(meta?.is_flagged),
 							fraud_reason: meta?.fraud_reason || '',
 							is_banned: Boolean(meta?.is_banned),
@@ -5284,47 +5424,27 @@ export function createServer() {
 					}
 				}
 
-				// 3. Add users from ownerUsersMeta & group topUsers
+				// 3. Other Mini App Users in ownerUsersMeta
 				for (const [uidStr, meta] of Object.entries(ownerUsersMeta)) {
 					const uid = Number(uidStr);
-					if (!uid) continue;
-					const existing = usersMap.get(uid);
+					if (!uid || usersMap.has(uid)) continue;
+					const uBots = buildUserBotsList(uid);
 					usersMap.set(uid, {
 						telegram_id: uid,
-						username: meta.username || existing?.username || '',
-						first_name: meta.first_name || existing?.first_name || 'کاربر',
-						last_name: meta.last_name || existing?.last_name || '',
+						username: meta.username || '',
+						first_name: meta.first_name || 'کاربر پلتفرم',
+						last_name: meta.last_name || '',
+						role_label: uBots.length > 0 ? '🛡️ مدیر گروه و بات' : '👤 کاربر ربات',
 						language_code: meta.language_code || 'fa',
-						created_at: meta.created_at || existing?.created_at || new Date().toISOString(),
-						managed_groups_count: existing?.managed_groups_count || 0,
-						is_premium: Boolean(meta.is_premium ?? existing?.is_premium),
+						created_at: meta.created_at || new Date().toISOString(),
+						managed_groups_count: uBots.length,
+						bots_list: uBots,
+						is_premium: Boolean(meta.is_premium),
 						is_flagged: Boolean(meta.is_flagged),
 						fraud_reason: meta.fraud_reason || '',
 						is_banned: Boolean(meta.is_banned),
 						ban_reason: meta.ban_reason,
 					});
-				}
-
-				for (const g of groupsStore.values()) {
-					const topUsers = g.analytics?.topUsers || {};
-					for (const u of Object.values(topUsers)) {
-						if (!u?.id || usersMap.has(Number(u.id))) continue;
-						const meta = ownerUsersMeta[String(u.id)];
-						usersMap.set(Number(u.id), {
-							telegram_id: Number(u.id),
-							username: u.username || meta?.username || '',
-							first_name: u.name || meta?.first_name || 'کاربر گروه',
-							last_name: '',
-							language_code: 'fa',
-							created_at: new Date().toISOString(),
-							managed_groups_count: 0,
-							is_premium: Boolean(meta?.is_premium),
-							is_flagged: Boolean(meta?.is_flagged),
-							fraud_reason: meta?.fraud_reason || '',
-							is_banned: Boolean(meta?.is_banned),
-							ban_reason: meta?.ban_reason,
-						});
-					}
 				}
 
 				const allUsers = Array.from(usersMap.values());
@@ -5398,13 +5518,25 @@ export function createServer() {
 			}
 
 			if (cleanPath === '/owner/health/metrics' && method === 'GET') {
+				let dbSizeKb = 14;
+				try {
+					if (fs.existsSync(STORE_FILE)) {
+						dbSizeKb = Math.max(1, Math.round(fs.statSync(STORE_FILE).size / 1024));
+					}
+				} catch {}
+				const mem = process.memoryUsage();
 				return sendJson(200, {
 					db_status: 'ok',
 					db_latency_ms: 1,
+					db_size_kb: dbSizeKb,
 					redis_status: 'ok',
-					active_goroutines: 4 + activeChildPollingTokens.size,
-					memory_used_mb: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
+					active_goroutines: 1 + activeChildPollingTokens.size,
+					active_polling_bots: 1 + activeChildPollingTokens.size,
+					active_groups_count: managedGroupsStore.size || groupsStore.size,
+					memory_used_mb: Math.round(mem.heapUsed / 1024 / 1024),
+					memory_rss_mb: Math.round(mem.rss / 1024 / 1024),
 					uptime_seconds: Math.floor(process.uptime()),
+					node_version: process.version,
 					recent_errors_count: 0,
 				});
 			}
@@ -5425,15 +5557,20 @@ export function createServer() {
 						return sendJson(400, { error: 'متن پیام همگانی نمی‌تواند خالی باشد.' });
 					}
 
-					const targetChatIds = new Set<number>([OWNER_TELEGRAM_ID]);
-					for (const uidStr of Object.keys(ownerUsersMeta)) {
-						if (Number(uidStr)) targetChatIds.add(Number(uidStr));
+					const targetChatIds = new Set<number>();
+					if (audience !== 'active_7d') {
+						targetChatIds.add(OWNER_TELEGRAM_ID);
+						for (const uidStr of Object.keys(ownerUsersMeta)) {
+							if (Number(uidStr)) targetChatIds.add(Number(uidStr));
+						}
+						for (const b of managedBotsStore.values()) {
+							if (b.owner_user_id) targetChatIds.add(Number(b.owner_user_id));
+						}
 					}
-					for (const b of managedBotsStore.values()) {
-						if (b.owner_user_id) targetChatIds.add(Number(b.owner_user_id));
-					}
-					for (const mg of managedGroupsStore.values()) {
-						if (mg.telegram_chat_id) targetChatIds.add(Number(mg.telegram_chat_id));
+					if (audience !== 'premium') {
+						for (const mg of managedGroupsStore.values()) {
+							if (mg.telegram_chat_id) targetChatIds.add(Number(mg.telegram_chat_id));
+						}
 					}
 
 					let sentCount = 0;

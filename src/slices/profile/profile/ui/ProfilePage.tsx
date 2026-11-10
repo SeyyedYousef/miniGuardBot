@@ -219,45 +219,6 @@ export const ProfilePage: Component = () => {
 							chevron_right
 						</span>
 					</button>
-
-					{/* Direct Platform Owner Console Access (for Owner ID 5076130392 or Active Owner Session) */}
-					<Show
-						when={
-							Number(tgUser()?.id) === 5076130392 ||
-							Boolean(
-								typeof window !== 'undefined' &&
-									(sessionStorage.getItem('owner_token') ||
-										localStorage.getItem('owner_token') ||
-										localStorage.getItem('tg_user_id') === '5076130392'),
-							)
-						}
-					>
-						<button
-							onClick={() => {
-								try {
-									haptic.impact('medium');
-								} catch {}
-								const existingToken =
-									sessionStorage.getItem('owner_token') || localStorage.getItem('owner_token');
-								if (existingToken) {
-									navigate('/owner/dashboard');
-								} else {
-									secretTrigger.setShowGate(true);
-								}
-							}}
-							class="tg-cell w-full text-start"
-						>
-							<div class="tg-icon-box" style={{ 'background-color': '#FF9500' }}>
-								<span class="material-symbols-outlined text-[18px]">admin_panel_settings</span>
-							</div>
-							<span class="flex-1 text-[15px] font-bold text-[var(--tg-text)]">
-								پنل مدیریت کل پلتفرم (Owner)
-							</span>
-							<span class="material-symbols-outlined text-[var(--tg-hint)] rtl:rotate-180 text-[20px]">
-								chevron_right
-							</span>
-						</button>
-					</Show>
 				</div>
 
 				{/* Version Footer (Secret Owner Panel Trigger) */}

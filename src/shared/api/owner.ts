@@ -11,7 +11,18 @@ export interface SearchedUser {
 	last_name: string;
 	language_code: string;
 	created_at: string;
+	role_label?: string;
 	managed_groups_count?: number;
+	bots_list?: Array<{
+		id: string;
+		username: string;
+		name: string;
+		group_id: string;
+		group_title: string;
+		remaining_label: string;
+		status: string;
+	}>;
+	remaining_label?: string;
 	is_premium: boolean;
 	is_flagged: boolean;
 	fraud_reason: string;
@@ -26,10 +37,12 @@ export interface AuditLogEntry {
 	owner_id: number;
 	target_type?: string;
 	target_id?: string | number;
+	target_user_id?: number;
 	action: string;
 	ip_address?: string;
 	user_agent?: string;
 	payload?: Record<string, any>;
+	details?: Record<string, any>;
 	created_at: string;
 }
 
@@ -62,6 +75,7 @@ export interface FinanceOrder {
 	user_id: number;
 	username?: string;
 	amount_stars: number;
+	order_kind?: 'stars' | 'manual';
 	status: 'paid' | 'pending' | 'failed' | 'refunded';
 	item_type: string;
 	created_at: string;
@@ -70,10 +84,16 @@ export interface FinanceOrder {
 export interface SystemHealthMetrics {
 	db_status: 'ok' | 'degraded' | 'down';
 	db_latency_ms: number;
+	db_size_kb?: number;
+	last_saved_at?: string;
 	redis_status: 'ok' | 'down';
 	active_goroutines: number;
+	active_polling_bots?: number;
+	active_groups_count?: number;
 	memory_used_mb: number;
+	memory_rss_mb?: number;
 	uptime_seconds: number;
+	node_version?: string;
 	recent_errors_count: number;
 }
 
@@ -81,11 +101,17 @@ export interface OwnerEntityItem {
 	id: string | number;
 	type: 'group';
 	title: string;
+	group_link?: string;
 	username?: string;
+	bot_id?: string;
+	bot_name?: string;
 	bot_username?: string;
 	members_count?: number;
+	total_messages?: number;
+	spam_blocked?: number;
 	telegram_id: number;
 	owner_id: number;
+	owner_name?: string;
 	owner_username?: string;
 	credit_balance: number;
 	remaining_hours?: number;
@@ -96,6 +122,8 @@ export interface OwnerEntityItem {
 	created_at: string;
 }
 
+const NO_CACHE = { headers: { 'Cache-Control': 'no-cache' } };
+
 /* ==========================================================================
    Unified Typed Owner API Client (MiniGuard Group Platform)
    ========================================================================== */
@@ -104,7 +132,10 @@ export const ownerApi = {
 	// --- Group Admins ---
 	searchUsers: (query: string, config?: any) =>
 		apiClient
-			.get<SearchedUser[]>(`/owner/users/search?q=${encodeURIComponent(query)}`, config)
+			.get<SearchedUser[]>(`/owner/users/search?q=${encodeURIComponent(query)}`, {
+				...NO_CACHE,
+				...config,
+			})
 			.then((r) => r.data),
 
 	banUser: (userId: number, banType: string, reason: string, durationSeconds: number) =>
@@ -133,7 +164,9 @@ export const ownerApi = {
 
 	impersonateUser: (userId: number) =>
 		apiClient
-			.post<{ token: string }>('/owner/users/impersonate', { user_id: userId })
+			.post<{ token: string; access_token?: string }>('/owner/users/impersonate', {
+				user_id: userId,
+			})
 			.then((r) => r.data),
 
 	// --- Audit Logs ---
@@ -141,15 +174,17 @@ export const ownerApi = {
 		apiClient
 			.get<{ logs: AuditLogEntry[]; has_more: boolean }>(
 				`/owner/audit-logs?limit=${limit}&offset=${offset}`,
+				NO_CACHE,
 			)
 			.then((r) => r.data),
 
 	// --- Platform Settings ---
-	getSettings: () => apiClient.get<SystemSettings>('/owner/settings').then((r) => r.data),
+	getSettings: () =>
+		apiClient.get<SystemSettings>('/owner/settings', NO_CACHE).then((r) => r.data),
 	updateSettings: async (settingsPayload: Partial<SystemSettings>) => {
 		let existing: SystemSettings | null = null;
 		try {
-			const res = await apiClient.get<SystemSettings>('/owner/settings');
+			const res = await apiClient.get<SystemSettings>('/owner/settings', NO_CACHE);
 			existing = res.data;
 		} catch (_e) {}
 
@@ -173,12 +208,12 @@ export const ownerApi = {
 	// --- Broadcast ---
 	listBroadcasts: () =>
 		apiClient
-			.get<BroadcastMessage[]>('/owner/broadcasts')
+			.get<BroadcastMessage[]>('/owner/broadcasts', NO_CACHE)
 			.then((r) => r.data)
 			.catch(() => []),
 	sendBroadcast: (audience: string, text: string, _scheduledAt?: string) =>
 		apiClient
-			.post<{ success: boolean; id: string | number }>('/owner/broadcasts', {
+			.post<{ success: boolean; id: string | number; sent_count?: number }>('/owner/broadcasts', {
 				target_audience: audience,
 				message: text,
 			})
@@ -186,17 +221,19 @@ export const ownerApi = {
 
 	// --- Finance (Telegram Stars Subscriptions) ---
 	getFinanceOrders: () =>
-		apiClient.get<FinanceOrder[]>('/owner/finance/orders').then((r) => r.data),
+		apiClient.get<FinanceOrder[]>('/owner/finance/orders', NO_CACHE).then((r) => r.data),
 
 	// --- Health ---
 	getHealthMetrics: () =>
-		apiClient.get<SystemHealthMetrics>('/owner/health/metrics').then((r) => r.data),
+		apiClient.get<SystemHealthMetrics>('/owner/health/metrics', NO_CACHE).then((r) => r.data),
 	getHealthLogs: () =>
 		apiClient
-			.get<any[]>('/owner/health/errors')
+			.get<any[]>('/owner/health/errors', NO_CACHE)
 			.then((r) =>
 				Array.isArray(r.data)
-					? r.data.map((e) => `[${e.source || 'SYS'}] ${e.error_message || ''}`)
+					? r.data.map((e) =>
+							typeof e === 'string' ? e : `[${e.source || 'SYS'}] ${e.error_message || ''}`,
+						)
 					: [],
 			)
 			.catch(() => []),
@@ -204,7 +241,7 @@ export const ownerApi = {
 	// --- Managed Groups & Dedicated Bots ---
 	listEntities: async (): Promise<OwnerEntityItem[]> => {
 		const groupsRes = await apiClient
-			.get<any[]>('/owner/entities/groups')
+			.get<any[]>('/owner/entities/groups', NO_CACHE)
 			.catch(() => ({ data: [] }));
 		return (groupsRes.data || []).map((g: any) => ({ ...g, type: 'group' as const }));
 	},
@@ -213,6 +250,7 @@ export const ownerApi = {
 		amountDays: number,
 		reason = 'Owner manual extension',
 		amountHours = 0,
+		mode: 'add' | 'set' = 'add',
 	) =>
 		apiClient
 			.post<{
@@ -226,6 +264,7 @@ export const ownerApi = {
 				entity_id: String(id),
 				days: amountDays,
 				hours: amountHours,
+				mode,
 				reason,
 			})
 			.then((r) => r.data),
@@ -234,6 +273,12 @@ export const ownerApi = {
 			.post<{ success: boolean; status: string }>('/owner/entities/toggle-status', {
 				entity_id: String(id),
 				is_active: isActive,
+			})
+			.then((r) => r.data),
+	deleteEntity: (id: string | number) =>
+		apiClient
+			.post<{ success: boolean }>('/owner/entities/delete', {
+				entity_id: String(id),
 			})
 			.then((r) => r.data),
 };

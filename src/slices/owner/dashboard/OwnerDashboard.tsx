@@ -9,6 +9,9 @@ interface DashboardStats {
 	total_users: number;
 	active_groups_count?: number;
 	active_bots_count?: number;
+	total_members_protected?: number;
+	total_messages_processed?: number;
+	total_spam_blocked?: number;
 	stars_volume: number;
 	recent_activity: Array<{
 		id: string;
@@ -18,7 +21,6 @@ interface DashboardStats {
 		ip_address?: string;
 		created_at: string;
 	}>;
-	dau_chart: Array<{ date: string; value: number }>;
 }
 
 export const OwnerDashboard: Component = () => {
@@ -31,7 +33,9 @@ export const OwnerDashboard: Component = () => {
 		setLoading(true);
 		setError('');
 		try {
-			const resp = await apiClient.get('/owner/dashboard/stats');
+			const resp = await apiClient.get('/owner/dashboard/stats', {
+				headers: { 'Cache-Control': 'no-cache' },
+			});
 			setStats(resp.data);
 		} catch (err: any) {
 			setError(err.response?.data?.error || 'خطا در دریافت آمارهای داشبورد');
@@ -44,20 +48,30 @@ export const OwnerDashboard: Component = () => {
 		fetchStats();
 	});
 
-	const activeGroupsCount = () =>
-		stats()?.active_groups_count ?? (((window as any).__mockGroups || []).length || 0);
-	const activeBotsCount = () =>
-		stats()?.active_bots_count ?? (((window as any).__mockBots || []).length || 0);
+	const formatTime = (iso?: string) => {
+		if (!iso) return '';
+		try {
+			return new Date(iso).toLocaleString('fa-IR', {
+				month: 'short',
+				day: 'numeric',
+				hour: '2-digit',
+				minute: '2-digit',
+			});
+		} catch {
+			return '';
+		}
+	};
 
 	return (
-		<div class="space-y-5">
+		<div class="space-y-4">
+			{/* Top Header */}
 			<div class="tg-section p-4 flex items-center justify-between">
 				<div class="flex flex-col">
 					<h2 class="text-[15px] font-bold text-[var(--tg-text)]">
-						داشبورد مدیریتی پلتفرم مدیریت گروه
+						پیشخوان مدیریت کل پلتفرم MiniGuard
 					</h2>
 					<span class="text-[12px] text-[var(--tg-hint)]">
-						پایش لحظه‌ای بات‌های اختصاصی و گروه‌های متصل
+						آمار زنده سرور، بات‌های اختصاصی و گروه‌های متصل
 					</span>
 				</div>
 				<button
@@ -81,64 +95,167 @@ export const OwnerDashboard: Component = () => {
 				</div>
 			</Show>
 
-			<Show when={!loading() && stats()}>
-				{/* Native Telegram KPI Grid */}
+			<Show
+				when={!loading() && stats()}
+				fallback={
+					<div class="tg-section p-8 flex flex-col items-center justify-center gap-2">
+						<div class="w-6 h-6 border-2 border-[var(--tg-button)] border-t-transparent rounded-full animate-spin" />
+						<span class="text-[12.5px] text-[var(--tg-hint)]">در حال بارگذاری آمار پلتفرم...</span>
+					</div>
+				}
+			>
+				{/* Real-Time KPI Grid */}
 				<div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-					<div class="tg-section p-4 flex flex-col gap-1.5">
-						<span class="text-[12px] text-[var(--tg-hint)] font-medium">
-							مدیران فعال امروز (DAU)
+					<div class="tg-section p-4 flex flex-col gap-1">
+						<span class="text-[11.5px] text-[var(--tg-hint)] font-medium">
+							گروه‌ها و بات‌های فعال
 						</span>
-						<span class="text-[24px] font-bold text-[var(--tg-text)] font-mono tabular-nums">
-							{stats()?.dau?.toLocaleString() ?? 0}
-						</span>
-					</div>
-
-					<div class="tg-section p-4 flex flex-col gap-1.5">
-						<span class="text-[12px] text-[var(--tg-hint)] font-medium">مدیران فعال ماه (MAU)</span>
-						<span class="text-[24px] font-bold text-[var(--tg-text)] font-mono tabular-nums">
-							{stats()?.mau?.toLocaleString() ?? 0}
+						<span class="text-[20px] font-bold text-[#34C759] font-mono tabular-nums">
+							{stats()?.active_groups_count ?? 0} گروه ({stats()?.active_bots_count ?? 0} بات)
 						</span>
 					</div>
 
-					<div class="tg-section p-4 flex flex-col gap-1.5">
-						<span class="text-[12px] text-[var(--tg-hint)] font-medium">گروه‌های تحت پوشش</span>
-						<span class="text-[24px] font-bold text-[#34C759] font-mono tabular-nums">
-							{activeGroupsCount()} گروه ({activeBotsCount()} بات)
+					<div class="tg-section p-4 flex flex-col gap-1">
+						<span class="text-[11.5px] text-[var(--tg-hint)] font-medium">
+							کل اعضای تحت حفاظت
+						</span>
+						<span class="text-[20px] font-bold text-[var(--tg-link)] font-mono tabular-nums">
+							{(stats()?.total_members_protected ?? 0).toLocaleString('fa-IR')} نفر
 						</span>
 					</div>
 
-					<div class="tg-section p-4 flex flex-col gap-1.5">
-						<span class="text-[12px] text-[var(--tg-hint)] font-medium">درآمد اشتراک (Stars)</span>
-						<span class="text-[24px] font-bold text-[#FF9500] font-mono tabular-nums">
-							{Number(stats()?.stars_volume ?? 0).toLocaleString()} ⭐
+					<div class="tg-section p-4 flex flex-col gap-1">
+						<span class="text-[11.5px] text-[var(--tg-hint)] font-medium">
+							اسپم و تخلف مسدودشده
+						</span>
+						<span class="text-[20px] font-bold text-[var(--tg-text)] font-mono tabular-nums">
+							{(stats()?.total_spam_blocked ?? 0).toLocaleString('fa-IR')} مورد
+						</span>
+					</div>
+
+					<div class="tg-section p-4 flex flex-col gap-1">
+						<span class="text-[11.5px] text-[var(--tg-hint)] font-medium">
+							درآمد اشتراک (Stars)
+						</span>
+						<span class="text-[20px] font-bold text-[#FF9500] font-mono tabular-nums">
+							{Number(stats()?.stars_volume ?? 0).toLocaleString('fa-IR')} ⭐
 						</span>
 					</div>
 				</div>
 
-				{/* Recent Audit Logs */}
+				{/* Quick Navigation Grid */}
+				<div>
+					<div class="tg-section-header">دسترسی سریع به بخش‌های مدیریتی</div>
+					<div class="grid grid-cols-2 gap-2.5">
+						<button
+							onClick={() => navigate('/owner/entities')}
+							class="tg-section p-3.5 flex items-center gap-3 text-start"
+						>
+							<div class="w-10 h-10 rounded-xl bg-[#007AFF]/12 text-[#007AFF] flex items-center justify-center shrink-0">
+								<span class="material-symbols-outlined text-[20px]">groups</span>
+							</div>
+							<div class="flex flex-col min-w-0">
+								<span class="text-[13.5px] font-bold text-[var(--tg-text)] truncate">
+									گروه‌ها و شارژ اعتبار
+								</span>
+								<span class="text-[11px] text-[var(--tg-hint)] truncate">
+									مدیریت بات‌ها و تمدید دستی
+								</span>
+							</div>
+						</button>
+
+						<button
+							onClick={() => navigate('/owner/users')}
+							class="tg-section p-3.5 flex items-center gap-3 text-start"
+						>
+							<div class="w-10 h-10 rounded-xl bg-[#34C759]/12 text-[#34C759] flex items-center justify-center shrink-0">
+								<span class="material-symbols-outlined text-[20px]">manage_accounts</span>
+							</div>
+							<div class="flex flex-col min-w-0">
+								<span class="text-[13.5px] font-bold text-[var(--tg-text)] truncate">
+									مدیران گروه
+								</span>
+								<span class="text-[11px] text-[var(--tg-hint)] truncate">
+									مشاهده و مدیریت کاربران
+								</span>
+							</div>
+						</button>
+
+						<button
+							onClick={() => navigate('/owner/settings')}
+							class="tg-section p-3.5 flex items-center gap-3 text-start"
+						>
+							<div class="w-10 h-10 rounded-xl bg-[#FF9500]/12 text-[#FF9500] flex items-center justify-center shrink-0">
+								<span class="material-symbols-outlined text-[20px]">settings</span>
+							</div>
+							<div class="flex flex-col min-w-0">
+								<span class="text-[13.5px] font-bold text-[var(--tg-text)] truncate">
+									تنظیمات و متون بات
+								</span>
+								<span class="text-[11px] text-[var(--tg-hint)] truncate">
+									تعرفه، استارت و پیام‌های ورود
+								</span>
+							</div>
+						</button>
+
+						<button
+							onClick={() => navigate('/owner/broadcast')}
+							class="tg-section p-3.5 flex items-center gap-3 text-start"
+						>
+							<div class="w-10 h-10 rounded-xl bg-[#5856D6]/12 text-[#5856D6] flex items-center justify-center shrink-0">
+								<span class="material-symbols-outlined text-[20px]">campaign</span>
+							</div>
+							<div class="flex flex-col min-w-0">
+								<span class="text-[13.5px] font-bold text-[var(--tg-text)] truncate">
+									ارسال پیام همگانی
+								</span>
+								<span class="text-[11px] text-[var(--tg-hint)] truncate">
+									اطلاع‌رسانی به مدیران و گروه‌ها
+								</span>
+							</div>
+						</button>
+					</div>
+				</div>
+
+				{/* Recent Activity Logs */}
 				<div>
 					<div class="tg-section-header flex items-center justify-between">
-						<span>آخرین رخدادهای امنیتی</span>
+						<span>آخرین رویدادهای پلتفرم</span>
 						<button
 							onClick={() => navigate('/owner/audit-logs')}
-							class="text-[var(--tg-link)] font-semibold"
+							class="text-[var(--tg-link)] font-semibold text-[12px]"
 						>
 							مشاهده همه
 						</button>
 					</div>
-					<div class="tg-section">
-						<For each={stats()?.recent_activity ?? []}>
+					<div class="tg-section divide-y divide-[var(--tg-separator)]">
+						<For
+							each={stats()?.recent_activity ?? []}
+							fallback={
+								<div class="p-6 text-center text-[13px] text-[var(--tg-hint)]">
+									هنوز رویدادی ثبت نشده است.
+								</div>
+							}
+						>
 							{(log) => (
-								<div class="tg-cell justify-between">
-									<div class="flex items-center gap-3">
-										<span class="px-2 py-0.5 rounded-md bg-[var(--tg-accent-soft)] text-[11px] font-mono font-bold text-[var(--tg-link)]">
-											{log.action}
+								<div class="p-3.5 flex items-center justify-between gap-3">
+									<div class="flex items-center gap-2.5 min-w-0">
+										<span class="material-symbols-outlined text-[18px] text-[var(--tg-link)] shrink-0">
+											verified_user
 										</span>
-										<span class="text-[13px] font-medium text-[var(--tg-text)]">
-											Admin #{log.owner_id}
-										</span>
+										<div class="flex flex-col min-w-0">
+											<span class="text-[13px] font-semibold text-[var(--tg-text)] truncate">
+												{log.action}
+											</span>
+											<span class="text-[11px] text-[var(--tg-hint)]">
+												{formatTime(log.created_at)}
+											</span>
+										</div>
 									</div>
-									<span class="text-[12px] text-[var(--tg-hint)] font-mono">
+									<span
+										dir="ltr"
+										class="text-[11px] text-[var(--tg-hint)] font-mono bg-[var(--tg-secondary-bg)] px-2 py-0.5 rounded-md shrink-0"
+									>
 										{log.ip_address || '127.0.0.1'}
 									</span>
 								</div>
