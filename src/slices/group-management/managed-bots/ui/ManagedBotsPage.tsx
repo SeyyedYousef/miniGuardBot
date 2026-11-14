@@ -15,8 +15,8 @@ import { mockApiLogic } from '@/shared/api/mock-api.js';
 import { uiText } from '@/shared/i18n/group-ui.js';
 import { isRtl } from '@/shared/i18n/index.js';
 import { haptic } from '@/shared/lib/haptic.js';
-import { showToast } from '@/shared/ui/toast.js';
 import { BotCardSkeleton } from '@/shared/ui/Skeleton.js';
+import { showToast } from '@/shared/ui/toast.js';
 import {
 	extractCleanBotToken,
 	normalizeGroupLinkInput,

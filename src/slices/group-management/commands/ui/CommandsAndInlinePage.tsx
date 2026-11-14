@@ -1,12 +1,15 @@
 import { useNavigate, useParams } from '@solidjs/router';
 import { backButton } from '@tma.js/sdk-solid';
 import { type Component, createMemo, createSignal, For, onCleanup, onMount, Show } from 'solid-js';
+import { isRtl, locale } from '@/shared/i18n/index.js';
 import {
 	BOT_COMMANDS_CATALOG,
 	type CommandCategory,
 	EDGE_CASE_RESOLUTIONS,
 	type EdgeCaseScenarioId,
 	evaluateCallbackQueryRbac,
+	getLocalizedBotCommand,
+	getLocalizedEdgeCase,
 	type InlineKeyboardButton,
 	parseGroupCommand,
 } from '@/shared/lib/bot-commands-engine.js';
@@ -21,11 +24,19 @@ type InlineMenuScreen = 'root' | 'locks' | 'flood' | 'quiet';
 export const CommandsAndInlinePage: Component = () => {
 	const params = useParams();
 	const navigate = useNavigate();
+	const pick = (fa: string, ps: string, en: string) =>
+		locale() === 'ps' ? ps : locale() === 'fa' ? fa : en;
 
 	const [activeSection, setActiveSection] = createSignal<ActiveSection>('commands');
 
 	// ─── Tab 1: In-Chat Commands & Live Terminal State ─────────────────────────
-	const [cmdInput, setCmdInput] = createSignal('سکوت ۲ ساعت ارسال لینک تبلیغاتی');
+	const [cmdInput, setCmdInput] = createSignal(
+		pick(
+			'سکوت ۲ ساعت ارسال لینک تبلیغاتی',
+			'بې‌غږه ۲ ساعته د تبلیغاتي لینک لېږل',
+			'/mute 2h Sending promotional link',
+		),
+	);
 	const [targetName] = createSignal('Amir_Crypto');
 	const [selectedCat, setSelectedCat] = createSignal<'all' | CommandCategory>('all');
 
@@ -48,15 +59,28 @@ export const CommandsAndInlinePage: Component = () => {
 	>([
 		{
 			id: 'init-1',
-			adminText: 'سکوت ۲ ساعت ارسال لینک تبلیغاتی',
+			adminText: pick(
+				'سکوت ۲ ساعت ارسال لینک تبلیغاتی',
+				'بې‌غږه ۲ ساعته د تبلیغاتي لینک لېږل',
+				'/mute 2h Sending promotional link',
+			),
 			targetUser: 'Amir_Crypto',
 			apiMethod: 'restrictChatMember (until_date: +7200s)',
-			botReplyHtml:
+			botReplyHtml: pick(
 				'🔇 کاربر <b>Amir_Crypto</b> به مدت <b>2 ساعت</b> بی‌صدا (Mute) شد.\n📝 دلیل: ارسال لینک تبلیغاتی',
+				'🔇 کاروونکی <b>Amir_Crypto</b> د <b>2 ساعته</b> لپاره بې‌غږه (Mute) شو.\n📝 لامل: د تبلیغاتي لینک لېږل',
+				'🔇 User <b>Amir_Crypto</b> was muted for <b>2h</b>.\n📝 Reason: Sending promotional link',
+			),
 			inlineKeyboard: [
 				[
-					{ text: '🔊 لغو سکوت (Unmute)', callback_data: 'mg:unmute:8849201' },
-					{ text: '🚫 اخراج کامل (Ban)', callback_data: 'mg:ban:8849201' },
+					{
+						text: pick('🔊 لغو سکوت (Unmute)', '🔊 چوپتیا لرې کول (Unmute)', '🔊 Unmute'),
+						callback_data: 'mg:unmute:8849201',
+					},
+					{
+						text: pick('🚫 اخراج کامل (Ban)', '🚫 دایمي شړل (Ban)', '🚫 Ban'),
+						callback_data: 'mg:ban:8849201',
+					},
 				],
 			],
 		},
@@ -73,6 +97,7 @@ export const CommandsAndInlinePage: Component = () => {
 			senderIsAdmin: true,
 			repliedUserName: targetName(),
 			repliedUserId: 8849201,
+			lang: locale(),
 		});
 
 		const methodLabel = parsed.botApiMethod || 'sendMessage';
@@ -87,7 +112,14 @@ export const CommandsAndInlinePage: Component = () => {
 			},
 			...prev.slice(0, 4),
 		]);
-		showToast(`دستور اجرا شد: ${methodLabel}`, 'success');
+		showToast(
+			pick(
+				`دستور اجرا شد: ${methodLabel}`,
+				`کمانډ اجرا شو: ${methodLabel}`,
+				`Executed: ${methodLabel}`,
+			),
+			'success',
+		);
 	};
 
 	const handleSimMessageInlineClick = (msgId: string, btn: InlineKeyboardButton) => {
@@ -95,22 +127,48 @@ export const CommandsAndInlinePage: Component = () => {
 		const cb = btn.callback_data || '';
 		let resolutionNote = '';
 		if (cb.includes('unmute')) {
-			resolutionNote =
-				'✅ سکوت کاربر توسط ادمین با دکمه شیشه‌ای لغو شد (restrictChatMember: permissions=true).';
+			resolutionNote = pick(
+				'✅ سکوت کاربر توسط ادمین با دکمه شیشه‌ای لغو شد (restrictChatMember: permissions=true).',
+				'✅ د کاروونکي بې‌غږه‌کونه د اډمین له خوا پر شیشه‌يي تڼۍ لرې شوه (restrictChatMember: permissions=true).',
+				'✅ User unmuted by admin via inline button (restrictChatMember: permissions=true).',
+			);
 		} else if (cb.includes('unban')) {
-			resolutionNote = '✅ مسدودیت کاربر رفع شد (unbanChatMember).';
+			resolutionNote = pick(
+				'✅ مسدودیت کاربر رفع شد (unbanChatMember).',
+				'✅ د کاروونکي بندیز لرې شو (unbanChatMember).',
+				'✅ User unbanned (unbanChatMember).',
+			);
 		} else if (cb.includes('ban')) {
-			resolutionNote = '🚫 کاربر به صورت دائمی از گروه اخراج شد (banChatMember).';
+			resolutionNote = pick(
+				'🚫 کاربر به صورت دائمی از گروه اخراج شد (banChatMember).',
+				'🚫 کاروونکی په دایمي توګه له ګروپ څخه وشړل شو (banChatMember).',
+				'🚫 User permanently banned from group (banChatMember).',
+			);
 		} else if (cb.includes('unwarn')) {
-			resolutionNote = '💚 ۱ اخطار کاربر بخشیده شد (اخطار فعلی: ۰/۳).';
+			resolutionNote = pick(
+				'💚 ۱ اخطار کاربر بخشیده شد (اخطار فعلی: ۰/۳).',
+				'💚 د کاروونکي ۱ خبرداری وبښل شو (اوسني خبرداري: ۰/۳).',
+				'💚 1 warning forgiven (current warnings: 0/3).',
+			);
 		} else if (cb.includes('report_dismiss')) {
-			resolutionNote = '✅ گزارش بررسی و بسته شد.';
+			resolutionNote = pick(
+				'✅ گزارش بررسی و بسته شد.',
+				'✅ راپور وڅېړل شو او وتړل شو.',
+				'✅ Report reviewed and closed.',
+			);
 		} else if (cb.includes('panel:')) {
 			setActiveSection('inline-panel');
-			showToast('پنل شیشه‌ای باز شد', 'success');
+			showToast(
+				pick('پنل شیشه‌ای باز شد', 'شیشه‌يي پینل پرانیستل شو', 'Inline panel opened'),
+				'success',
+			);
 			return;
 		} else {
-			resolutionNote = `⚡ فراخوانی ${cb} با موفقیت انجام شد.`;
+			resolutionNote = pick(
+				`⚡ فراخوانی ${cb} با موفقیت انجام شد.`,
+				`⚡ د ${cb} غوښتنه په بریالیتوب سره اجرا شوه.`,
+				`⚡ Executed ${cb} successfully.`,
+			);
 		}
 
 		setSimHistory((prev) =>
@@ -151,6 +209,7 @@ export const CommandsAndInlinePage: Component = () => {
 			callerUserId: callerRole() === 'admin' ? 1001 : 9999,
 			adminUserIds: [1001, 1002],
 			callbackData,
+			lang: locale(),
 		});
 
 		if (!rbac.allowed) {
@@ -173,7 +232,9 @@ export const CommandsAndInlinePage: Component = () => {
 		'active_trial' | 'warning_2h' | 'expired_hibernated' | 'reactivated_stars'
 	>('expired_hibernated');
 
-	const edgeCaseList = createMemo(() => Object.values(EDGE_CASE_RESOLUTIONS));
+	const edgeCaseList = createMemo(() =>
+		Object.values(EDGE_CASE_RESOLUTIONS).map((edge) => getLocalizedEdgeCase(edge, locale())),
+	);
 
 	onMount(() => {
 		try {
@@ -190,7 +251,7 @@ export const CommandsAndInlinePage: Component = () => {
 	});
 
 	return (
-		<div class="tg-canvas pb-28 flex flex-col font-sans select-none" dir="rtl">
+		<div class="tg-canvas pb-28 flex flex-col font-sans select-none" dir={isRtl() ? 'rtl' : 'ltr'}>
 			{/* Native Telegram Sticky Header */}
 			<header class="tg-header px-4 h-13 flex items-center justify-between">
 				<div class="max-w-md mx-auto w-full flex items-center justify-between gap-2">
@@ -202,16 +263,24 @@ export const CommandsAndInlinePage: Component = () => {
 								navigate(`/group/${params.id}`);
 							}}
 							class="w-8 h-8 rounded-lg flex items-center justify-center text-[var(--tg-link)] active:opacity-70 shrink-0"
-							aria-label="بازگشت"
+							aria-label={pick('بازگشت', 'بېرته', 'Back')}
 						>
 							<span class="material-symbols-outlined text-[22px] rtl:rotate-180">arrow_back</span>
 						</button>
 						<div class="flex flex-col min-w-0">
 							<h1 class="text-[15px] font-bold text-[var(--tg-text)] truncate">
-								دستورات چت، پنل شیشه‌ای و موارد لبه
+								{pick(
+									'دستورات چت، پنل شیشه‌ای و موارد لبه',
+									'د چټ کمانډونه، شیشه‌يي پینل او ځانګړي حالات',
+									'Chat Commands, Inline Panel & Edge Cases',
+								)}
 							</h1>
 							<span class="text-[11px] text-[var(--tg-hint)] truncate">
-								مدیریت با یک دستور، کنترل Inline و پایداری ۱۰۰٪
+								{pick(
+									'مدیریت با یک دستور، کنترل Inline و پایداری ۱۰۰٪',
+									'په یوه کمانډ مدیریت، Inline کنټرول او ۱۰۰٪ ثبات',
+									'1-Command Moderation, Inline Control & 100% Resilience',
+								)}
 							</span>
 						</div>
 					</div>
@@ -237,7 +306,7 @@ export const CommandsAndInlinePage: Component = () => {
 						}`}
 					>
 						<span class="material-symbols-outlined text-[15px]">terminal</span>
-						<span>دستورات چت</span>
+						<span>{pick('دستورات چت', 'د چټ کمانډونه', 'Commands')}</span>
 					</button>
 					<button
 						type="button"
@@ -252,7 +321,7 @@ export const CommandsAndInlinePage: Component = () => {
 						}`}
 					>
 						<span class="material-symbols-outlined text-[15px]">smart_button</span>
-						<span>پنل شیشه‌ای</span>
+						<span>{pick('پنل شیشه‌ای', 'شیشه‌يي پینل', 'Inline Panel')}</span>
 					</button>
 					<button
 						type="button"
@@ -267,7 +336,7 @@ export const CommandsAndInlinePage: Component = () => {
 						}`}
 					>
 						<span class="material-symbols-outlined text-[15px]">verified_user</span>
-						<span>موارد لبه (۱۰)</span>
+						<span>{pick('موارد لبه (۱۰)', 'ځانګړي حالات (۱۰)', 'Edge Cases (10)')}</span>
 					</button>
 				</div>
 
@@ -277,10 +346,22 @@ export const CommandsAndInlinePage: Component = () => {
 				<Show when={activeSection() === 'commands'}>
 					{/* Live In-Chat Command Simulator */}
 					<div>
-						<div class="tg-section-header">شبیه‌ساز زنده دستورات داخل گروه (ریپلای ادمین)</div>
+						<div class="tg-section-header">
+							{pick(
+								'شبیه‌ساز زنده دستورات داخل گروه (ریپلای ادمین)',
+								'په ګروپ کې د کمانډونو ژوندی شبیه‌ساز (د اډمین ریپلای)',
+								'Live In-Group Command Simulator (Admin Reply)',
+							)}
+						</div>
 						<div class="tg-section p-3.5 flex flex-col gap-3">
 							<div class="flex items-center justify-between text-[11.5px] text-[var(--tg-hint)]">
-								<span>ریپلای ادمین روی پیام کاربر:</span>
+								<span>
+									{pick(
+										'ریپلای ادمین روی پیام کاربر:',
+										'د کاروونکي پر پیغام د اډمین ریپلای:',
+										'Admin reply to user message:',
+									)}
+								</span>
 								<span class="font-mono font-bold text-[var(--tg-link)]" dir="ltr">
 									@{targetName()} (ID: 8849201)
 								</span>
@@ -290,13 +371,42 @@ export const CommandsAndInlinePage: Component = () => {
 							<div class="flex flex-wrap gap-1.5">
 								<For
 									each={[
-										{ label: '🔇 سکوت ۲ ساعت', cmd: 'سکوت ۲ ساعت ارسال لینک تبلیغاتی' },
-										{ label: '🚫 بن دائمی', cmd: 'بن اسپمر رباتیک' },
-										{ label: '⚠️ اخطار (۲/۳)', cmd: 'اخطار رعایت نکردن قوانین گروه' },
-										{ label: '🧹 پاکسازی ۵۰', cmd: 'پاکسازی ۵۰' },
-										{ label: '💎 معاف (VIP)', cmd: 'معاف' },
-										{ label: '🚨 گزارش به ادمین', cmd: 'گزارش' },
-										{ label: '🎛 پنل شیشه‌ای', cmd: 'پنل' },
+										{
+											label: pick('🔇 سکوت ۲ ساعت', '🔇 بې‌غږه ۲ ساعته', '🔇 Mute 2h'),
+											cmd: pick(
+												'سکوت ۲ ساعت ارسال لینک تبلیغاتی',
+												'بې‌غږه ۲ ساعته د تبلیغاتي لینک لېږل',
+												'/mute 2h Sending promotional link',
+											),
+										},
+										{
+											label: pick('🚫 بن دائمی', '🚫 دایمي شړل', '🚫 Perm Ban'),
+											cmd: pick('بن اسپمر رباتیک', 'شړل اسپم بوټ', '/ban Spam bot'),
+										},
+										{
+											label: pick('⚠️ اخطار (۲/۳)', '⚠️ خبرداری (۲/۳)', '⚠️ Warn (2/3)'),
+											cmd: pick(
+												'اخطار رعایت نکردن قوانین گروه',
+												'خبرداری د ګروپ قوانینو ته نه درناوی',
+												'/warn Ignoring group rules',
+											),
+										},
+										{
+											label: pick('🧹 پاکسازی ۵۰', '🧹 پاکول ۵۰', '🧹 Purge 50'),
+											cmd: pick('پاکسازی ۵۰', 'پاکول ۵۰', '/purge 50'),
+										},
+										{
+											label: pick('💎 معاف (VIP)', '💎 معاف (VIP)', '💎 VIP Exempt'),
+											cmd: pick('معاف', 'معاف', '/vip'),
+										},
+										{
+											label: pick('🚨 گزارش به ادمین', '🚨 اډمین ته راپور', '🚨 Report Admin'),
+											cmd: pick('گزارش', 'راپور', '/report'),
+										},
+										{
+											label: pick('🎛 پنل شیشه‌ای', '🎛 شیشه‌يي پینل', '🎛 Inline Panel'),
+											cmd: pick('پنل', 'پینل', '/panel'),
+										},
 									]}
 								>
 									{(preset) => (
@@ -317,8 +427,12 @@ export const CommandsAndInlinePage: Component = () => {
 									type="text"
 									value={cmdInput()}
 									onInput={(e) => setCmdInput(e.currentTarget.value)}
-									placeholder="مثلاً: سکوت ۳۰ دقیقه یا /ban یا پاکسازی ۱۰۰"
-									aria-label="متن دستور ادمین"
+									placeholder={pick(
+										'مثلاً: سکوت ۳۰ دقیقه یا /ban یا پاکسازی ۱۰۰',
+										'لکه: بې‌غږه ۳۰ دقیقې یا /ban یا پاکول ۱۰۰',
+										'e.g. /mute 30m, /ban, /purge 100',
+									)}
+									aria-label={pick('متن دستور ادمین', 'د اډمین کمانډ متن', 'Admin command text')}
 									class="flex-1 h-10 px-3 rounded-xl bg-[var(--tg-secondary-bg)] border border-[var(--tg-separator)] text-[13px] text-[var(--tg-text)] focus:outline-none focus:border-[var(--tg-button)]"
 								/>
 								<button
@@ -326,7 +440,7 @@ export const CommandsAndInlinePage: Component = () => {
 									onClick={() => runSimulatedCommand()}
 									class="h-10 px-4 rounded-xl bg-[var(--tg-button)] text-white text-[13px] font-bold shrink-0 active:scale-95 transition-transform"
 								>
-									اجرا در چت
+									{pick('اجرا در چت', 'په چټ کې اجرا', 'Run')}
 								</button>
 							</div>
 
@@ -336,10 +450,14 @@ export const CommandsAndInlinePage: Component = () => {
 									{(msg) => (
 										<div class="rounded-2xl bg-[var(--tg-secondary-bg)] p-3 border border-[var(--tg-separator)] flex flex-col gap-2">
 											{/* Admin Reply Quote */}
-											<div class="border-r-2 border-[var(--tg-button)] pr-2.5 text-[11.5px] flex items-center justify-between gap-2">
+											<div class="border-s-2 border-[var(--tg-button)] ps-2.5 text-[11.5px] flex items-center justify-between gap-2">
 												<div class="min-w-0">
-													<span class="font-bold text-[var(--tg-button)]">ادمین گروه</span>
-													<span class="text-[var(--tg-hint)] mx-1">⟵ ریپلای:</span>
+													<span class="font-bold text-[var(--tg-button)]">
+														{pick('ادمین گروه', 'د ګروپ اډمین', 'Group Admin')}
+													</span>
+													<span class="text-[var(--tg-hint)] mx-1">
+														{pick('⟵ ریپلای:', '⟵ ریپلای:', '⟵ Reply:')}
+													</span>
 													<span class="font-bold text-[var(--tg-text)]">«{msg.adminText}»</span>
 												</div>
 												<span
@@ -398,15 +516,29 @@ export const CommandsAndInlinePage: Component = () => {
 
 					{/* Command Engine Toggles */}
 					<div>
-						<div class="tg-section-header">تنظیمات موتور دستورات داخل چت</div>
+						<div class="tg-section-header">
+							{pick(
+								'تنظیمات موتور دستورات داخل چت',
+								'د چټ دننه د کمانډونو انجن تنظیمات',
+								'In-Chat Command Engine Settings',
+							)}
+						</div>
 						<div class="tg-section">
 							<div class="tg-cell justify-between">
-								<div class="flex flex-col min-w-0 pr-1">
+								<div class="flex flex-col min-w-0 pe-1">
 									<span class="text-[14px] font-semibold text-[var(--tg-text)]">
-										دستورات فارسی بدون اسلش (Natural Triggers)
+										{pick(
+											'دستورات فارسی بدون اسلش (Natural Triggers)',
+											'پرته له سلش طبیعي کمانډونه (Natural Triggers)',
+											'Natural Language Triggers (No Slash Required)',
+										)}
 									</span>
 									<span class="text-[11.5px] text-[var(--tg-hint)]">
-										تشخیص هوشمند «بن»، «سکوت ۲ ساعت»، «اخطار»، «معاف» با ریپلای
+										{pick(
+											'تشخیص هوشمند «بن»، «سکوت ۲ ساعت»، «اخطار»، «معاف» با ریپلای',
+											'د ریپلای پر مهال د «شړل»، «بې‌غږه ۲ ساعته»، «خبرداری»، «معاف» هوښیار پېژندنه',
+											'Smart detection of natural moderation triggers on reply',
+										)}
 									</span>
 								</div>
 								<ToggleSwitch
@@ -419,12 +551,20 @@ export const CommandsAndInlinePage: Component = () => {
 							</div>
 
 							<div class="tg-cell justify-between">
-								<div class="flex flex-col min-w-0 pr-1">
+								<div class="flex flex-col min-w-0 pe-1">
 									<span class="text-[14px] font-semibold text-[var(--tg-text)]">
-										حذف خودکار پیام دستور ادمین
+										{pick(
+											'حذف خودکار پیام دستور ادمین',
+											'د اډمین د کمانډ پیغام اتومات حذفول',
+											'Auto-Delete Admin Command Messages',
+										)}
 									</span>
 									<span class="text-[11.5px] text-[var(--tg-hint)]">
-										تمیز ماندن چت گروه پس از اجرای دستور بن یا سکوت
+										{pick(
+											'تمیز ماندن چت گروه پس از اجرای دستور بن یا سکوت',
+											'د بن یا بې‌غږه کولو کمانډ له اجرا وروسته د ګروپ چټ پاک ساتل',
+											'Keep group chat clean after executing moderation commands',
+										)}
 									</span>
 								</div>
 								<ToggleSwitch
@@ -437,12 +577,20 @@ export const CommandsAndInlinePage: Component = () => {
 							</div>
 
 							<div class="tg-cell justify-between">
-								<div class="flex flex-col min-w-0 pr-1">
+								<div class="flex flex-col min-w-0 pe-1">
 									<span class="text-[14px] font-semibold text-[var(--tg-text)]">
-										دکمه‌های شیشه‌ای واکنش سریع زیر پیام‌های ربات
+										{pick(
+											'دکمه‌های شیشه‌ای واکنش سریع زیر پیام‌های ربات',
+											'د بوټ پیغامونو لاندې چټک غبرګون شیشه‌يي تڼۍ',
+											'Quick-Action Inline Buttons Below Bot Replies',
+										)}
 									</span>
 									<span class="text-[11.5px] text-[var(--tg-hint)]">
-										افزودن دکمه «🔊 لغو سکوت» و «💚 بخشش اخطار» زیر اعلان ربات
+										{pick(
+											'افزودن دکمه «🔊 لغو سکوت» و «💚 بخشش اخطار» زیر اعلان ربات',
+											'د بوټ خبرتیا لاندې د «🔊 چوپتیا لرې کول» او «💚 خبرداري بښل» تڼۍ ورزیاتول',
+											'Attach 1-tap Unmute & Forgive Warn buttons below notices',
+										)}
 									</span>
 								</div>
 								<ToggleSwitch
@@ -455,12 +603,20 @@ export const CommandsAndInlinePage: Component = () => {
 							</div>
 
 							<div class="tg-cell justify-between">
-								<div class="flex flex-col min-w-0 pr-1">
+								<div class="flex flex-col min-w-0 pe-1">
 									<span class="text-[14px] font-semibold text-[var(--tg-text)]">
-										دستور عمومی «گزارش» (/report) برای اعضا
+										{pick(
+											'دستور عمومی «گزارش» (/report) برای اعضا',
+											'د غړو لپاره عام «راپور» (/report) کمانډ',
+											'Public /report Command for Members',
+										)}
 									</span>
 									<span class="text-[11.5px] text-[var(--tg-hint)]">
-										ارسال آنی گزارش تخلف به پی‌وی ادمین‌ها همراه با دکمه حذف و بن
+										{pick(
+											'ارسال آنی گزارش تخلف به پی‌وی ادمین‌ها همراه با دکمه حذف و بن',
+											'د اډمینانو شخصي پیغام ته د حذف او بن تڼۍ سره د سرغړونې سملاسي راپور لېږل',
+											'Send instant violation alerts to admin PM with Ban/Delete actions',
+										)}
 									</span>
 								</div>
 								<ToggleSwitch
@@ -476,16 +632,44 @@ export const CommandsAndInlinePage: Component = () => {
 
 					{/* Complete Categorized Catalog of 16+ Command Families */}
 					<div>
-						<div class="tg-section-header">بانک کامل دستورات ربات (۴۰+ دستور فارسی و انگلیسی)</div>
+						<div class="tg-section-header">
+							{pick(
+								'بانک کامل دستورات ربات (۴۰+ دستور فارسی و انگلیسی)',
+								'د بوټ بشپړ کمانډونه (۴۰+ سیمه‌ییز او انګلیسي کمانډونه)',
+								'Complete Bot Commands Catalog (40+ Triggers)',
+							)}
+						</div>
 						<div class="flex gap-1.5 overflow-x-auto pb-2 no-scrollbar">
 							<For
 								each={[
-									{ id: 'all', label: `همه (${BOT_COMMANDS_CATALOG.length})` },
-									{ id: 'punishment', label: 'برخورد و جریمه' },
-									{ id: 'cleanup', label: 'پاکسازی چت' },
-									{ id: 'locks', label: 'قفل‌های سریع' },
-									{ id: 'users', label: 'معافیت و گزارش' },
-									{ id: 'panel', label: 'پنل شیشه‌ای' },
+									{
+										id: 'all',
+										label: pick(
+											`همه (${BOT_COMMANDS_CATALOG.length})`,
+											`ټول (${BOT_COMMANDS_CATALOG.length})`,
+											`All (${BOT_COMMANDS_CATALOG.length})`,
+										),
+									},
+									{
+										id: 'punishment',
+										label: pick('برخورد و جریمه', 'سزا او بندیز', 'Moderation'),
+									},
+									{
+										id: 'cleanup',
+										label: pick('پاکسازی چت', 'د چټ پاکول', 'Cleanup'),
+									},
+									{
+										id: 'locks',
+										label: pick('قفل‌های سریع', 'چټک قلفونه', 'Quick Locks'),
+									},
+									{
+										id: 'users',
+										label: pick('معافیت و گزارش', 'معافیت او راپور', 'Users & Report'),
+									},
+									{
+										id: 'panel',
+										label: pick('پنل شیشه‌ای', 'شیشه‌يي پینل', 'Inline Panel'),
+									},
 								]}
 							>
 								{(tab) => (
@@ -509,54 +693,57 @@ export const CommandsAndInlinePage: Component = () => {
 
 						<div class="tg-section divide-y divide-[var(--tg-separator)]">
 							<For each={filteredCatalog()}>
-								{(cmd) => (
-									<div class="p-3.5 flex flex-col gap-2">
-										<div class="flex items-center justify-between gap-2">
-											<div class="flex flex-col min-w-0">
-												<span class="text-[13.5px] font-bold text-[var(--tg-text)]">
-													{cmd.titleFa}
-												</span>
-												<span class="text-[11.5px] text-[var(--tg-hint)]">{cmd.descFa}</span>
+								{(cmd) => {
+									const info = () => getLocalizedBotCommand(cmd, locale());
+									return (
+										<div class="p-3.5 flex flex-col gap-2">
+											<div class="flex items-center justify-between gap-2">
+												<div class="flex flex-col min-w-0">
+													<span class="text-[13.5px] font-bold text-[var(--tg-text)]">
+														{info().title}
+													</span>
+													<span class="text-[11.5px] text-[var(--tg-hint)]">{info().desc}</span>
+												</div>
+												<button
+													type="button"
+													onClick={() =>
+														runSimulatedCommand(info().triggers[0] || cmd.slashTriggers[0])
+													}
+													class="px-2.5 py-1 rounded-lg bg-[var(--tg-button)]/12 text-[var(--tg-link)] text-[11px] font-bold shrink-0"
+												>
+													{pick('تست دستور ↰', 'کمانډ آزمویل ↰', 'Try ↰')}
+												</button>
 											</div>
-											<button
-												type="button"
-												onClick={() =>
-													runSimulatedCommand(cmd.persianTriggers[0] || cmd.slashTriggers[0])
-												}
-												class="px-2.5 py-1 rounded-lg bg-[var(--tg-button)]/12 text-[var(--tg-link)] text-[11px] font-bold shrink-0"
-											>
-												تست دستور ↰
-											</button>
-										</div>
 
-										<div class="flex flex-wrap items-center gap-1.5">
-											<For each={cmd.persianTriggers}>
-												{(trig) => (
-													<span class="px-2 py-0.5 rounded-md bg-[#34C759]/12 text-[#34C759] text-[11px] font-bold">
-														{trig}
-													</span>
-												)}
-											</For>
-											<For each={cmd.slashTriggers}>
-												{(slash) => (
-													<span
-														dir="ltr"
-														class="px-2 py-0.5 rounded-md bg-[var(--tg-secondary-bg)] text-[var(--tg-link)] font-mono text-[11px] font-semibold"
-													>
-														{slash}
-													</span>
-												)}
-											</For>
-										</div>
+											<div class="flex flex-wrap items-center gap-1.5">
+												<For each={info().triggers}>
+													{(trig) => (
+														<span class="px-2 py-0.5 rounded-md bg-[#34C759]/12 text-[#34C759] text-[11px] font-bold">
+															{trig}
+														</span>
+													)}
+												</For>
+												<For each={cmd.slashTriggers}>
+													{(slash) => (
+														<span
+															dir="ltr"
+															class="px-2 py-0.5 rounded-md bg-[var(--tg-secondary-bg)] text-[var(--tg-link)] font-mono text-[11px] font-semibold"
+														>
+															{slash}
+														</span>
+													)}
+												</For>
+											</div>
 
-										<div class="flex items-center justify-between text-[11px] text-[var(--tg-hint)] pt-0.5">
-											<span>{cmd.exampleFa}</span>
-											<span dir="ltr" class="font-mono text-[10.5px]">
-												API: {cmd.botApiMethod}
-											</span>
+											<div class="flex items-center justify-between text-[11px] text-[var(--tg-hint)] pt-0.5">
+												<span>{info().example}</span>
+												<span dir="ltr" class="font-mono text-[10.5px]">
+													API: {cmd.botApiMethod}
+												</span>
+											</div>
 										</div>
-									</div>
-								)}
+									);
+								}}
 							</For>
 						</div>
 					</div>
@@ -568,13 +755,28 @@ export const CommandsAndInlinePage: Component = () => {
 				<Show when={activeSection() === 'inline-panel'}>
 					{/* Role Simulator to test Admin-Only Callback Query Protection */}
 					<div>
-						<div class="tg-section-header">تست امنیت دسترسی دکمه‌های شیشه‌ای (RBAC)</div>
+						<div class="tg-section-header">
+							{pick(
+								'تست امنیت دسترسی دکمه‌های شیشه‌ای (RBAC)',
+								'د شیشه‌يي تڼیو د لاسرسي امنیت آزموینه (RBAC)',
+								'Inline Button Access Security Test (RBAC)',
+							)}
+						</div>
 						<div class="tg-section p-3.5 flex flex-col gap-2.5">
 							<div class="text-[12px] text-[var(--tg-hint)] leading-relaxed">
-								در تلگرام، دکمه‌های شیشه‌ای داخل چت برای همه اعضای گروه قابل مشاهده هستند، اما هسته{' '}
-								<b class="text-[var(--tg-text)]">@MiniGuardBot</b> در هر کلیک،{' '}
-								<code class="font-mono text-[var(--tg-link)]">callback_query.from.id</code> را بررسی
-								می‌کند. نقش کلیک‌کننده را تغییر دهید و روی دکمه‌های زیر کلیک کنید:
+								{pick(
+									'در تلگرام، دکمه‌های شیشه‌ای داخل چت برای همه اعضای گروه قابل مشاهده هستند، اما هسته',
+									'په ټیلیګرام کې، په چټ کې شیشه‌يي تڼۍ د ګروپ ټولو غړو ته ښکاري، خو د',
+									'In Telegram, in-chat inline buttons are visible to all members, but',
+								)}{' '}
+								<b class="text-[var(--tg-text)]">@MiniGuardBot</b>{' '}
+								{pick('در هر کلیک،', 'هسته په هر کلیک کې', 'verifies')}{' '}
+								<code class="font-mono text-[var(--tg-link)]">callback_query.from.id</code>{' '}
+								{pick(
+									'را بررسی می‌کند. نقش کلیک‌کننده را تغییر دهید و روی دکمه‌های زیر کلیک کنید:',
+									'معاینه کوي. د کلیک کوونکي رول بدل کړئ او لاندې تڼۍ وازمویئ:',
+									'on every tap. Switch role and test the buttons below:',
+								)}
 							</div>
 
 							<div class="grid grid-cols-2 gap-2">
@@ -591,7 +793,13 @@ export const CommandsAndInlinePage: Component = () => {
 											: 'bg-[var(--tg-secondary-bg)] border-[var(--tg-separator)] text-[var(--tg-hint)]'
 									}`}
 								>
-									<span>👑 کلیک به عنوان ادمین گروه</span>
+									<span>
+										{pick(
+											'👑 کلیک به عنوان ادمین گروه',
+											'👑 د ګروپ اډمین په توګه کلیک',
+											'👑 Tap as Group Admin',
+										)}
+									</span>
 								</button>
 								<button
 									type="button"
@@ -605,7 +813,13 @@ export const CommandsAndInlinePage: Component = () => {
 											: 'bg-[var(--tg-secondary-bg)] border-[var(--tg-separator)] text-[var(--tg-hint)]'
 									}`}
 								>
-									<span>👤 کلیک به عنوان کاربر عادی</span>
+									<span>
+										{pick(
+											'👤 کلیک به عنوان کاربر عادی',
+											'👤 د عادي غړي په توګه کلیک',
+											'👤 Tap as Regular Member',
+										)}
+									</span>
 								</button>
 							</div>
 
@@ -622,7 +836,13 @@ export const CommandsAndInlinePage: Component = () => {
 
 					{/* Interactive Telegram In-Chat /panel Mockup */}
 					<div>
-						<div class="tg-section-header">پیش‌نمایش زنده دستور /panel یا «پنل» داخل چت گروه</div>
+						<div class="tg-section-header">
+							{pick(
+								'پیش‌نمایش زنده دستور /panel یا «پنل» داخل چت گروه',
+								'په ګروپ چټ کې د /panel یا «پینل» ژوندۍ مخکتنه',
+								'Live In-Chat /panel Preview',
+							)}
+						</div>
 						<div class="rounded-2xl bg-[var(--tg-section-bg)] border border-[var(--tg-separator)] p-3.5 flex flex-col gap-3 shadow-xs">
 							{/* Message Header */}
 							<div class="flex items-center justify-between border-b border-[var(--tg-separator)] pb-2.5">
@@ -632,7 +852,11 @@ export const CommandsAndInlinePage: Component = () => {
 									</div>
 									<div class="flex flex-col">
 										<span class="text-[13px] font-bold text-[var(--tg-text)]">
-											ربات محافظ گروه (@MiniGuardBot)
+											{pick(
+												'ربات محافظ گروه (@MiniGuardBot)',
+												'د ګروپ ساتونکی بوټ (@MiniGuardBot)',
+												'Group Guard Bot (@MiniGuardBot)',
+											)}
 										</span>
 										<span dir="ltr" class="text-[10.5px] font-mono text-[var(--tg-hint)]">
 											callback_data: {lastCallbackData()}
@@ -647,15 +871,32 @@ export const CommandsAndInlinePage: Component = () => {
 							{/* Message Body changes dynamically per sub-menu */}
 							<Show when={inlineScreen() === 'root'}>
 								<div class="text-[13px] text-[var(--tg-text)] leading-relaxed bg-[var(--tg-secondary-bg)] p-3 rounded-xl">
-									🎛 <b>پنل مدیریت سریع شیشه‌ای (In-Chat Control)</b>
+									🎛{' '}
+									<b>
+										{pick(
+											'پنل مدیریت سریع شیشه‌ای (In-Chat Control)',
+											'د چټک شیشه‌يي مدیریت پینل (In-Chat Control)',
+											'Quick Inline Control Panel',
+										)}
+									</b>
 									<br />
-									ادمین گرامی، بدون خروج از چت گروه می‌توانید قفل‌ها، ضدفلود و وضعیت اضطراری را با
-									دکمه‌های زیر تغییر دهید:
+									{pick(
+										'ادمین گرامی، بدون خروج از چت گروه می‌توانید قفل‌ها، ضدفلود و وضعیت اضطراری را با دکمه‌های زیر تغییر دهید:',
+										'ګرانه اډمینه، له ګروپ چټ څخه له وتلو پرته کولای شئ قلفونه، فلډ ضد او بېړنی حالت په لاندې تڼیو بدل کړئ:',
+										'Dear admin, toggle content locks, anti-flood, and emergency lockdown without leaving the chat:',
+									)}
 									<br />
 									<span class="text-[11.5px] text-[var(--tg-hint)]">
-										• وضعیت قفل اضطراری:{' '}
-										<b>{inlineLocks().emergencyLock ? '🔴 فعال (چت بسته)' : '🟢 غیرفعال (عادی)'}</b>{' '}
-										| حساسیت ضدفلود: <b>{inlineLocks().floodLimit} پیام</b>
+										• {pick('وضعیت قفل اضطراری:', 'د بېړني قلف حالت:', 'Emergency Lock:')}{' '}
+										<b>
+											{inlineLocks().emergencyLock
+												? pick('🔴 فعال (چت بسته)', '🔴 فعال (چټ تړلی)', '🔴 ON (Chat Locked)')
+												: pick('🟢 غیرفعال (عادی)', '🟢 غیرفعال (عادي)', '🟢 OFF (Normal)')}
+										</b>{' '}
+										| {pick('حساسیت ضدفلود:', 'د فلډ ضد حساسیت:', 'Anti-Flood:')}{' '}
+										<b>
+											{inlineLocks().floodLimit} {pick('پیام', 'پیغامونه', 'msgs')}
+										</b>
 									</span>
 								</div>
 
@@ -669,7 +910,7 @@ export const CommandsAndInlinePage: Component = () => {
 											}
 											class="h-9 rounded-xl bg-[var(--tg-button)]/14 text-[var(--tg-link)] text-[12.5px] font-bold border border-[var(--tg-button)]/25 active:scale-98"
 										>
-											🛡️ قفل‌های محتوا
+											{pick('🛡️ قفل‌های محتوا', '🛡️ د محتوا قلفونه', '🛡️ Content Locks')}
 										</button>
 										<button
 											type="button"
@@ -678,7 +919,7 @@ export const CommandsAndInlinePage: Component = () => {
 											}
 											class="h-9 rounded-xl bg-[var(--tg-button)]/14 text-[var(--tg-link)] text-[12.5px] font-bold border border-[var(--tg-button)]/25 active:scale-98"
 										>
-											⚡ تنظیم ضدفلود
+											{pick('⚡ تنظیم ضدفلود', '⚡ د فلډ ضد تنظیم', '⚡ Anti-Flood')}
 										</button>
 									</div>
 
@@ -690,7 +931,11 @@ export const CommandsAndInlinePage: Component = () => {
 											}
 											class="h-9 rounded-xl bg-[var(--tg-button)]/14 text-[var(--tg-link)] text-[12.5px] font-bold border border-[var(--tg-button)]/25 active:scale-98"
 										>
-											🌙 ساعات سکوت ({inlineLocks().quietHoursActive ? 'فعال' : 'خاموش'})
+											{pick('🌙 ساعات سکوت', '🌙 د چوپتیا ساعتونه', '🌙 Quiet Hours')} (
+											{inlineLocks().quietHoursActive
+												? pick('فعال', 'فعال', 'ON')
+												: pick('خاموش', 'بند', 'OFF')}
+											)
 										</button>
 										<button
 											type="button"
@@ -706,8 +951,8 @@ export const CommandsAndInlinePage: Component = () => {
 											}`}
 										>
 											{inlineLocks().emergencyLock
-												? '🔓 باز کردن قفل اضطراری'
-												: '🔒 قفل اضطراری گروه'}
+												? pick('🔓 باز کردن قفل اضطراری', '🔓 بېړنی قلف خلاصول', '🔓 Unlock Chat')
+												: pick('🔒 قفل اضطراری گروه', '🔒 د ګروپ بېړنی قلف', '🔒 Emergency Lock')}
 										</button>
 									</div>
 
@@ -718,7 +963,13 @@ export const CommandsAndInlinePage: Component = () => {
 										}
 										class="h-9 rounded-xl bg-[var(--tg-button)] text-white text-[12.5px] font-bold flex items-center justify-center gap-1.5"
 									>
-										<span>📱 باز کردن مینی‌اپ کامل تنظیمات گروه</span>
+										<span>
+											{pick(
+												'📱 باز کردن مینی‌اپ کامل تنظیمات گروه',
+												'📱 د ګروپ تنظیماتو بشپړ مینی‌اپ پرانیستل',
+												'📱 Open Full Group Mini App',
+											)}
+										</span>
 									</button>
 								</div>
 							</Show>
@@ -726,9 +977,20 @@ export const CommandsAndInlinePage: Component = () => {
 							{/* Sub-menu: Content Locks */}
 							<Show when={inlineScreen() === 'locks'}>
 								<div class="text-[13px] text-[var(--tg-text)] leading-relaxed bg-[var(--tg-secondary-bg)] p-3 rounded-xl">
-									🛡️ <b>مدیریت زنده قفل‌های محتوا (editMessageReplyMarkup)</b>
+									🛡️{' '}
+									<b>
+										{pick(
+											'مدیریت زنده قفل‌های محتوا (editMessageReplyMarkup)',
+											'د محتوا قلفونو ژوندی مدیریت (editMessageReplyMarkup)',
+											'Live Content Locks (editMessageReplyMarkup)',
+										)}
+									</b>
 									<br />
-									روی هر قفل کلیک کنید تا وضعیت آن در لحظه تغییر کند:
+									{pick(
+										'روی هر قفل کلیک کنید تا وضعیت آن در لحظه تغییر کند:',
+										'پر هر قلف کلیک وکړئ ترڅو حالت یې سملاسي بدل شي:',
+										'Tap any lock to toggle it immediately:',
+									)}
 								</div>
 
 								<div class="grid grid-cols-2 gap-1.5">
@@ -741,7 +1003,10 @@ export const CommandsAndInlinePage: Component = () => {
 										}
 										class="h-9 rounded-xl bg-[var(--tg-button)]/14 text-[var(--tg-link)] text-[12px] font-bold border border-[var(--tg-button)]/25"
 									>
-										🔗 لینک‌ها: {inlineLocks().links ? '❌ قفل' : '✅ آزاد'}
+										{pick('🔗 لینک‌ها:', '🔗 لینکونه:', '🔗 Links:')}{' '}
+										{inlineLocks().links
+											? pick('❌ قفل', '❌ قلف', '❌ Locked')
+											: pick('✅ آزاد', '✅ ازاد', '✅ Open')}
 									</button>
 									<button
 										type="button"
@@ -752,7 +1017,10 @@ export const CommandsAndInlinePage: Component = () => {
 										}
 										class="h-9 rounded-xl bg-[var(--tg-button)]/14 text-[var(--tg-link)] text-[12px] font-bold border border-[var(--tg-button)]/25"
 									>
-										↪️ فوروارد: {inlineLocks().forwards ? '❌ قفل' : '✅ آزاد'}
+										{pick('↪️ فوروارد:', '↪️ فارورډ:', '↪️ Forwards:')}{' '}
+										{inlineLocks().forwards
+											? pick('❌ قفل', '❌ قلف', '❌ Locked')
+											: pick('✅ آزاد', '✅ ازاد', '✅ Open')}
 									</button>
 									<button
 										type="button"
@@ -763,7 +1031,10 @@ export const CommandsAndInlinePage: Component = () => {
 										}
 										class="h-9 rounded-xl bg-[var(--tg-button)]/14 text-[var(--tg-link)] text-[12px] font-bold border border-[var(--tg-button)]/25"
 									>
-										＠ منشن و آیدی: {inlineLocks().usernames ? '❌ قفل' : '✅ آزاد'}
+										{pick('＠ منشن و آیدی:', '＠ مینشن او آیډي:', '＠ Mentions:')}{' '}
+										{inlineLocks().usernames
+											? pick('❌ قفل', '❌ قلف', '❌ Locked')
+											: pick('✅ آزاد', '✅ ازاد', '✅ Open')}
 									</button>
 									<button
 										type="button"
@@ -774,7 +1045,10 @@ export const CommandsAndInlinePage: Component = () => {
 										}
 										class="h-9 rounded-xl bg-[var(--tg-button)]/14 text-[var(--tg-link)] text-[12px] font-bold border border-[var(--tg-button)]/25"
 									>
-										⭕ استوری تلگرام: {inlineLocks().stories ? '❌ قفل' : '✅ آزاد'}
+										{pick('⭕ استوری تلگرام:', '⭕ ټیلیګرام سټوري:', '⭕ Stories:')}{' '}
+										{inlineLocks().stories
+											? pick('❌ قفل', '❌ قلف', '❌ Locked')
+											: pick('✅ آزاد', '✅ ازاد', '✅ Open')}
 									</button>
 									<button
 										type="button"
@@ -785,7 +1059,10 @@ export const CommandsAndInlinePage: Component = () => {
 										}
 										class="h-9 rounded-xl bg-[var(--tg-button)]/14 text-[var(--tg-link)] text-[12px] font-bold border border-[var(--tg-button)]/25"
 									>
-										🎙️ ویس و ویدیو مسیج: {inlineLocks().voice ? '❌ قفل' : '✅ آزاد'}
+										{pick('🎙️ ویس و ویدیو مسیج:', '🎙️ غږیز او ویډیو پیغام:', '🎙️ Voice/Video:')}{' '}
+										{inlineLocks().voice
+											? pick('❌ قفل', '❌ قلف', '❌ Locked')
+											: pick('✅ آزاد', '✅ ازاد', '✅ Open')}
 									</button>
 									<button
 										type="button"
@@ -796,7 +1073,10 @@ export const CommandsAndInlinePage: Component = () => {
 										}
 										class="h-9 rounded-xl bg-[var(--tg-button)]/14 text-[var(--tg-link)] text-[12px] font-bold border border-[var(--tg-button)]/25"
 									>
-										🤖 ربات‌های اینلاین: {inlineLocks().inlineBots ? '❌ قفل' : '✅ آزاد'}
+										{pick('🤖 ربات‌های اینلاین:', '🤖 اینلاین بوټونه:', '🤖 Inline Bots:')}{' '}
+										{inlineLocks().inlineBots
+											? pick('❌ قفل', '❌ قلف', '❌ Locked')
+											: pick('✅ آزاد', '✅ ازاد', '✅ Open')}
 									</button>
 								</div>
 
@@ -807,17 +1087,34 @@ export const CommandsAndInlinePage: Component = () => {
 									}
 									class="h-9 rounded-xl bg-[var(--tg-secondary-bg)] text-[var(--tg-text)] text-[12.5px] font-bold border border-[var(--tg-separator)]"
 								>
-									🔙 بازگشت به منوی اصلی پنل
+									{pick(
+										'🔙 بازگشت به منوی اصلی پنل',
+										'🔙 د پینل اصلي مینو ته بېرته تګ',
+										'🔙 Back to Main Panel',
+									)}
 								</button>
 							</Show>
 
 							{/* Sub-menu: Anti-Flood */}
 							<Show when={inlineScreen() === 'flood'}>
 								<div class="text-[13px] text-[var(--tg-text)] leading-relaxed bg-[var(--tg-secondary-bg)] p-3 rounded-xl">
-									⚡ <b>تنظیم حساسیت ضدفلود و رگباری</b>
+									⚡{' '}
+									<b>
+										{pick(
+											'تنظیم حساسیت ضدفلود و رگباری',
+											'د فلډ ضد او چټکو پیغامونو حساسیت تنظیم',
+											'Anti-Flood Sensitivity',
+										)}
+									</b>
 									<br />
-									حداکثر تعداد پیام مجاز پشت سر هم در ۵ ثانیه:{' '}
-									<b>{inlineLocks().floodLimit} پیام</b>
+									{pick(
+										'حداکثر تعداد پیام مجاز پشت سر هم در ۵ ثانیه:',
+										'په ۵ ثانیو کې پرله‌پسې د مجازو پیغامونو اعظمي شمېر:',
+										'Max consecutive messages per 5 seconds:',
+									)}{' '}
+									<b>
+										{inlineLocks().floodLimit} {pick('پیام', 'پیغامونه', 'msgs')}
+									</b>
 								</div>
 
 								<div class="grid grid-cols-3 gap-1.5">
@@ -836,7 +1133,7 @@ export const CommandsAndInlinePage: Component = () => {
 														: 'bg-[var(--tg-button)]/14 text-[var(--tg-link)] border-[var(--tg-button)]/25'
 												}`}
 											>
-												{num} پیام / ۵ ثانیه
+												{num} {pick('پیام / ۵ ثانیه', 'پیغامونه / ۵ ثانیې', 'msgs / 5s')}
 											</button>
 										)}
 									</For>
@@ -849,17 +1146,36 @@ export const CommandsAndInlinePage: Component = () => {
 									}
 									class="h-9 rounded-xl bg-[var(--tg-secondary-bg)] text-[var(--tg-text)] text-[12.5px] font-bold border border-[var(--tg-separator)]"
 								>
-									🔙 بازگشت به منوی اصلی پنل
+									{pick(
+										'🔙 بازگشت به منوی اصلی پنل',
+										'🔙 د پینل اصلي مینو ته بېرته تګ',
+										'🔙 Back to Main Panel',
+									)}
 								</button>
 							</Show>
 
 							{/* Sub-menu: Quiet Hours */}
 							<Show when={inlineScreen() === 'quiet'}>
 								<div class="text-[13px] text-[var(--tg-text)] leading-relaxed bg-[var(--tg-secondary-bg)] p-3 rounded-xl">
-									🌙 <b>مدیریت ساعات سکوت شبانه (۰۰:۰۰ تا ۰۷:۰۰)</b>
+									🌙{' '}
+									<b>
+										{pick(
+											'مدیریت ساعات سکوت شبانه (۰۰:۰۰ تا ۰۷:۰۰)',
+											'د شپې د چوپتیا ساعتونو مدیریت (۰۰:۰۰ تر ۰۷:۰۰)',
+											'Quiet Hours Management (00:00 - 07:00)',
+										)}
+									</b>
 									<br />
-									وضعیت فعلی:{' '}
-									<b>{inlineLocks().quietHoursActive ? '🟢 فعال در برنامه شبانه' : '⚪ غیرفعال'}</b>
+									{pick('وضعیت فعلی:', 'اوسنی حالت:', 'Current status:')}{' '}
+									<b>
+										{inlineLocks().quietHoursActive
+											? pick(
+													'🟢 فعال در برنامه شبانه',
+													'🟢 د شپې په مهالوېش کې فعال',
+													'🟢 Scheduled ON',
+												)
+											: pick('⚪ غیرفعال', '⚪ غیرفعال', '⚪ OFF')}
+									</b>
 								</div>
 
 								<button
@@ -872,8 +1188,16 @@ export const CommandsAndInlinePage: Component = () => {
 									class="h-9 rounded-xl bg-[var(--tg-button)]/14 text-[var(--tg-link)] text-[12.5px] font-bold border border-[var(--tg-button)]/25"
 								>
 									{inlineLocks().quietHoursActive
-										? '⏸ غیرفعال کردن ساعات سکوت'
-										: '▶️ فعال‌سازی ساعات سکوت شبانه'}
+										? pick(
+												'⏸ غیرفعال کردن ساعات سکوت',
+												'⏸ د چوپتیا ساعتونه غیرفعالول',
+												'⏸ Disable Quiet Hours',
+											)
+										: pick(
+												'▶️ فعال‌سازی ساعات سکوت شبانه',
+												'▶️ د شپې د چوپتیا ساعتونه فعالول',
+												'▶️ Enable Quiet Hours',
+											)}
 								</button>
 
 								<button
@@ -883,7 +1207,11 @@ export const CommandsAndInlinePage: Component = () => {
 									}
 									class="h-9 rounded-xl bg-[var(--tg-secondary-bg)] text-[var(--tg-text)] text-[12.5px] font-bold border border-[var(--tg-separator)]"
 								>
-									🔙 بازگشت به منوی اصلی پنل
+									{pick(
+										'🔙 بازگشت به منوی اصلی پنل',
+										'🔙 د پینل اصلي مینو ته بېرته تګ',
+										'🔙 Back to Main Panel',
+									)}
 								</button>
 							</Show>
 						</div>
@@ -897,7 +1225,11 @@ export const CommandsAndInlinePage: Component = () => {
 					{/* Featured Simulator: What happens when 24h Trial / Monthly Stars Expires and User Doesn't Pay */}
 					<div>
 						<div class="tg-section-header">
-							چرخه حیات اشتراک: چه اتفاقی می‌افتد وقتی اعتبار تمام شود و کاربر پرداخت نکند؟
+							{pick(
+								'چرخه حیات اشتراک: چه اتفاقی می‌افتد وقتی اعتبار تمام شود و کاربر پرداخت نکند؟',
+								'د ګډون ژوندڅرخ: کله چې اعتبار پای ته ورسېږي او کاروونکی تادیه ونه کړي څه پېښېږي؟',
+								'Subscription Lifecycle: What happens when trial/Stars expire unpaid?',
+							)}
 						</div>
 						<div class="tg-section p-4 flex flex-col gap-3">
 							{/* 4 Lifecycle Stage Buttons */}
@@ -908,13 +1240,17 @@ export const CommandsAndInlinePage: Component = () => {
 										haptic.selection();
 										setSubLifecycleStage('active_trial');
 									}}
-									class={`p-2 rounded-xl text-[11.5px] font-bold border text-right ${
+									class={`p-2 rounded-xl text-[11.5px] font-bold border text-start ${
 										subLifecycleStage() === 'active_trial'
 											? 'bg-[#34C759]/15 border-[#34C759] text-[#34C759]'
 											: 'bg-[var(--tg-secondary-bg)] border-[var(--tg-separator)] text-[var(--tg-hint)]'
 									}`}
 								>
-									۱. دوره ۲۴ ساعته رایگان فعال
+									{pick(
+										'۱. دوره ۲۴ ساعته رایگان فعال',
+										'۱. ۲۴ ساعته وړیا دوره فعاله',
+										'1. 24h Free Trial Active',
+									)}
 								</button>
 								<button
 									type="button"
@@ -922,13 +1258,17 @@ export const CommandsAndInlinePage: Component = () => {
 										haptic.selection();
 										setSubLifecycleStage('warning_2h');
 									}}
-									class={`p-2 rounded-xl text-[11.5px] font-bold border text-right ${
+									class={`p-2 rounded-xl text-[11.5px] font-bold border text-start ${
 										subLifecycleStage() === 'warning_2h'
 											? 'bg-[#FF9500]/15 border-[#FF9500] text-[#FF9500]'
 											: 'bg-[var(--tg-secondary-bg)] border-[var(--tg-separator)] text-[var(--tg-hint)]'
 									}`}
 								>
-									۲. هشدار ۲ ساعت مانده به انقضا
+									{pick(
+										'۲. هشدار ۲ ساعت مانده به انقضا',
+										'۲. تر پای ۲ ساعته مخکې خبرداری',
+										'2. Expiry Warning (T-2h)',
+									)}
 								</button>
 								<button
 									type="button"
@@ -936,13 +1276,17 @@ export const CommandsAndInlinePage: Component = () => {
 										haptic.selection();
 										setSubLifecycleStage('expired_hibernated');
 									}}
-									class={`p-2 rounded-xl text-[11.5px] font-bold border text-right ${
+									class={`p-2 rounded-xl text-[11.5px] font-bold border text-start ${
 										subLifecycleStage() === 'expired_hibernated'
 											? 'bg-[#FF3B30]/15 border-[#FF3B30] text-[#FF3B30]'
 											: 'bg-[var(--tg-secondary-bg)] border-[var(--tg-separator)] text-[var(--tg-hint)]'
 									}`}
 								>
-									۳. انقضا و عدم پرداخت (خواب ایمن)
+									{pick(
+										'۳. انقضا و عدم پرداخت (خواب ایمن)',
+										'۳. پای او نه تادیه (خوندي خوب)',
+										'3. Expired (Safe Hibernation)',
+									)}
 								</button>
 								<button
 									type="button"
@@ -950,13 +1294,17 @@ export const CommandsAndInlinePage: Component = () => {
 										haptic.selection();
 										setSubLifecycleStage('reactivated_stars');
 									}}
-									class={`p-2 rounded-xl text-[11.5px] font-bold border text-right ${
+									class={`p-2 rounded-xl text-[11.5px] font-bold border text-start ${
 										subLifecycleStage() === 'reactivated_stars'
 											? 'bg-[#007AFF]/15 border-[#007AFF] text-[#007AFF]'
 											: 'bg-[var(--tg-secondary-bg)] border-[var(--tg-separator)] text-[var(--tg-hint)]'
 									}`}
 								>
-									۴. پرداخت ۱۰۰ ⭐ و بیداری آنی
+									{pick(
+										'۴. پرداخت ۱۰۰ ⭐ و بیداری آنی',
+										'۴. ۱۰۰ ⭐ تادیه او سملاسي ویښېدل',
+										'4. 100 ⭐ Payment & Instant Wake',
+									)}
 								</button>
 							</div>
 
@@ -964,55 +1312,114 @@ export const CommandsAndInlinePage: Component = () => {
 							<div class="rounded-xl bg-[var(--tg-secondary-bg)] p-3.5 border border-[var(--tg-separator)] flex flex-col gap-2">
 								<Show when={subLifecycleStage() === 'active_trial'}>
 									<div class="text-[13px] font-bold text-[#34C759]">
-										🟢 مرحله ۱: تست رایگان ۲۴ ساعته با ۱۰۰٪ ظرفیت
+										{pick(
+											'🟢 مرحله ۱: تست رایگان ۲۴ ساعته با ۱۰۰٪ ظرفیت',
+											'🟢 ۱ پړاو: ۲۴ ساعته وړیا آزموینه له ۱۰۰٪ ظرفیت سره',
+											'🟢 Stage 1: 24h Free Trial at 100% Capacity',
+										)}
 									</div>
 									<p class="text-[12px] text-[var(--tg-text)] leading-relaxed">
-										به محض افزودن ربات اختصاصی به گروه، تمام ماژول‌های فایروال، دستورات چت، کپچای
-										بیومتریک و پنل شیشه‌ای به مدت ۲۴ ساعت کاملاً رایگان فعال می‌شوند.
+										{pick(
+											'به محض افزودن ربات اختصاصی به گروه، تمام ماژول‌های فایروال، دستورات چت، کپچای بیومتریک و پنل شیشه‌ای به مدت ۲۴ ساعت کاملاً رایگان فعال می‌شوند.',
+											'ګروپ ته د ځانګړي بوټ له ورزیاتولو سره سم، د فایروال ټول ماډیولونه، د چټ کمانډونه، بایومتریک کپچا او شیشه‌يي پینل د ۲۴ ساعتونو لپاره په بشپړه توګه وړیا فعالېږي.',
+											'As soon as your dedicated bot is added to the group, all firewall modules, chat commands, captcha, and inline panel activate free for 24h.',
+										)}
 									</p>
 								</Show>
 
 								<Show when={subLifecycleStage() === 'warning_2h'}>
 									<div class="text-[13px] font-bold text-[#FF9500]">
-										🟠 مرحله ۲: ارسال نوتیفیکیشن هوشمند در پی‌وی مالک (T-2h و T-30m)
+										{pick(
+											'🟠 مرحله ۲: ارسال نوتیفیکیشن هوشمند در پی‌وی مالک (T-2h و T-30m)',
+											'🟠 ۲ پړاو: د مالک په شخصي پیغام کې هوښیار خبرتیا (T-2h او T-30m)',
+											'🟠 Stage 2: Smart Owner PM Alerts (T-2h & T-30m)',
+										)}
 									</div>
 									<p class="text-[12px] text-[var(--tg-text)] leading-relaxed">
-										۲ ساعت قبل از اتمام اعتبار، ربات در پی‌وی مالک گروه پیام هشدار همراه با دکمه
-										شیشه‌ای پرداخت <code>sendInvoice (currency: &quot;XTR&quot;, amount: 100)</code>{' '}
-										ارسال می‌کند. در چت گروه هیچ پیام تبلیغاتی یا مزاحمی برای اعضا فرستاده نمی‌شود.
+										{pick(
+											'۲ ساعت قبل از اتمام اعتبار، ربات در پی‌وی مالک گروه پیام هشدار همراه با دکمه شیشه‌ای پرداخت',
+											'د اعتبار له پای ته رسېدو ۲ ساعته مخکې، بوټ د ګروپ مالک ته په شخصي پیغام کې د تادیې شیشه‌يي تڼۍ',
+											'2 hours before expiry, the bot sends an owner PM warning with a payment button',
+										)}{' '}
+										<code>sendInvoice (currency: &quot;XTR&quot;, amount: 100)</code>{' '}
+										{pick(
+											'ارسال می‌کند. در چت گروه هیچ پیام تبلیغاتی یا مزاحمی برای اعضا فرستاده نمی‌شود.',
+											'سره خبرداری لېږي. په ګروپ چټ کې غړو ته هېڅ تبلیغاتي یا مزاحم پیغام نه لېږل کېږي.',
+											'so group chat stays completely clean for members.',
+										)}
 									</p>
 								</Show>
 
 								<Show when={subLifecycleStage() === 'expired_hibernated'}>
 									<div class="text-[13px] font-bold text-[#FF3B30]">
-										🔴 مرحله ۳: اتمام اعتبار و عدم پرداخت ⟵ ورود به «حالت خواب ایمن (Safe
-										Hibernation)»
+										{pick(
+											'🔴 مرحله ۳: اتمام اعتبار و عدم پرداخت ⟵ ورود به «حالت خواب ایمن (Safe Hibernation)»',
+											'🔴 ۳ پړاو: د اعتبار پای او نه تادیه ⟵ «خوندي خوب (Safe Hibernation)» حالت ته ننوتل',
+											'🟠 Stage 3: Expired Unpaid ⟵ Safe Hibernation Mode',
+										)}
 									</div>
-									<ul class="text-[12px] text-[var(--tg-text)] leading-relaxed list-disc pr-4 space-y-1">
+									<ul class="text-[12px] text-[var(--tg-text)] leading-relaxed list-disc ps-4 space-y-1">
 										<li>
-											<b>حفظ ۱۰۰٪ تنظیمات (0% Data Loss):</b> هیچ‌کدام از قفل‌ها، لیست کلمات ممنوعه،
-											اعضای معاف (VIP) و آمارهای گروه پاک نمی‌شوند.
+											<b>
+												{pick(
+													'حفظ ۱۰۰٪ تنظیمات (0% Data Loss):',
+													'د ۱۰۰٪ تنظیماتو ساتنه (0% Data Loss):',
+													'100% Settings Preserved (0% Data Loss):',
+												)}
+											</b>{' '}
+											{pick(
+												'هیچ‌کدام از قفل‌ها، لیست کلمات ممنوعه، اعضای معاف (VIP) و آمارهای گروه پاک نمی‌شوند.',
+												'هېڅ یو قلف، د بندو کلمو لېست، معاف شوي غړي (VIP) او د ګروپ احصایې نه حذفېږي.',
+												'No locks, banned words, VIP lists, or analytics are erased.',
+											)}
 										</li>
 										<li>
-											<b>عدم ترک گروه:</b> ربات هرگز گروه را ترک نمی‌کند (<code>leaveChat</code> صدا
-											زده نمی‌شود) تا دسترسی ادمین از بین نرود.
+											<b>{pick('عدم ترک گروه:', 'د ګروپ نه پرېښودل:', 'Never Leaves Group:')}</b>{' '}
+											{pick(
+												'ربات هرگز گروه را ترک نمی‌کند (leaveChat صدا زده نمی‌شود) تا دسترسی ادمین از بین نرود.',
+												'بوټ هېڅکله ګروپ نه پرېږدي (leaveChat نه اجرا کېږي) ترڅو د اډمین واک له منځه لاړ نه شي.',
+												'The bot never calls leaveChat, keeping its admin rights intact.',
+											)}
 										</li>
 										<li>
-											<b>رفتار در برابر دستورات ادمین:</b> اگر ادمین دستور <code>پنل</code> یا{' '}
-											<code>بن</code> بفرستد، ربات با یک پیام محترمانه و دکمه شیشه‌ای{' '}
-											<b>«⭐ تمدید آنی با ۱۰۰ استارز»</b> پاسخ می‌دهد.
+											<b>
+												{pick(
+													'رفتار در برابر دستورات ادمین:',
+													'د اډمین کمانډونو پروړاندې چلند:',
+													'Admin Command Behavior:',
+												)}
+											</b>{' '}
+											{pick(
+												'اگر ادمین دستور پنل یا بن بفرستد، ربات با یک پیام محترمانه و دکمه شیشه‌ای',
+												'که اډمین پینل یا بن کمانډ ولېږي، بوټ په یوه درناوي ډک پیغام او د',
+												'If an admin sends /panel or /ban, the bot replies politely with',
+											)}{' '}
+											<b>
+												{pick(
+													'«⭐ تمدید آنی با ۱۰۰ استارز»',
+													'«⭐ له ۱۰۰ سټارز سره سملاسي تمدید»',
+													'"⭐ Instant Renew (100 Stars)"',
+												)}
+											</b>{' '}
+											{pick('پاسخ می‌دهد.', 'شیشه‌يي تڼۍ سره ځواب ورکوي.', 'button.')}
 										</li>
 									</ul>
 								</Show>
 
 								<Show when={subLifecycleStage() === 'reactivated_stars'}>
 									<div class="text-[13px] font-bold text-[#007AFF]">
-										⚡ مرحله ۴: پرداخت ۱۰۰ استارز و بازگشت در کمتر از ۱۰۰ میلی‌ثانیه
+										{pick(
+											'⚡ مرحله ۴: پرداخت ۱۰۰ استارز و بازگشت در کمتر از ۱۰۰ میلی‌ثانیه',
+											'⚡ ۴ پړاو: د ۱۰۰ سټارز تادیه او له ۱۰۰ ملي‌ثانیو کم وخت کې بېرته فعالېدل',
+											'⚡ Stage 4: 100 Stars Paid & Restored in <100ms',
+										)}
 									</div>
 									<p class="text-[12px] text-[var(--tg-text)] leading-relaxed">
-										به محض دریافت وب‌هوک <code>successful_payment</code> از تلگرام، وضعیت گروه به{' '}
-										<code>paid</code> تغییر کرده و تمام قفل‌ها و دستورات دقیقاً با همان تنظیمات قبلی
-										در کسری از ثانیه فعال می‌شوند.
+										{pick(
+											'به محض دریافت وب‌هوک successful_payment از تلگرام، وضعیت گروه به paid تغییر کرده و تمام قفل‌ها و دستورات دقیقاً با همان تنظیمات قبلی در کسری از ثانیه فعال می‌شوند.',
+											'له ټیلیګرام څخه د successful_payment ویب‌هوک له ترلاسه کولو سره سم، د ګروپ حالت paid ته بدلېږي او ټول قلفونه او کمانډونه له هماغو پخوانیو تنظیماتو سره په یوه شېبه کې فعالېږي.',
+											'Upon receiving successful_payment webhook, the group switches to paid and restores all locks immediately.',
+										)}
 									</p>
 								</Show>
 							</div>
@@ -1022,7 +1429,11 @@ export const CommandsAndInlinePage: Component = () => {
 					{/* Complete 10 Edge-Case Scenarios Explorer */}
 					<div>
 						<div class="tg-section-header">
-							ماتریس ۱۰ مورد لبه بحرانی تلگرام (Edge-Case Resilience)
+							{pick(
+								'ماتریس ۱۰ مورد لبه بحرانی تلگرام (Edge-Case Resilience)',
+								'د ټیلیګرام د ۱۰ حیاتي ځانګړو حالاتو ماتریس (Edge-Case Resilience)',
+								'Telegram 10 Critical Edge-Case Resilience Matrix',
+							)}
 						</div>
 						<div class="tg-section divide-y divide-[var(--tg-separator)]">
 							<For each={edgeCaseList()}>
@@ -1033,7 +1444,7 @@ export const CommandsAndInlinePage: Component = () => {
 											haptic.selection();
 											setSelectedEdgeId(edge.scenarioId);
 										}}
-										class={`w-full p-3.5 text-right flex flex-col gap-1.5 transition-colors ${
+										class={`w-full p-3.5 text-start flex flex-col gap-1.5 transition-colors ${
 											selectedEdgeId() === edge.scenarioId ? 'bg-[var(--tg-button)]/8' : ''
 										}`}
 									>

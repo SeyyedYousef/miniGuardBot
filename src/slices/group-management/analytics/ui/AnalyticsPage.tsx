@@ -50,7 +50,8 @@ export const AnalyticsPage: Component = () => {
 		haptic.selection();
 	};
 
-	const isFa = () => locale() === 'fa';
+	const pick = (fa: string, ps: string, en: string) =>
+		locale() === 'ps' ? ps : locale() === 'fa' ? fa : en;
 
 	const renderChart = (metrics: DailyMetric[], color: string, label: string, icon: string) => {
 		if (!metrics || metrics.length === 0) {
@@ -143,42 +144,46 @@ export const AnalyticsPage: Component = () => {
 		return [
 			{
 				icon: 'groups',
-				label: isFa() ? 'کل اعضای گروه' : 'Total Members',
+				label: pick('کل اعضای گروه', 'د ګروپ ټول غړي', 'Total Members'),
 				value: totalMembers.toLocaleString(),
-				sub: isFa() ? `ورودی: ${newM} | خروجی: ${leftM}` : `In: ${newM} | Out: ${leftM}`,
+				sub: pick(
+					`ورودی: ${newM} | خروجی: ${leftM}`,
+					`ننوتل: ${newM} | وتل: ${leftM}`,
+					`In: ${newM} | Out: ${leftM}`,
+				),
 				color: '#34C759',
 			},
 			{
 				icon: 'chat_bubble',
 				label: t('analyticsSettings.totalMessages'),
 				value: totalMsgs.toLocaleString(),
-				sub: isFa() ? 'پیام‌های واقعی ثبت‌شده' : 'Recorded group messages',
+				sub: pick('پیام‌های واقعی ثبت‌شده', 'ثبت شوي ریښتیني پیغامونه', 'Recorded group messages'),
 				color: '#007AFF',
 			},
 			{
 				icon: 'shield_lock',
 				label: t('analyticsSettings.spamBlocked'),
 				value: spamBlocked.toLocaleString(),
-				sub: isFa() ? 'حذف‌شده توسط فایروال' : 'Blocked by firewall',
+				sub: pick('حذف‌شده توسط فایروال', 'د فایروال له خوا حذف شوي', 'Blocked by firewall'),
 				color: '#FF3B30',
 			},
 			{
 				icon: 'people',
 				label: t('analyticsSettings.activeUsers'),
 				value: activeUsers.toLocaleString(),
-				sub: isFa() ? 'اعضای مشارکت‌کننده' : 'Participating members',
+				sub: pick('اعضای مشارکت‌کننده', 'برخه‌اخیستونکي غړي', 'Participating members'),
 				color: '#5856D6',
 			},
 			{
 				icon: 'volume_off',
-				label: isFa() ? 'سکوت‌های اعمال‌شده' : 'Muted Users',
+				label: pick('سکوت‌های اعمال‌شده', 'بې‌غږه شوي غړي (Mute)', 'Muted Users'),
 				value: mutedUsers.toLocaleString(),
 				sub: 'restrictChatMember',
 				color: '#FF9500',
 			},
 			{
 				icon: 'person_off',
-				label: isFa() ? 'اخراج‌های دائمی (Ban)' : 'Banned Users',
+				label: pick('اخراج‌های دائمی (Ban)', 'دایمي شړل شوي (Ban)', 'Banned Users'),
 				value: bannedUsers.toLocaleString(),
 				sub: 'banChatMember',
 				color: '#AF52DE',
@@ -241,14 +246,23 @@ export const AnalyticsPage: Component = () => {
 			await groupApi.sendAnalyticsReport(params.id);
 			haptic.notify('success');
 			showToast(
-				isFa()
-					? '📊 گزارش واقعی عملکرد گروه به تلگرام شما ارسال شد!'
-					: '📊 Real analytics report sent to your Telegram!',
+				pick(
+					'📊 گزارش واقعی عملکرد گروه به تلگرام شما ارسال شد!',
+					'📊 د ګروپ د فعالیت ریښتینی راپور ستاسو ټیلیګرام ته ولېږل شو!',
+					'📊 Real analytics report sent to your Telegram!',
+				),
 				'success',
 			);
 		} catch {
 			haptic.notify('error');
-			showToast('خطا در ارسال گزارش به تلگرام', 'error');
+			showToast(
+				pick(
+					'خطا در ارسال گزارش به تلگرام',
+					'ټیلیګرام ته د راپور په لېږلو کې تېروتنه وشوه',
+					'Failed to send report to Telegram',
+				),
+				'error',
+			);
 		}
 	};
 
@@ -268,9 +282,11 @@ export const AnalyticsPage: Component = () => {
 			navigator.clipboard?.writeText(payload);
 		} catch {}
 		showToast(
-			isFa()
-				? '✅ خروجی کامل آمار گروه (JSON) در کلیپ‌بورد کپی شد!'
-				: '✅ Analytics JSON copied to clipboard!',
+			pick(
+				'✅ خروجی کامل آمار گروه (JSON) در کلیپ‌بورد کپی شد!',
+				'✅ د ګروپ بشپړ احصایوي راپور (JSON) کلیپ‌بورډ ته کاپي شو!',
+				'✅ Analytics JSON copied to clipboard!',
+			),
 			'success',
 		);
 	};
@@ -368,18 +384,22 @@ export const AnalyticsPage: Component = () => {
 				{/* Firewall Violation Breakdown by Rule */}
 				<div>
 					<div class="tg-section-header">
-						{isFa()
-							? 'تفکیک دقیق تخلفات مهارشده توسط فایروال'
-							: 'Firewall Violation Breakdown by Category'}
+						{pick(
+							'تفکیک دقیق تخلفات مهارشده توسط فایروال',
+							'د فایروال له خوا د مهار شویو سرغړونو کره تفکیک',
+							'Firewall Violation Breakdown by Category',
+						)}
 					</div>
 					<div class="tg-section p-4 space-y-3">
 						<Show
 							when={violationBreakdown().length > 0}
 							fallback={
 								<div class="py-3 text-center text-[12.5px] text-[var(--tg-hint)]">
-									{isFa()
-										? 'هنوز هیچ تخلفی در این گروه ثبت نشده است. به محض مسدودسازی لینک یا اسپم، آمار واقعی در اینجا نمایش داده می‌شود.'
-										: 'No violations recorded yet in this group.'}
+									{pick(
+										'هنوز هیچ تخلفی در این گروه ثبت نشده است. به محض مسدودسازی لینک یا اسپم، آمار واقعی در اینجا نمایش داده می‌شود.',
+										'تر اوسه په دې ګروپ کې هېڅ سرغړونه نه ده ثبت شوې. د لینک یا سپیم له بندولو سره سم به ریښتینې احصایې دلته وښودل شي.',
+										'No violations recorded yet in this group.',
+									)}
 								</div>
 							}
 						>
@@ -413,7 +433,11 @@ export const AnalyticsPage: Component = () => {
 				{/* 24-Hour Peak Activity Heatmap */}
 				<div>
 					<div class="tg-section-header">
-						{isFa() ? 'ساعات فعالیت ۲۴ ساعته گروه (Peak Hours)' : '24-Hour Activity Distribution'}
+						{pick(
+							'ساعات فعالیت ۲۴ ساعته گروه (Peak Hours)',
+							'د ګروپ د ۲۴ ساعتونو فعالیت (اوج ساعتونه)',
+							'24-Hour Activity Distribution',
+						)}
 					</div>
 					<div class="tg-section p-4 space-y-3">
 						<div
@@ -447,9 +471,11 @@ export const AnalyticsPage: Component = () => {
 				<Show when={forumTopicsStats().length > 0}>
 					<div>
 						<div class="tg-section-header">
-							{isFa()
-								? 'آمار تفکیکی تاپیک‌های فروم (message_thread_id)'
-								: 'Per-Topic Activity (Forum Supergroup)'}
+							{pick(
+								'آمار تفکیکی تاپیک‌های فروم (message_thread_id)',
+								'د فورم د ټاپیکونو تفصیلي احصایې (message_thread_id)',
+								'Per-Topic Activity (Forum Supergroup)',
+							)}
 						</div>
 						<div class="tg-section divide-y divide-[var(--tg-separator)]">
 							<For each={forumTopicsStats()}>
@@ -483,16 +509,18 @@ export const AnalyticsPage: Component = () => {
 				{/* Top Active Members Leaderboard */}
 				<div>
 					<div class="tg-section-header">
-						{isFa() ? 'برترین اعضای فعال گروه' : 'Top Active Group Members'}
+						{pick('برترین اعضای فعال گروه', 'د ګروپ تر ټولو فعال غړي', 'Top Active Group Members')}
 					</div>
 					<div class="tg-section divide-y divide-[var(--tg-separator)]">
 						<Show
 							when={topMembers().length > 0}
 							fallback={
 								<div class="p-4 text-center text-[12.5px] text-[var(--tg-hint)]">
-									{isFa()
-										? 'با ارسال پیام توسط اعضا در گروه، لیست فعال‌ترین اعضای واقعی گروه در این بخش ثبت می‌شود.'
-										: 'Active group members will appear here once messages are sent in the group.'}
+									{pick(
+										'با ارسال پیام توسط اعضا در گروه، لیست فعال‌ترین اعضای واقعی گروه در این بخش ثبت می‌شود.',
+										'کله چې غړي په ګروپ کې پیغامونه ولېږي، د تر ټولو فعالو ریښتینو غړو لېست به دلته ثبت شي.',
+										'Active group members will appear here once messages are sent in the group.',
+									)}
 								</div>
 							}
 						>
@@ -531,9 +559,11 @@ export const AnalyticsPage: Component = () => {
 				>
 					<span class="material-symbols-outlined text-[19px]">send</span>
 					<span>
-						{isFa()
-							? 'ارسال فوری این گزارش واقعی به تلگرام من'
-							: 'Send Real Group Report to My Telegram'}
+						{pick(
+							'ارسال فوری این گزارش واقعی به تلگرام من',
+							'دا ریښتینی راپور سملاسي زما ټیلیګرام ته ولېږه',
+							'Send Real Group Report to My Telegram',
+						)}
 					</span>
 				</button>
 			</main>

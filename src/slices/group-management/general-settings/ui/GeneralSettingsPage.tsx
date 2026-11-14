@@ -3,7 +3,7 @@ import { backButton } from '@tma.js/sdk-solid';
 import { type Component, createResource, createSignal, onCleanup, onMount, Show } from 'solid-js';
 import { createStore, reconcile } from 'solid-js/store';
 import { groupApi } from '@/shared/api/bot-management.js';
-import { isRtl, t } from '@/shared/i18n/index.js';
+import { isRtl, locale, t } from '@/shared/i18n/index.js';
 import { haptic } from '@/shared/lib/haptic.js';
 import { SelectField, SettingsSection, ToggleSwitch } from '@/shared/ui/settings-controls.js';
 import { showToast } from '@/shared/ui/toast.js';
@@ -213,8 +213,15 @@ export const GeneralSettingsPage: Component = () => {
 							onChange={(v) => updateField('language', v)}
 							options={[
 								{ value: 'fa', label: 'فارسی (Persian)' },
+								{ value: 'ps', label: 'پښتو (Pashto)' },
 								{ value: 'en', label: 'English' },
+								{ value: 'ar', label: 'العربية (Arabic)' },
 								{ value: 'ru', label: 'Русский (Russian)' },
+								{ value: 'tr', label: 'Türkçe (Turkish)' },
+								{ value: 'es', label: 'Español (Spanish)' },
+								{ value: 'pt', label: 'Português (Portuguese)' },
+								{ value: 'de', label: 'Deutsch (German)' },
+								{ value: 'fr', label: 'Français (French)' },
 								{ value: 'zh', label: '简体中文 (Chinese)' },
 							]}
 						/>
@@ -225,6 +232,7 @@ export const GeneralSettingsPage: Component = () => {
 							onChange={(v) => updateField('timezone', v)}
 							options={[
 								{ value: 'Asia/Tehran', label: 'Tehran (GMT+3:30)' },
+								{ value: 'Asia/Kabul', label: 'Kabul (GMT+4:30)' },
 								{ value: 'UTC', label: 'UTC (GMT+0)' },
 								{ value: 'Europe/Moscow', label: 'Moscow (GMT+3)' },
 								{ value: 'Asia/Shanghai', label: 'Shanghai (GMT+8)' },
@@ -355,32 +363,46 @@ export const GeneralSettingsPage: Component = () => {
 				{/* In-Chat Commands & Inline Action Buttons Section */}
 				<div>
 					<div class="tg-section-header">
-						{isRtl()
-							? 'تنظیمات موتور دستورات داخل چت و دکمه‌های شیشه‌ای'
-							: 'In-Chat Commands & Inline Action Buttons'}
+						{locale() === 'ps'
+							? 'د چټ دننه کمانډونو او شیشه‌يي تڼیو انجن تنظیمات'
+							: isRtl()
+								? 'تنظیمات موتور دستورات داخل چت و دکمه‌های شیشه‌ای'
+								: 'In-Chat Commands & Inline Action Buttons'}
 					</div>
 					<div class="tg-section p-4 flex flex-col gap-3.5">
 						<SettingsSection
 							title={
-								isRtl()
-									? 'دستورات فارسی بدون اسلش (Natural Triggers)'
-									: 'Persian Natural Language Commands'
+								locale() === 'ps'
+									? 'بې له سلیشه طبیعي کمانډونه (Natural Triggers)'
+									: isRtl()
+										? 'دستورات فارسی بدون اسلش (Natural Triggers)'
+										: 'Persian Natural Language Commands'
 							}
 							description={
-								isRtl()
-									? 'تشخیص هوشمند دستوراتی مانند «بن»، «سکوت ۲ ساعت»، «اخطار»، «معاف» و «پنل» با ریپلای ادمین در گروه'
-									: 'Recognize natural reply commands without requiring a leading slash'
+								locale() === 'ps'
+									? 'په ګروپ کې د اډمین په ریپلای سره د «بن / شړل»، «سکوت / بې‌غږه ۲ ساعته»، «خبرداری»، «معاف» او «پینل» په څېر کمانډونو هوښیار پېژندل'
+									: isRtl()
+										? 'تشخیص هوشمند دستوراتی مانند «بن»، «سکوت ۲ ساعت»، «اخطار»، «معاف» و «پنل» با ریپلای ادمین در گروه'
+										: 'Recognize natural reply commands without requiring a leading slash'
 							}
 							enabled={config.enablePersianNaturalCommands}
 							onToggle={(v) => updateField('enablePersianNaturalCommands', v)}
 						/>
 
 						<SettingsSection
-							title={isRtl() ? 'حذف خودکار پیام دستور ادمین' : 'Auto-Delete Admin Command Message'}
+							title={
+								locale() === 'ps'
+									? 'د اډمین د کمانډ پیغام اتومات پاکول'
+									: isRtl()
+										? 'حذف خودکار پیام دستور ادمین'
+										: 'Auto-Delete Admin Command Message'
+							}
 							description={
-								isRtl()
-									? 'تمیز ماندن چت گروه با حذف آنی پیام دستور ادمین پس از اجرای بن، سکوت یا پاکسازی'
-									: 'Keep group chat clean by deleting the admin command message after execution'
+								locale() === 'ps'
+									? 'د شړلو، بې‌غږه کولو یا پاکولو تر پلي کېدو وروسته د اډمین کمانډ پیغام سملاسي پاکول ترڅو چټ پاک پاتې شي'
+									: isRtl()
+										? 'تمیز ماندن چت گروه با حذف آنی پیام دستور ادمین پس از اجرای بن، سکوت یا پاکسازی'
+										: 'Keep group chat clean by deleting the admin command message after execution'
 							}
 							enabled={config.autoDeleteAdminCommands}
 							onToggle={(v) => updateField('autoDeleteAdminCommands', v)}
@@ -388,14 +410,18 @@ export const GeneralSettingsPage: Component = () => {
 
 						<SettingsSection
 							title={
-								isRtl()
-									? 'دکمه‌های شیشه‌ای واکنش سریع زیر پیام‌های ربات'
-									: 'Quick-Action Inline Buttons Below Bot Alerts'
+								locale() === 'ps'
+									? 'د بوټ د پیغامونو لاندې د چټک غبرګون شیشه‌يي تڼۍ'
+									: isRtl()
+										? 'دکمه‌های شیشه‌ای واکنش سریع زیر پیام‌های ربات'
+										: 'Quick-Action Inline Buttons Below Bot Alerts'
 							}
 							description={
-								isRtl()
-									? 'افزودن دکمه شیشه‌ای «🔊 لغو سکوت» و «🚫 اخراج کامل» زیر پیام‌های برخورد ربات (مخصوص ادمین‌ها)'
-									: 'Attach 1-tap Unmute and Ban inline buttons below bot moderation messages'
+								locale() === 'ps'
+									? 'د بوټ د سرغړونې پیغامونو لاندې «🔊 بې‌غږه لرې کول» او «🚫 دایمي شړل» شیشه‌يي تڼۍ ورګډول (یوازې د اډمینانو لپاره)'
+									: isRtl()
+										? 'افزودن دکمه شیشه‌ای «🔊 لغو سکوت» و «🚫 اخراج کامل» زیر پیام‌های برخورد ربات (مخصوص ادمین‌ها)'
+										: 'Attach 1-tap Unmute and Ban inline buttons below bot moderation messages'
 							}
 							enabled={config.inlineActionButtons}
 							onToggle={(v) => updateField('inlineActionButtons', v)}
@@ -403,14 +429,18 @@ export const GeneralSettingsPage: Component = () => {
 
 						<SettingsSection
 							title={
-								isRtl()
-									? 'دستور عمومی «گزارش» (/report) برای اعضا'
-									: 'Public Member Report Command (/report)'
+								locale() === 'ps'
+									? 'د غړو لپاره د «راپور» (/report) عامه کمانډ'
+									: isRtl()
+										? 'دستور عمومی «گزارش» (/report) برای اعضا'
+										: 'Public Member Report Command (/report)'
 							}
 							description={
-								isRtl()
-									? 'امکان ریپلای اعضا روی پیام متخلف با «گزارش» یا /report جهت اطلاع‌رسانی سریع به مدیران گروه'
-									: 'Allow members to reply with /report to alert group administrators'
+								locale() === 'ps'
+									? 'غړو ته اجازه ورکول چې پر سرغړونکي پیغام د «راپور» یا /report ریپلای سره د ګروپ اډمینان سملاسي خبر کړي'
+									: isRtl()
+										? 'امکان ریپلای اعضا روی پیام متخلف با «گزارش» یا /report جهت اطلاع‌رسانی سریع به مدیران گروه'
+										: 'Allow members to reply with /report to alert group administrators'
 							}
 							enabled={config.publicReportCommand}
 							onToggle={(v) => updateField('publicReportCommand', v)}
@@ -421,21 +451,27 @@ export const GeneralSettingsPage: Component = () => {
 				{/* Binary Protocol & Biometric Join-Request Security (Bot API 8.x) */}
 				<div>
 					<div class="tg-section-header">
-						{isRtl()
-							? 'کپچای بیومتریک و امنیت باینری (Bot API 8.x)'
-							: 'Biometric Join-Request & Binary Security'}
+						{locale() === 'ps'
+							? 'بایومیټریک کیپچا او باینري امنیت (Bot API 8.x)'
+							: isRtl()
+								? 'کپچای بیومتریک و امنیت باینری (Bot API 8.x)'
+								: 'Biometric Join-Request & Binary Security'}
 					</div>
 					<div class="tg-section p-4 flex flex-col gap-3.5">
 						<SettingsSection
 							title={
-								isRtl()
-									? 'تایید ورود با درخواست عضویت (chatJoinRequest)'
-									: 'Native Join-Request Gate (chatJoinRequest)'
+								locale() === 'ps'
+									? 'د غړیتوب له غوښتنې سره د ننوتلو تایید (chatJoinRequest)'
+									: isRtl()
+										? 'تایید ورود با درخواست عضویت (chatJoinRequest)'
+										: 'Native Join-Request Gate (chatJoinRequest)'
 							}
 							description={
-								isRtl()
-									? 'احراز هویت کاربران جدید در پیوی قبل از ورود به گروه بدون ارسال هیچ پیام مزاحم در چت گروه'
-									: 'Verify new members in PM via approveChatJoinRequest with zero clutter inside the group'
+								locale() === 'ps'
+									? 'ګروپ ته له ننوتلو مخکې په شخصي پیغام کې د نویو کارنانو هویت تاییدول، پرته له دې چې د ګروپ چټ کې مزاحم پیغام واستول شي'
+									: isRtl()
+										? 'احراز هویت کاربران جدید در پیوی قبل از ورود به گروه بدون ارسال هیچ پیام مزاحم در چت گروه'
+										: 'Verify new members in PM via approveChatJoinRequest with zero clutter inside the group'
 							}
 							enabled={config.joinRequestCaptcha}
 							onToggle={(v) => updateField('joinRequestCaptcha', v)}
@@ -444,14 +480,18 @@ export const GeneralSettingsPage: Component = () => {
 						<Show when={config.joinRequestCaptcha}>
 							<SettingsSection
 								title={
-									isRtl()
-										? 'کپچای بیومتریک مینی‌اپ (BiometricManager)'
-										: 'WebApp Biometric Verification (TouchID / FaceID)'
+									locale() === 'ps'
+										? 'د مینی‌اپ بایومیټریک کیپچا (BiometricManager)'
+										: isRtl()
+											? 'کپچای بیومتریک مینی‌اپ (BiometricManager)'
+											: 'WebApp Biometric Verification (TouchID / FaceID)'
 								}
 								description={
-									isRtl()
-										? 'الزام به تایید اثر انگشت یا تشخیص چهره رسمی تلگرام برای مسدودسازی ۱۰۰٪ اکانت‌های فیک و بات‌ها'
-										: 'Require native Telegram hardware biometric signature before approving join request'
+									locale() === 'ps'
+										? 'د جعلي حسابونو او بوټانو د ۱۰۰٪ مخنیوي لپاره د ټیلیګرام د رسمي ګوتې نښې یا مخ پېژندنې تایید لازمي کول'
+										: isRtl()
+											? 'الزام به تایید اثر انگشت یا تشخیص چهره رسمی تلگرام برای مسدودسازی ۱۰۰٪ اکانت‌های فیک و بات‌ها'
+											: 'Require native Telegram hardware biometric signature before approving join request'
 								}
 								enabled={config.biometricCaptcha}
 								onToggle={(v) => updateField('biometricCaptcha', v)}
@@ -460,14 +500,18 @@ export const GeneralSettingsPage: Component = () => {
 
 						<SettingsSection
 							title={
-								isRtl()
-									? 'سپر کاراکترهای نامرئی باینری (Zero-Width & RTL)'
-									: 'Binary Zero-Width & Bidi RTL Override Shield'
+								locale() === 'ps'
+									? 'د پټو باینري تورو سپر (Zero-Width & RTL)'
+									: isRtl()
+										? 'سپر کاراکترهای نامرئی باینری (Zero-Width & RTL)'
+										: 'Binary Zero-Width & Bidi RTL Override Shield'
 							}
 							description={
-								isRtl()
-									? 'مسدودسازی کاراکترهای مخفی U+200B تا U+202E که برای دور زدن فیلتر لینک و کلمات ممنوعه استفاده می‌شوند'
-									: 'Block invisible UTF-8 control characters used to bypass link and keyword filters'
+								locale() === 'ps'
+									? 'د U+200B تر U+202E پورې پټو کنټرول تورو بندول چې د لینک او ممنوعه کلمو فلټر تېروتنې لپاره کارول کېږي'
+									: isRtl()
+										? 'مسدودسازی کاراکترهای مخفی U+200B تا U+202E که برای دور زدن فیلتر لینک و کلمات ممنوعه استفاده می‌شوند'
+										: 'Block invisible UTF-8 control characters used to bypass link and keyword filters'
 							}
 							enabled={config.blockZeroWidthChars}
 							onToggle={(v) => updateField('blockZeroWidthChars', v)}
@@ -475,14 +519,18 @@ export const GeneralSettingsPage: Component = () => {
 
 						<SettingsSection
 							title={
-								isRtl()
-									? 'ضد جعل هویت ادمین (Unicode Homograph Shield)'
-									: 'Admin Impersonation Homograph Protection'
+								locale() === 'ps'
+									? 'د اډمین د جعلي نوم مخنیوی (Unicode Homograph Shield)'
+									: isRtl()
+										? 'ضد جعل هویت ادمین (Unicode Homograph Shield)'
+										: 'Admin Impersonation Homograph Protection'
 							}
 							description={
-								isRtl()
-									? 'تشخیص خودکار حروف مشابه سیریلیک/عربی در نام کاربران برای جلوگیری از جعل هویت مدیران گروه'
-									: 'Detect mixed-script Cyrillic/Latin lookalike characters impersonating group admins'
+								locale() === 'ps'
+									? 'د ګروپ اډمینانو د نوم نقل کولو د مخنیوي لپاره د کارنانو په نوم کې د ورته سیریلیک/عربي تورو اتومات پېژندل'
+									: isRtl()
+										? 'تشخیص خودکار حروف مشابه سیریلیک/عربی در نام کاربران برای جلوگیری از جعل هویت مدیران گروه'
+										: 'Detect mixed-script Cyrillic/Latin lookalike characters impersonating group admins'
 							}
 							enabled={config.blockHomographImpersonation}
 							onToggle={(v) => updateField('blockHomographImpersonation', v)}

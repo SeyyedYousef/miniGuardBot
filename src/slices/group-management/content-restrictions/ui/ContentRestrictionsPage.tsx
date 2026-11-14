@@ -11,7 +11,7 @@ import {
 } from 'solid-js';
 import { createStore, reconcile } from 'solid-js/store';
 import { groupApi } from '@/shared/api/bot-management.js';
-import { isRtl, t } from '@/shared/i18n/index.js';
+import { isRtl, locale, t } from '@/shared/i18n/index.js';
 import { haptic } from '@/shared/lib/haptic.js';
 import { SettingsSection } from '@/shared/ui/settings-controls.js';
 import { showToast } from '@/shared/ui/toast.js';
@@ -210,7 +210,12 @@ export const ContentRestrictionsPage: Component = () => {
 		{
 			id: 'topics',
 			icon: 'topic',
-			label: isRtl() ? 'تاپیک‌های فروم (Topics)' : 'Forum Topics',
+			label:
+				locale() === 'ps'
+					? 'د فورم تاپیکونه (Topics)'
+					: isRtl()
+						? 'تاپیک‌های فروم (Topics)'
+						: 'Forum Topics',
 		},
 	];
 
@@ -308,14 +313,18 @@ export const ContentRestrictionsPage: Component = () => {
 						<div class="tg-section p-4 flex flex-col gap-3.5">
 							<SettingsSection
 								title={
-									isRtl()
-										? 'پشتیبانی از تاپیک‌های سوپرگروه فروم (message_thread_id)'
-										: 'Forum Supergroup Topics Engine (message_thread_id)'
+									locale() === 'ps'
+										? 'د سوپرګروپ فورم تاپیکونو ملاتړ (message_thread_id)'
+										: isRtl()
+											? 'پشتیبانی از تاپیک‌های سوپرگروه فروم (message_thread_id)'
+											: 'Forum Supergroup Topics Engine (message_thread_id)'
 								}
 								description={
-									isRtl()
-										? 'اعمال قوانین مجزا برای هر تاپیک در سوپرگروه‌های چندتاپیکی تلگرام (Forum Mode)'
-										: 'Apply per-topic firewall exemptions in Telegram Forum supergroups'
+									locale() === 'ps'
+										? 'د ټیلیګرام په څو-تاپیکه سوپرګروپونو (Forum Mode) کې د هر تاپیک لپاره بېل قوانین پلي کول'
+										: isRtl()
+											? 'اعمال قوانین مجزا برای هر تاپیک در سوپرگروه‌های چندتاپیکی تلگرام (Forum Mode)'
+											: 'Apply per-topic firewall exemptions in Telegram Forum supergroups'
 								}
 								enabled={forumTopicsMode()}
 								onToggle={(v) => {
@@ -326,14 +335,18 @@ export const ContentRestrictionsPage: Component = () => {
 
 							<SettingsSection
 								title={
-									isRtl()
-										? 'قفل ساخت و ویرایش تاپیک توسط اعضا (forum_topic_created)'
-										: 'Lock Topic Creation & Renaming by Non-Admins'
+									locale() === 'ps'
+										? 'د غړو لخوا د تاپیک جوړولو او سمولو قلف (forum_topic_created)'
+										: isRtl()
+											? 'قفل ساخت و ویرایش تاپیک توسط اعضا (forum_topic_created)'
+											: 'Lock Topic Creation & Renaming by Non-Admins'
 								}
 								description={
-									isRtl()
-										? 'جلوگیری از ایجاد تاپیک‌های اسپم یا تغییر نام و آیکون تاپیک‌ها توسط کاربران عادی'
-										: 'Prevent non-admin members from creating or editing forum topics'
+									locale() === 'ps'
+										? 'د عادي غړو لخوا د سپیم تاپیکونو د جوړولو یا د تاپیک د نوم او آیکون بدلولو مخنیوی'
+										: isRtl()
+											? 'جلوگیری از ایجاد تاپیک‌های اسپم یا تغییر نام و آیکون تاپیک‌ها توسط کاربران عادی'
+											: 'Prevent non-admin members from creating or editing forum topics'
 								}
 								enabled={lockTopicCreation()}
 								onToggle={(v) => {
@@ -346,14 +359,18 @@ export const ContentRestrictionsPage: Component = () => {
 						<div class="tg-section p-4 flex flex-col gap-3">
 							<div class="flex flex-col">
 								<span class="text-[14.5px] font-bold text-[var(--tg-text)]">
-									{isRtl()
-										? 'تاپیک‌های معاف از قفل لینک و مدیا (Whitelisted Topic IDs)'
-										: 'Whitelisted Forum Topics (Links & Media Allowed)'}
+									{locale() === 'ps'
+										? 'له لینک او رسنیو معاف شوي تاپیکونه (Whitelisted Topic IDs)'
+										: isRtl()
+											? 'تاپیک‌های معاف از قفل لینک و مدیا (Whitelisted Topic IDs)'
+											: 'Whitelisted Forum Topics (Links & Media Allowed)'}
 								</span>
 								<span class="text-[12px] text-[var(--tg-hint)] mt-0.5 leading-relaxed">
-									{isRtl()
-										? 'در تاپیک‌های زیر (بر اساس message_thread_id) ارسال لینک، عکس یا ریپلای خارجی مجاز خواهد بود:'
-										: 'Messages inside these message_thread_id topics bypass anti-link and media locks:'}
+									{locale() === 'ps'
+										? 'په لاندې تاپیکونو کې (د message_thread_id پر بنسټ) د لینک، انځور یا بهرني ریپلای لېږل مجاز دي:'
+										: isRtl()
+											? 'در تاپیک‌های زیر (بر اساس message_thread_id) ارسال لینک، عکس یا ریپلای خارجی مجاز خواهد بود:'
+											: 'Messages inside these message_thread_id topics bypass anti-link and media locks:'}
 								</span>
 							</div>
 
@@ -382,7 +399,11 @@ export const ContentRestrictionsPage: Component = () => {
 									onInput={(e) => setNewTopicId(e.currentTarget.value)}
 									onKeyDown={(e) => e.key === 'Enter' && addWhitelistedTopic()}
 									placeholder={
-										isRtl() ? 'مثال: #245 (تاپیک معرفی پروژه)' : 'e.g. #245 (Showcase Topic)'
+										locale() === 'ps'
+											? 'بېلګه: #245 (د پروژې پېژندنې تاپیک)'
+											: isRtl()
+												? 'مثال: #245 (تاپیک معرفی پروژه)'
+												: 'e.g. #245 (Showcase Topic)'
 									}
 									class="flex-1 h-10 bg-[var(--tg-secondary-bg)] border border-[var(--tg-separator)] text-[var(--tg-text)] text-[13px] rounded-lg px-3 focus:outline-none focus:border-[var(--tg-button)]"
 								/>
@@ -397,21 +418,27 @@ export const ContentRestrictionsPage: Component = () => {
 
 						<div class="tg-section p-4 flex flex-col gap-3.5">
 							<div class="text-[13px] font-bold text-[var(--tg-hint)]">
-								{isRtl()
-									? 'فیلترهای موجودیت باینری (Bot API 8.x Entities)'
-									: 'Bot API 8.x Entity Filters'}
+								{locale() === 'ps'
+									? 'د باینري موجودیتونو فلټرونه (Bot API 8.x Entities)'
+									: isRtl()
+										? 'فیلترهای موجودیت باینری (Bot API 8.x Entities)'
+										: 'Bot API 8.x Entity Filters'}
 							</div>
 
 							<SettingsSection
 								title={
-									isRtl()
-										? 'قفل فوروارد استوری‌های تبلیغاتی (Story Forward)'
-										: 'Block Forwarded Telegram Stories (story)'
+									locale() === 'ps'
+										? 'د اعلاني سټوریانو د فارورډ قلف (Story Forward)'
+										: isRtl()
+											? 'قفل فوروارد استوری‌های تبلیغاتی (Story Forward)'
+											: 'Block Forwarded Telegram Stories (story)'
 								}
 								description={
-									isRtl()
-										? 'حذف خودکار استوری‌های فورواردشده از کانال‌ها و پیج‌های تبلیغاتی در گروه'
-										: 'Automatically delete forwarded stories inside the group'
+									locale() === 'ps'
+										? 'په ګروپ کې له چینلونو او اعلاني پاڼو څخه فارورډ شوې سټوري په اتومات ډول پاکول'
+										: isRtl()
+											? 'حذف خودکار استوری‌های فورواردشده از کانال‌ها و پیج‌های تبلیغاتی در گروه'
+											: 'Automatically delete forwarded stories inside the group'
 								}
 								enabled={blockStoryForwards()}
 								onToggle={(v) => {
@@ -422,14 +449,18 @@ export const ContentRestrictionsPage: Component = () => {
 
 							<SettingsSection
 								title={
-									isRtl()
-										? 'قفل ایموجی‌های پریمیوم تبلیغاتی (custom_emoji_id)'
-										: 'Block Advertising Premium Custom Emojis (custom_emoji)'
+									locale() === 'ps'
+										? 'د اعلاني پریمیوم ایموجي قلف (custom_emoji_id)'
+										: isRtl()
+											? 'قفل ایموجی‌های پریمیوم تبلیغاتی (custom_emoji_id)'
+											: 'Block Advertising Premium Custom Emojis (custom_emoji)'
 								}
 								description={
-									isRtl()
-										? 'مسدودسازی پک‌های ایموجی متحرک پریمیوم که حاوی بنرهای تبلیغاتی کانال‌ها هستند'
-										: 'Block custom_emoji entities used by spam bots as animated ad banners'
+									locale() === 'ps'
+										? 'د متحرک پریمیوم ایموجي کڅوړو بندول چې د چینلونو د اعلانونو بنرونه پکې وي'
+										: isRtl()
+											? 'مسدودسازی پک‌های ایموجی متحرک پریمیوم که حاوی بنرهای تبلیغاتی کانال‌ها هستند'
+											: 'Block custom_emoji entities used by spam bots as animated ad banners'
 								}
 								enabled={blockPremiumCustomEmojis()}
 								onToggle={(v) => {
@@ -440,14 +471,18 @@ export const ContentRestrictionsPage: Component = () => {
 
 							<SettingsSection
 								title={
-									isRtl()
-										? 'قفل پیام‌ها و تصاویر اسپویلردار (Spoiler Lock)'
-										: 'Block Spoiler Text & Media (has_media_spoiler)'
+									locale() === 'ps'
+										? 'د سپویلر لرونکو پیغامونو او انځورونو قلف (Spoiler Lock)'
+										: isRtl()
+											? 'قفل پیام‌ها و تصاویر اسپویلردار (Spoiler Lock)'
+											: 'Block Spoiler Text & Media (has_media_spoiler)'
 								}
 								description={
-									isRtl()
-										? 'جلوگیری از پنهان کردن لینک‌ها یا تصاویر نامناسب در پشت لایه اسپویلر تلگرام'
-										: 'Block messages hiding spam text or media behind Telegram spoiler tags'
+									locale() === 'ps'
+										? 'د ټیلیګرام د سپویلر (پټوونکي) پردې تر شا د لینکونو یا نامناسبو انځورونو د پټولو مخنیوی'
+										: isRtl()
+											? 'جلوگیری از پنهان کردن لینک‌ها یا تصاویر نامناسب در پشت لایه اسپویلر تلگرام'
+											: 'Block messages hiding spam text or media behind Telegram spoiler tags'
 								}
 								enabled={blockSpoilerMessages()}
 								onToggle={(v) => {

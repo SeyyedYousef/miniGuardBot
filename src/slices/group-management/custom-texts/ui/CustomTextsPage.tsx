@@ -25,7 +25,36 @@ interface CustomTextsConfig {
 	rulesText: string;
 	forceJoinText: string;
 	forceAddText: string;
+	addCounterText: string;
+	addCounterCompleteText: string;
 	inlineButtons: { id: string; title: string; url: string }[];
+}
+
+type TextFieldKey = keyof Omit<CustomTextsConfig, 'inlineButtons'>;
+
+function formatCustomTextPreview(template: string, groupTitle: string): string {
+	const raw = String(template || '');
+	return raw
+		.replace(/\{user\}|\{name\}|\{mention\}/gi, 'علی رضایی')
+		.replace(/\{username\}/gi, '@ali_rezaei')
+		.replace(/\{id\}/gi, '5076130392')
+		.replace(/\{group\}/gi, groupTitle || 'گروه نمونه')
+		.replace(/\{time\}/gi, '14:30')
+		.replace(/\{date\}/gi, '1405/08/23')
+		.replace(/\{added\}/gi, '3')
+		.replace(/\{lifetime_added\}/gi, '7')
+		.replace(/\{remain\}|\{remainadd\}/gi, '2')
+		.replace(/\{target\}|\{number\}/gi, '5')
+		.replace(/\{just_added\}/gi, '1')
+		.replace(/\{added_users\}/gi, 'سارا احمدی')
+		.replace(/\{percent\}/gi, '60')
+		.replace(/\{progress_bar\}/gi, '🟩🟩🟩🟩🟩⬜⬜⬜')
+		.replace(/\{rank\}/gi, '2')
+		.replace(/\{total_group_adds\}/gi, '29')
+		.replace(/\{count\}/gi, '1')
+		.replace(/\{threshold\}/gi, '3')
+		.replace(/\{reason\}|\{rule\}/gi, 'ارسال لینک')
+		.replace(/\{channel_names\}/gi, '@MiniGuardChannel');
 }
 
 const LEGACY_DEFAULT_STRINGS = new Set([
@@ -56,6 +85,8 @@ export const CustomTextsPage: Component = () => {
 		rulesText: minDefaults().rulesText,
 		forceJoinText: minDefaults().forceJoinText,
 		forceAddText: minDefaults().forceAddText,
+		addCounterText: minDefaults().addCounterText,
+		addCounterCompleteText: minDefaults().addCounterCompleteText,
 		inlineButtons: [],
 	});
 
@@ -69,7 +100,7 @@ export const CustomTextsPage: Component = () => {
 			const ct = (data.custom_texts || {}) as Partial<CustomTextsConfig>;
 
 			const resolveField = (saved: string | undefined, fallback: string) => {
-				if (!saved || !saved.trim() || LEGACY_DEFAULT_STRINGS.has(saved.trim())) {
+				if (!saved?.trim() || LEGACY_DEFAULT_STRINGS.has(saved.trim())) {
 					return fallback;
 				}
 				return saved;
@@ -89,6 +120,11 @@ export const CustomTextsPage: Component = () => {
 					rulesText: resolveField(ct.rulesText, localizedDefaults.rulesText),
 					forceJoinText: resolveField(ct.forceJoinText, localizedDefaults.forceJoinText),
 					forceAddText: resolveField(ct.forceAddText, localizedDefaults.forceAddText),
+					addCounterText: resolveField(ct.addCounterText, localizedDefaults.addCounterText),
+					addCounterCompleteText: resolveField(
+						ct.addCounterCompleteText,
+						localizedDefaults.addCounterCompleteText,
+					),
 					inlineButtons: cleanButtons,
 				}),
 			);
@@ -108,9 +144,34 @@ export const CustomTextsPage: Component = () => {
 		} catch {}
 	});
 
+	const [activeField, setActiveField] = createSignal<TextFieldKey>('addCounterText');
+	const groupTitle = () => 'گروه نمونه';
+	const fieldRefs: Partial<Record<TextFieldKey, HTMLTextAreaElement>> = {};
+
 	const update = (key: keyof CustomTextsConfig, val: any) => {
 		setCfg(key, val);
 		setIsDirty(true);
+	};
+
+	const insertPlaceholder = (tag: string) => {
+		haptic.impact('light');
+		const field = activeField();
+		const el = fieldRefs[field];
+		const currentVal = String(cfg[field] || '');
+		if (el && typeof el.selectionStart === 'number') {
+			const start = el.selectionStart;
+			const end = el.selectionEnd ?? start;
+			const nextVal = `${currentVal.slice(0, start)}${tag}${currentVal.slice(end)}`;
+			update(field, nextVal);
+			requestAnimationFrame(() => {
+				el.focus();
+				const cursor = start + tag.length;
+				el.setSelectionRange(cursor, cursor);
+			});
+			return;
+		}
+		const needsSpace = currentVal.length > 0 && !/\s$/.test(currentVal);
+		update(field, `${currentVal}${needsSpace ? ' ' : ''}${tag}`);
 	};
 
 	const resetToMinimalDefaults = () => {
@@ -125,6 +186,8 @@ export const CustomTextsPage: Component = () => {
 				rulesText: d.rulesText,
 				forceJoinText: d.forceJoinText,
 				forceAddText: d.forceAddText,
+				addCounterText: d.addCounterText,
+				addCounterCompleteText: d.addCounterCompleteText,
 				inlineButtons: cfg.inlineButtons,
 			}),
 		);
@@ -186,43 +249,183 @@ export const CustomTextsPage: Component = () => {
 			</header>
 
 			<main class="w-full max-w-md mx-auto flex-1 flex flex-col px-4 pt-5 gap-4">
-				{/* Dynamic Variables Reference + Minimal Reset */}
-				<div class="tg-section p-3.5 flex flex-col gap-2.5">
+				{/* Interactive Variables Reference + Minimal Reset */}
+				<div class="tg-section p-3.5 flex flex-col gap-3">
 					<div class="flex items-center justify-between gap-2">
-						<span class="text-[12.5px] font-bold text-[var(--tg-text)]">
-							{t('customTextsSettings.placeholders')}
-						</span>
+						<div class="flex flex-col">
+							<span class="text-[12.5px] font-bold text-[var(--tg-text)]">
+								{t('customTextsSettings.placeholders')}
+							</span>
+							<span class="text-[11px] text-[var(--tg-hint)]">
+								{t('customTextsSettings.tapToInsert')}
+							</span>
+						</div>
 						<button
 							type="button"
 							onClick={resetToMinimalDefaults}
-							class="text-[11.5px] font-semibold text-[var(--tg-link)] flex items-center gap-1 active:opacity-70"
+							class="text-[11.5px] font-semibold text-[var(--tg-link)] flex items-center gap-1 active:opacity-70 shrink-0"
 						>
 							<span class="material-symbols-outlined text-[15px]">restart_alt</span>
 							<span>{minDefaults().resetToDefaultLabel}</span>
 						</button>
 					</div>
-					<div class="flex flex-wrap gap-1.5" dir="ltr">
-						<For
-							each={[
-								'{user}',
-								'{id}',
-								'{group}',
-								'{time}',
-								'{reason}',
-								'{count}',
-								'{threshold}',
-								'{channel_names}',
-								'{remainadd}',
-								'{added}',
-								'{number}',
-							]}
+
+					{/* Add-Counter Variables */}
+					<div class="flex flex-col gap-1.5">
+						<span class="text-[11px] font-bold text-[var(--tg-button)]">
+							{t('customTextsSettings.addCounterVarsGroup')}
+						</span>
+						<div class="flex flex-wrap gap-1.5">
+							<For
+								each={[
+									{ tag: '{added}', title: t('customTextsSettings.phAdded') },
+									{ tag: '{remain}', title: t('customTextsSettings.phRemain') },
+									{ tag: '{target}', title: t('customTextsSettings.phTarget') },
+									{ tag: '{just_added}', title: t('customTextsSettings.phJustAdded') },
+									{ tag: '{added_users}', title: t('customTextsSettings.phAddedUsers') },
+									{ tag: '{percent}', title: t('customTextsSettings.phPercent') },
+									{ tag: '{progress_bar}', title: t('customTextsSettings.phProgressBar') },
+									{ tag: '{rank}', title: t('customTextsSettings.phRank') },
+									{ tag: '{total_group_adds}', title: t('customTextsSettings.phTotalGroupAdds') },
+									{ tag: '{lifetime_added}', title: t('customTextsSettings.phLifetimeAdded') },
+									{ tag: '{remainadd}', title: t('customTextsSettings.phRemainAdd') },
+									{ tag: '{number}', title: t('customTextsSettings.phNumber') },
+								]}
+							>
+								{(item) => (
+									<button
+										type="button"
+										title={item.title}
+										onClick={() => insertPlaceholder(item.tag)}
+										class="inline-flex items-center gap-1 bg-[var(--tg-accent-soft)] hover:opacity-90 active:scale-95 transition-transform px-2 py-1 rounded-lg border border-[var(--tg-button)]/20"
+									>
+										<code class="text-[var(--tg-link)] font-mono text-[11px] font-bold" dir="ltr">
+											{item.tag}
+										</code>
+										<span class="text-[10px] text-[var(--tg-hint)] max-w-[130px] truncate">
+											{item.title.replace(/\s*\([^)]*\)/, '')}
+										</span>
+									</button>
+								)}
+							</For>
+						</div>
+					</div>
+
+					{/* General Variables */}
+					<div class="flex flex-col gap-1.5 pt-1 border-t border-[var(--tg-separator)]">
+						<span class="text-[11px] font-semibold text-[var(--tg-hint)]">
+							{t('customTextsSettings.generalVarsGroup')}
+						</span>
+						<div class="flex flex-wrap gap-1.5" dir="ltr">
+							<For
+								each={[
+									{ tag: '{user}', title: t('customTextsSettings.phUser') },
+									{ tag: '{mention}', title: t('customTextsSettings.phMention') },
+									{ tag: '{username}', title: t('customTextsSettings.phUsername') },
+									{ tag: '{id}', title: t('customTextsSettings.phId') },
+									{ tag: '{group}', title: t('customTextsSettings.phGroup') },
+									{ tag: '{time}', title: t('customTextsSettings.phTime') },
+									{ tag: '{date}', title: t('customTextsSettings.phDate') },
+									{ tag: '{reason}', title: t('customTextsSettings.phReason') },
+									{ tag: '{count}', title: t('customTextsSettings.phCount') },
+									{ tag: '{threshold}', title: t('customTextsSettings.phThreshold') },
+									{ tag: '{channel_names}', title: t('customTextsSettings.phChannelNames') },
+								]}
+							>
+								{(item) => (
+									<button
+										type="button"
+										title={item.title}
+										onClick={() => insertPlaceholder(item.tag)}
+										class="bg-[var(--tg-secondary-bg)] hover:opacity-90 active:scale-95 transition-transform px-2 py-0.5 rounded-md border border-[var(--tg-separator)]"
+									>
+										<code class="text-[var(--tg-link)] font-mono text-[11px] font-semibold">
+											{item.tag}
+										</code>
+									</button>
+								)}
+							</For>
+						</div>
+					</div>
+				</div>
+
+				{/* Add-Counter Custom Texts + Live Telegram Preview */}
+				<div class="tg-section p-4 flex flex-col gap-3.5 border border-[var(--tg-button)]/25">
+					<div class="flex items-center justify-between gap-2">
+						<div class="flex items-center gap-2">
+							<span class="material-symbols-outlined text-[20px] text-[var(--tg-button)]">
+								group_add
+							</span>
+							<span class="text-[14px] font-bold text-[var(--tg-text)]">
+								{t('addCounterSettings.title')}
+							</span>
+						</div>
+						<button
+							type="button"
+							onClick={() => navigate(`/group/${params.id}/add-counter`)}
+							class="text-[11.5px] font-semibold text-[var(--tg-link)] bg-[var(--tg-accent-soft)] px-2.5 py-1 rounded-lg active:scale-95 transition-transform"
 						>
-							{(tag) => (
-								<code class="text-[var(--tg-link)] font-mono text-[11px] font-semibold bg-[var(--tg-accent-soft)] px-2 py-0.5 rounded-md">
-									{tag}
-								</code>
+							{t('addCounterSettings.enableSection')}
+						</button>
+					</div>
+
+					<div class="flex flex-col gap-1">
+						<label class="text-[13.5px] font-semibold text-[var(--tg-text)]">
+							{t('customTextsSettings.addCounterText')}
+						</label>
+						<span class="text-[11px] text-[var(--tg-hint)]">
+							{t('customTextsSettings.addCounterTextDesc')}
+						</span>
+						<textarea
+							ref={(el) => {
+								fieldRefs.addCounterText = el;
+							}}
+							onFocus={() => setActiveField('addCounterText')}
+							value={cfg.addCounterText}
+							onInput={(e) => update('addCounterText', e.currentTarget.value)}
+							rows={3}
+							class="w-full bg-[var(--tg-secondary-bg)] border border-[var(--tg-separator)] text-[var(--tg-text)] text-[13px] rounded-xl p-2.5 focus:outline-none focus:border-[var(--tg-button)] resize-y"
+						/>
+					</div>
+
+					<div class="flex flex-col gap-1">
+						<label class="text-[13.5px] font-semibold text-[var(--tg-text)]">
+							{t('customTextsSettings.addCounterCompleteText')}
+						</label>
+						<span class="text-[11px] text-[var(--tg-hint)]">
+							{t('customTextsSettings.addCounterCompleteTextDesc')}
+						</span>
+						<textarea
+							ref={(el) => {
+								fieldRefs.addCounterCompleteText = el;
+							}}
+							onFocus={() => setActiveField('addCounterCompleteText')}
+							value={cfg.addCounterCompleteText}
+							onInput={(e) => update('addCounterCompleteText', e.currentTarget.value)}
+							rows={2}
+							class="w-full bg-[var(--tg-secondary-bg)] border border-[var(--tg-separator)] text-[var(--tg-text)] text-[13px] rounded-xl p-2.5 focus:outline-none focus:border-[var(--tg-button)] resize-y"
+						/>
+					</div>
+
+					{/* Live Sample Preview Box */}
+					<div class="bg-[var(--tg-secondary-bg)] border border-[var(--tg-separator)] rounded-xl p-3 flex flex-col gap-1.5">
+						<div class="flex items-center justify-between text-[11px]">
+							<span class="font-bold text-[var(--tg-text)] flex items-center gap-1">
+								<span class="material-symbols-outlined text-[14px] text-[var(--tg-button)]">
+									visibility
+								</span>
+								{t('customTextsSettings.livePreview')}
+							</span>
+							<span class="text-[var(--tg-hint)]">{t('customTextsSettings.livePreviewSub')}</span>
+						</div>
+						<div class="text-[12.5px] leading-relaxed text-[var(--tg-text)] whitespace-pre-line bg-[var(--tg-section-bg)] rounded-lg px-3 py-2 border border-[var(--tg-separator)]">
+							{formatCustomTextPreview(
+								activeField() === 'addCounterCompleteText'
+									? cfg.addCounterCompleteText
+									: cfg.addCounterText,
+								groupTitle(),
 							)}
-						</For>
+						</div>
 					</div>
 				</div>
 
@@ -233,6 +436,10 @@ export const CustomTextsPage: Component = () => {
 							{t('customTextsSettings.welcomeText')}
 						</label>
 						<textarea
+							ref={(el) => {
+								fieldRefs.welcomeText = el;
+							}}
+							onFocus={() => setActiveField('welcomeText')}
 							value={cfg.welcomeText}
 							onInput={(e) => update('welcomeText', e.currentTarget.value)}
 							rows={2}
@@ -245,6 +452,10 @@ export const CustomTextsPage: Component = () => {
 							{t('customTextsSettings.warningText')}
 						</label>
 						<textarea
+							ref={(el) => {
+								fieldRefs.warningText = el;
+							}}
+							onFocus={() => setActiveField('warningText')}
 							value={cfg.warningText}
 							onInput={(e) => update('warningText', e.currentTarget.value)}
 							rows={2}
@@ -257,6 +468,10 @@ export const CustomTextsPage: Component = () => {
 							{t('customTextsSettings.rulesText')}
 						</label>
 						<textarea
+							ref={(el) => {
+								fieldRefs.rulesText = el;
+							}}
+							onFocus={() => setActiveField('rulesText')}
 							value={cfg.rulesText}
 							onInput={(e) => update('rulesText', e.currentTarget.value)}
 							rows={2}
@@ -269,6 +484,10 @@ export const CustomTextsPage: Component = () => {
 							{minDefaults().forceJoinLabel}
 						</label>
 						<textarea
+							ref={(el) => {
+								fieldRefs.forceJoinText = el;
+							}}
+							onFocus={() => setActiveField('forceJoinText')}
 							value={cfg.forceJoinText}
 							onInput={(e) => update('forceJoinText', e.currentTarget.value)}
 							rows={2}
@@ -281,6 +500,10 @@ export const CustomTextsPage: Component = () => {
 							{minDefaults().forceAddLabel}
 						</label>
 						<textarea
+							ref={(el) => {
+								fieldRefs.forceAddText = el;
+							}}
+							onFocus={() => setActiveField('forceAddText')}
 							value={cfg.forceAddText}
 							onInput={(e) => update('forceAddText', e.currentTarget.value)}
 							rows={2}
@@ -295,6 +518,7 @@ export const CustomTextsPage: Component = () => {
 							</label>
 							<input
 								type="text"
+								onFocus={() => setActiveField('silenceStartText')}
 								value={cfg.silenceStartText}
 								onInput={(e) => update('silenceStartText', e.currentTarget.value)}
 								class="w-full h-10 bg-[var(--tg-secondary-bg)] border border-[var(--tg-separator)] text-[var(--tg-text)] text-[13px] rounded-xl px-3 focus:outline-none focus:border-[var(--tg-button)]"
@@ -307,6 +531,7 @@ export const CustomTextsPage: Component = () => {
 							</label>
 							<input
 								type="text"
+								onFocus={() => setActiveField('silenceEndText')}
 								value={cfg.silenceEndText}
 								onInput={(e) => update('silenceEndText', e.currentTarget.value)}
 								class="w-full h-10 bg-[var(--tg-secondary-bg)] border border-[var(--tg-separator)] text-[var(--tg-text)] text-[13px] rounded-xl px-3 focus:outline-none focus:border-[var(--tg-button)]"

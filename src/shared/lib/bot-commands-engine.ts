@@ -319,6 +319,66 @@ export const BOT_COMMANDS_CATALOG: BotCommandDefinition[] = [
 		exampleFa: 'ریپلای روی پیام اسپم + ارسال «گزارش» یا /report',
 		exampleEn: 'Reply to spam message with /report',
 	},
+	{
+		id: 'myadds',
+		category: 'users',
+		slashTriggers: ['/myadds', '/adds', '!myadds', '!adds'],
+		persianTriggers: ['آمار اد', 'اد من', 'ادهای من', 'تعداد اد'],
+		requiresReplyOrTarget: false,
+		adminOnly: false,
+		botApiMethod: 'Internal Add Counter',
+		titleFa: 'مشاهده آمار ادشمار من (My Adds)',
+		titleEn: 'Check My Add Count Progress',
+		descFa: 'نمایش تعداد اعضای اضافه شده توسط کاربر، مانده تا هدف و رتبه در گروه',
+		descEn: 'Show user current added count, remaining target, and group rank',
+		exampleFa: 'ارسال «آمار اد» یا /myadds (یا با ریپلای روی کاربر)',
+		exampleEn: 'Send /myadds (or reply to a member)',
+	},
+	{
+		id: 'topadds',
+		category: 'users',
+		slashTriggers: ['/topadds', '/addstop', '!topadds'],
+		persianTriggers: ['برترین ادها', 'جدول اد', 'لیست ادها', 'برترین اد'],
+		requiresReplyOrTarget: false,
+		adminOnly: false,
+		botApiMethod: 'Internal Add Counter',
+		titleFa: 'جدول برترین ادکنندگان گروه (Top Inviters)',
+		titleEn: 'Group Add Leaderboard',
+		descFa: 'نمایش رده‌بندی برترین اعضای گروه بر اساس تعداد افراد اضافه‌شده',
+		descEn: 'Display top 10 members by invited count in the group',
+		exampleFa: 'ارسال «برترین ادها» یا /topadds',
+		exampleEn: 'Send /topadds',
+	},
+	{
+		id: 'resetadds',
+		category: 'users',
+		slashTriggers: ['/resetadds', '!resetadds'],
+		persianTriggers: ['ریست اد', 'صفر کردن اد'],
+		requiresReplyOrTarget: false,
+		adminOnly: true,
+		botApiMethod: 'Internal Add Counter',
+		titleFa: 'صفر کردن شمارنده اد کاربر یا کل گروه (Reset Adds)',
+		titleEn: 'Reset User or Group Add Counter',
+		descFa: 'با ریپلای ادهای یک کاربر صفر می‌شود و با «ریست اد کل» شمارنده کل گروه ریست خواهد شد',
+		descEn: 'Reply to reset a single user counter, or use /resetadds all for entire group',
+		exampleFa: 'ریپلای + «ریست اد» یا ارسال «ریست اد کل» / /resetadds all',
+		exampleEn: 'Reply with /resetadds or send /resetadds all',
+	},
+	{
+		id: 'setadds',
+		category: 'users',
+		slashTriggers: ['/setadds', '!setadds'],
+		persianTriggers: ['تنظیم اد'],
+		requiresReplyOrTarget: true,
+		adminOnly: true,
+		botApiMethod: 'Internal Add Counter',
+		titleFa: 'تنظیم دستی تعداد اد کاربر (Set User Adds)',
+		titleEn: 'Manually Set User Add Count',
+		descFa: 'تغییر دستی تعداد اد ثبت‌شده برای کاربر هدف با ریپلای روی پیام او',
+		descEn: 'Manually set recorded add count for a replied user',
+		exampleFa: 'ریپلای روی پیام + ارسال «تنظیم اد ۵» یا /setadds 5',
+		exampleEn: 'Reply with /setadds 5',
+	},
 
 	// ─── 5. In-Chat Inline Button Control Panel (پنل شیشه‌ای داخل چت) ──────────
 	{
@@ -353,6 +413,192 @@ export const BOT_COMMANDS_CATALOG: BotCommandDefinition[] = [
 	},
 ];
 
+export interface BotCommandPsLocale {
+	titlePs: string;
+	descPs: string;
+	examplePs: string;
+	pashtoTriggers: string[];
+}
+
+export const COMMANDS_PS_BY_ID: Record<string, BotCommandPsLocale> = {
+	ban: {
+		pashtoTriggers: ['بن', 'شړل', 'دایمي شړل'],
+		titlePs: 'دایمي شړل او بندیز (Ban)',
+		descPs: 'کاروونکی په دایمي توګه له ګروپ څخه وباسي او د بیا یوځای کېدو مخه یې نیسي',
+		examplePs: 'پیغام ته ریپلای + «شړل تبلیغات» یا /ban تبلیغات',
+	},
+	unban: {
+		pashtoTriggers: ['شړل لرې', 'بن لرې', 'ازادول'],
+		titlePs: 'د بندیز لرې کول (Unban)',
+		descPs: 'د شړل شوي کاروونکي بندیز لرې کوي ترڅو بېرته ګروپ ته داخل شي',
+		examplePs: 'ریپلای + «شړل لرې» یا /unban @user',
+	},
+	kick: {
+		pashtoTriggers: ['ایستل', 'کیک'],
+		titlePs: 'له ګروپ څخه لنډمهاله ایستل (Kick)',
+		descPs: 'کاروونکی له ګروپ څخه وباسي خو د بیا ننوتلو اجازه یې نه بندوي',
+		examplePs: 'پیغام ته ریپلای + «ایستل» یا /kick',
+	},
+	mute: {
+		pashtoTriggers: ['بې‌غږه', 'بې غږه', 'چوپ'],
+		titlePs: 'لنډمهاله یا دایمي بې‌غږه کول (Mute)',
+		descPs: 'د کاروونکي د پیغام لېږلو اجازه تړي (د دقیقې، ساعت او ورځې ملاتړ)',
+		examplePs: 'ریپلای + «بې‌غږه ۲ ساعته» یا «چوپ ۳ ورځې» یا /mute 30m',
+	},
+	unmute: {
+		pashtoTriggers: ['چوپتیا لرې', 'بې‌غږه لرې', 'غږ ازاد'],
+		titlePs: 'د کاروونکي بې‌غږه‌کونه لرې کول (Unmute)',
+		descPs: 'بې‌غږه شوي غړي ته د پیغام او میډیا لېږلو بشپړه اجازه بېرته ورکوي',
+		examplePs: 'پیغام ته ریپلای + «چوپتیا لرې» یا /unmute',
+	},
+	warn: {
+		pashtoTriggers: ['خبرداری', 'اخطار'],
+		titlePs: 'د پله‌په‌پله خبرداري ثبتول له بښنې تڼۍ سره (Warn)',
+		descPs: 'د کاروونکي د خبرداریو شمېر زیاتوي (مثلاً ۱ له ۳) او حد ته په رسېدو اتومات سزا ورکوي',
+		examplePs: 'ریپلای + «خبرداری د لینک لېږل» یا /warn تبلیغات',
+	},
+	unwarn: {
+		pashtoTriggers: ['خبرداری لرې', 'بښنه', 'خبرداري پاکول'],
+		titlePs: 'د خبرداري لرې کول او بښل (Unwarn)',
+		descPs: 'د کاروونکي وروستی خبرداری کموي یا ټول ثبت شوي خبرداري صفر کوي',
+		examplePs: 'پیغام ته ریپلای + «خبرداری لرې» یا /unwarn',
+	},
+	del: {
+		pashtoTriggers: ['حذف', 'پاک'],
+		titlePs: 'د پیغام او کمانډ سمدستي حذفول (Delete)',
+		descPs: 'ریپلای شوی پیغام او د اډمین کمانډ دواړه هممهاله له ۱۰ ملي‌ثانیو کم وخت کې حذفوي',
+		examplePs: 'پیغام ته ریپلای + «حذف» یا /del',
+	},
+	purge: {
+		pashtoTriggers: ['پاکول', 'پاکسازي'],
+		titlePs: 'د پیغامونو ډله‌ییز پاکول (Batch Purge)',
+		descPs: 'تر ۱۰۰ وروستي پیغامونه په یوه باینري deleteMessages غوښتنه کې په ګډه حذفوي',
+		examplePs: '«پاکول ۵۰» یا زوړ پیغام ته ریپلای + «پاکول»',
+	},
+	pin: {
+		pashtoTriggers: ['پین', 'نښلول', 'پین لرې'],
+		titlePs: 'د پیغام پین کول او پین لرې کول (Pin / Unpin)',
+		descPs: 'ریپلای شوی پیغام د ګروپ په سر کې نښلوي (د بې‌غږه پین اسانتیا سره)',
+		examplePs: 'پیغام ته ریپلای + «پین» یا «پین لرې»',
+	},
+	cleandeleted: {
+		pashtoTriggers: ['حذف شوي اکونټونه پاکول'],
+		titlePs: 'د حذف شویو اکونټونو پاکول (Deleted Accounts)',
+		descPs: 'د ګروپ له غړو څخه حذف شوي اکونټونه (Deleted Account) په اتومات ډول پېژني او وباسي',
+		examplePs: '«حذف شوي اکونټونه پاکول» یا /cleandeleted ولېږئ',
+	},
+	lock: {
+		pashtoTriggers: ['قلف ګروپ', 'چټ تړل', 'قلف لینک', 'قلف میډیا', 'قلف فارورډ'],
+		titlePs: 'د متني کمانډ له لارې د ګروپ یا محتوا سملاسي قلف',
+		descPs: 'بشپړ چټ یا ځانګړې محتوا (لینک، میډیا، فارورډ) نیغ په نیغه له چټ څخه قلفوي',
+		examplePs: '«قلف ګروپ» یا «قلف لینک» یا /lock all',
+	},
+	unlock: {
+		pashtoTriggers: ['ګروپ خلاصول', 'چټ خلاصول', 'لینک خلاصول', 'میډیا خلاصول'],
+		titlePs: 'د ګروپ یا محتوا قلف سملاسي خلاصول',
+		descPs: 'د ګروپ بېړنی قلف خلاصوي یا د لینک/میډیا لېږلو اجازه بېرته پرانیزي',
+		examplePs: '«ګروپ خلاصول» یا «لینک خلاصول» یا /unlock all',
+	},
+	slowmode: {
+		pashtoTriggers: ['ورو حالت', 'سلو موډ'],
+		titlePs: 'د ګروپ ورو حالت تنظیمول (Slow Mode)',
+		descPs: 'د غړو د پیغامونو ترمنځ وختنی واټن ټاکي (۱۰، ۳۰، ۶۰ ثانیې یا بند)',
+		examplePs: '«ورو حالت ۳۰» یا /slowmode 30 یا /slowmode 0',
+	},
+	vip: {
+		pashtoTriggers: ['معاف', 'ځانګړی', 'معافیت لرې'],
+		titlePs: 'ځانګړی غړی معاف کول (VIP Whitelist)',
+		descPs: 'باوري غړی د لینک قلف، د فلډ ضد او د چینل جبري غړیتوب څخه معافوي',
+		examplePs: 'د کاروونکي پیغام ته ریپلای + «معاف» یا /vip',
+	},
+	info: {
+		pashtoTriggers: ['مالومات', 'آیډي', 'زما احصایې'],
+		titlePs: 'د کاروونکي د مالوماتو او پېژندنې کارت (User Info)',
+		descPs: 'عددي آیډي، د پیغامونو شمېر، خبرداري، بلنې او د VIP معافیت حالت ښيي',
+		examplePs: 'کاروونکي ته ریپلای + «مالومات» یا «زما احصایې» ولېږئ',
+	},
+	report: {
+		pashtoTriggers: ['راپور', 'اډمین'],
+		titlePs: 'د غړو له خوا اډمینانو ته د سرغړونې پیغام راپور (Report)',
+		descPs: 'راپور شوی پیغام سملاسي د اډمینانو شخصي پیغام ته د بن/بې‌غږه/حذف شیشه‌يي تڼیو سره لېږي',
+		examplePs: 'پر سپیم پیغام ریپلای + «راپور» یا /report',
+	},
+	myadds: {
+		pashtoTriggers: ['زما اډونه', 'زما اضافه شوي', 'د اډونو شمېر'],
+		titlePs: 'زما د اضافه شویو غړو احصایې کتل (My Adds)',
+		descPs: 'د کاروونکي له خوا د اضافه شویو غړو شمېر، تر هدفه پاتې شمېر او په ګروپ کې درجه ښيي',
+		examplePs: '«زما اډونه» یا /myadds ولېږئ (یا پر غړي ریپلای وکړئ)',
+	},
+	topadds: {
+		pashtoTriggers: ['غوره اضافه کوونکي', 'د اډونو جدول'],
+		titlePs: 'د ګروپ د غوره اضافه کوونکو جدول (Top Inviters)',
+		descPs: 'د اضافه شویو غړو د شمېر له مخې د ګروپ ۱۰ غوره غړي ښيي',
+		examplePs: '«غوره اضافه کوونکي» یا /topadds ولېږئ',
+	},
+	resetadds: {
+		pashtoTriggers: ['اډونه صفرول', 'اډونه ریسیټ'],
+		titlePs: 'د کاروونکي یا ټول ګروپ د اډونو شمېر صفرول (Reset Adds)',
+		descPs:
+			'له ریپلای سره د یوه کاروونکي اډونه صفر کېږي او له «اډونه صفرول ټول» سره د ټول ګروپ شمېر صفرېږي',
+		examplePs: 'ریپلای + «اډونه صفرول» یا «اډونه صفرول ټول» / /resetadds all',
+	},
+	setadds: {
+		pashtoTriggers: ['اډونه ټاکل'],
+		titlePs: 'د کاروونکي د اډونو شمېر په لاسي ډول ټاکل (Set User Adds)',
+		descPs: 'د کاروونکي پیغام ته په ریپلای کولو سره د هغه ثبت شوی د اډونو شمېر بدلوي',
+		examplePs: 'پیغام ته ریپلای + «اډونه ټاکل ۵» یا /setadds 5',
+	},
+	panel: {
+		pashtoTriggers: ['پینل', 'تنظیمات', 'مدیریت'],
+		titlePs: 'په چټ کې شیشه‌يي مدیریت پینل پرانیستل (Inline Panel)',
+		descPs: 'د قلفونو، فلډ ضد او ګډون د مدیریت بشپړه شیشه‌يي مینو نیغ په نیغه په ټیلیګرام چټ کې ښيي',
+		examplePs: 'په ګروپ کې «پینل» یا «تنظیمات» یا /panel ولېږئ',
+	},
+	reload: {
+		pashtoTriggers: ['اډمینان تازه کول', 'د بوټ حالت'],
+		titlePs: 'د اډمینانو لېست همغږي کول او د بوټ روغتیا ارزونه',
+		descPs: 'د ټیلیګرام سرور څخه د ګروپ اډمینانو تازه لېست اخلي او د بوټ واکونه باینري معاینه کوي',
+		examplePs: '«اډمینان تازه کول» یا /reload ولېږئ',
+	},
+};
+
+export function getLocalizedBotCommand(
+	cmd: (typeof BOT_COMMANDS_CATALOG)[number],
+	lang?: string,
+): {
+	title: string;
+	desc: string;
+	example: string;
+	triggers: string[];
+} {
+	const code = (lang || 'en').toLowerCase();
+	if (code.startsWith('ps') || code.startsWith('pus')) {
+		const ps = COMMANDS_PS_BY_ID[cmd.id];
+		if (ps) {
+			return {
+				title: ps.titlePs,
+				desc: ps.descPs,
+				example: ps.examplePs,
+				triggers: ps.pashtoTriggers,
+			};
+		}
+	}
+	if (code.startsWith('fa')) {
+		return {
+			title: cmd.titleFa,
+			desc: cmd.descFa,
+			example: cmd.exampleFa,
+			triggers: cmd.persianTriggers,
+		};
+	}
+	return {
+		title: cmd.titleEn,
+		desc: cmd.descEn,
+		example: cmd.exampleEn,
+		triggers: cmd.persianTriggers,
+	};
+}
+
 // ─── Persian / Arabic Digit Normalizer ──────────────────────────────────────
 const DIGIT_MAP: Record<string, string> = {
 	'۰': '0',
@@ -386,7 +632,7 @@ export function normalizeDigits(input: string): string {
 }
 
 /**
- * Parses duration strings in Persian or English (e.g., "2h", "30m", "3d", "۲ ساعت", "۴۵ دقیقه", "۳ روز")
+ * Parses duration strings in Persian, Pashto, or English (e.g., "2h", "30m", "3d", "۲ ساعت", "۴۵ دقیقه", "۳ ورځې")
  * into seconds. Defaults to 3600s (1 hour) if not specified.
  */
 export function parseDurationToSeconds(rawArg: string): number {
@@ -396,7 +642,7 @@ export function parseDurationToSeconds(rawArg: string): number {
 	if (!text) return 3600;
 
 	const match = text.match(
-		/(\d+)\s*(m|min| دقیقه|دقیقه|h|hr|hour| ساعت|ساعت|d|day| روز|روز|s| ثانیه|ثانیه)?/i,
+		/(\d+)\s*(m|min|دقیقه|دقیقې|دقیقو|دقیقی|h|hr|hour|ساعتونه|ساعتونو|ساعته|ساعت|d|day|روز|ورځې|ورځو|ورځ|s|ثانیه|ثانیې|ثانیو)?/i,
 	);
 	if (!match) return 3600;
 
@@ -404,10 +650,10 @@ export function parseDurationToSeconds(rawArg: string): number {
 	if (!Number.isFinite(num) || num <= 0) return 3600;
 
 	const unit = (match[2] || 'm').trim();
-	if (unit.startsWith('s') || unit.includes('ثانیه')) return Math.max(30, num);
-	if (unit.startsWith('m') || unit.includes('دقیقه')) return num * 60;
+	if (unit.startsWith('s') || unit.includes('ثانی')) return Math.max(30, num);
+	if (unit.startsWith('m') || unit.includes('دقیق')) return num * 60;
 	if (unit.startsWith('h') || unit.includes('ساعت')) return num * 3600;
-	if (unit.startsWith('d') || unit.includes('روز')) return num * 86400;
+	if (unit.startsWith('d') || unit.includes('روز') || unit.includes('ورځ')) return num * 86400;
 	return num * 60;
 }
 
@@ -418,6 +664,7 @@ export interface ParsedGroupCommandResult {
 	botApiMethod?: string;
 	durationSeconds?: number;
 	batchCount?: number;
+	resetAll?: boolean;
 	targetLockKey?: string;
 	reasonText?: string;
 	responsePreviewFa: string;
@@ -432,23 +679,41 @@ export function parseGroupCommand(params: {
 	repliedUserName?: string;
 	repliedUserId?: number;
 	senderIsAdmin: boolean;
+	lang?: string;
 }): ParsedGroupCommandResult {
-	const raw = normalizeDigits(params.text || '').trim();
+	const rawInput = normalizeDigits(params.text || '').trim();
+	const raw = rawInput.replace(/^([/!][a-zA-Z0-9_]+)@[a-zA-Z0-9_]+(\b)/i, '$1$2');
 	if (!raw) {
 		return { matched: false, responsePreviewFa: '' };
 	}
 
-	const targetName = params.repliedUserName || 'کاربر هدف';
+	const langCode = (params.lang || 'fa').toLowerCase();
+	const isPs = langCode.startsWith('ps') || langCode.startsWith('pus');
+	const isEn = langCode.startsWith('en');
+	const pick = (fa: string, ps: string, en: string) => (isPs ? ps : isEn ? en : fa);
+
+	const targetName = params.repliedUserName || pick('کاربر هدف', 'مخاطب کاروونکی', 'Target User');
 	const targetId = params.repliedUserId || 509182;
 	const lower = raw.toLowerCase();
 
-	// 1. Check `/panel` | `پنل` | `تنظیمات`
-	if (lower === '/panel' || lower === '/settings' || raw === 'پنل' || raw === 'تنظیمات') {
+	// 1. Check `/panel` | `پنل` | `پینل` | `تنظیمات`
+	if (
+		lower === '/panel' ||
+		lower === '/settings' ||
+		lower === '/menu' ||
+		raw === 'پنل' ||
+		raw === 'پینل' ||
+		raw === 'تنظیمات'
+	) {
 		if (!params.senderIsAdmin) {
 			return {
 				matched: true,
 				commandId: 'panel',
-				responsePreviewFa: '⛔ فقط ادمین‌های گروه مجاز به باز کردن پنل مدیریت هستند.',
+				responsePreviewFa: pick(
+					'⛔ فقط ادمین‌های گروه مجاز به باز کردن پنل مدیریت هستند.',
+					'⛔ یوازې د ګروپ اډمینان اجازه لري چې د مدیریت پینل پرانیزي.',
+					'⛔ Only group admins can open the control panel.',
+				),
 			};
 		}
 		return {
@@ -456,81 +721,185 @@ export function parseGroupCommand(params: {
 			commandId: 'panel',
 			category: 'panel',
 			botApiMethod: 'sendMessage + InlineKeyboardMarkup',
-			responsePreviewFa:
+			responsePreviewFa: pick(
 				'🎛 <b>پنل مدیریت شیشه‌ای گروه — @MiniGuardBot</b>\nادمین گرامی، از دکمه‌های شیشه‌ای زیر بخش موردنظر را انتخاب کنید:',
+				'🎛 <b>د ګروپ شیشه‌يي مدیریت پینل — @MiniGuardBot</b>\nګرانه اډمینه، له لاندې شیشه‌يي تڼیو څخه خپله برخه وټاکئ:',
+				'🎛 <b>Group Inline Control Panel — @MiniGuardBot</b>\nChoose a section below:',
+			),
 			inlineButtons: [
 				[
-					{ text: '🛡️ قفل‌های محتوا', callback_data: 'mg:menu:locks' },
-					{ text: '⚡ ضدفلود و رگباری', callback_data: 'mg:menu:flood' },
+					{
+						text: pick('🛡️ قفل‌های محتوا', '🛡️ د محتوا قلفونه', '🛡️ Content Locks'),
+						callback_data: 'mg:menu:locks',
+					},
+					{
+						text: pick('⚡ ضدفلود و رگباری', '⚡ د فلډ ضد او چټک پیغامونه', '⚡ Anti-Flood'),
+						callback_data: 'mg:menu:flood',
+					},
 				],
 				[
-					{ text: '🌙 ساعات سکوت', callback_data: 'mg:menu:quiet' },
-					{ text: '📢 عضویت اجباری', callback_data: 'mg:menu:mandatory' },
+					{
+						text: pick('🌙 ساعات سکوت', '🌙 د چوپتیا ساعتونه', '🌙 Quiet Hours'),
+						callback_data: 'mg:menu:quiet',
+					},
+					{
+						text: pick('📢 عضویت اجباری', '📢 جبري غړیتوب', '📢 Mandatory Join'),
+						callback_data: 'mg:menu:mandatory',
+					},
 				],
-				[{ text: '🔒 قفل اضطراری کل گروه: خاموش', callback_data: 'mg:toggle:emergencylock' }],
 				[
-					{ text: '📱 باز کردن مینی‌اپ پیشرفته', callback_data: 'mg:open:webapp' },
-					{ text: '❌ بستن پنل', callback_data: 'mg:close' },
+					{
+						text: pick(
+							'🔒 قفل اضطراری کل گروه: خاموش',
+							'🔒 د ټول ګروپ بېړنی قلف: بند',
+							'🔒 Emergency Group Lock: OFF',
+						),
+						callback_data: 'mg:toggle:emergencylock',
+					},
+				],
+				[
+					{
+						text: pick(
+							'📱 باز کردن مینی‌اپ پیشرفته',
+							'📱 پرمختللی مینی‌اپ پرانیستل',
+							'📱 Open Mini App',
+						),
+						callback_data: 'mg:open:webapp',
+					},
+					{
+						text: pick('❌ بستن پنل', '❌ پینل تړل', '❌ Close'),
+						callback_data: 'mg:close',
+					},
 				],
 			],
 		};
 	}
 
-	// 2. Check `/ban` | `بن` | `اخراج دایم`
+	// 2. Check `/unban` | `حذف بن` | `آزادسازی` | `شړل لرې` (before `/ban` / `شړل`)
+	if (
+		lower.startsWith('/unban') ||
+		lower.startsWith('!unban') ||
+		raw.startsWith('حذف بن') ||
+		raw.startsWith('آزادسازی') ||
+		raw.startsWith('شړل لرې') ||
+		raw.startsWith('بن لرې') ||
+		raw.startsWith('ازادول')
+	) {
+		return {
+			matched: true,
+			commandId: 'unban',
+			category: 'punishment',
+			botApiMethod: 'unbanChatMember',
+			responsePreviewFa: pick(
+				`✅ مسدودیت کاربر <b>${targetName}</b> [<code>${targetId}</code>] رفع شد و اکنون می‌تواند مجدداً عضو گروه شود.`,
+				`✅ د کاروونکي <b>${targetName}</b> [<code>${targetId}</code>] بندیز لرې شو او اوس کولای شي بېرته له ګروپ سره یوځای شي.`,
+				`✅ User <b>${targetName}</b> [<code>${targetId}</code>] was unbanned and can rejoin the group.`,
+			),
+		};
+	}
+
+	// 3. Check `/ban` | `بن` | `اخراج دایم` | `شړل`
 	if (
 		lower.startsWith('/ban') ||
 		lower.startsWith('!ban') ||
 		raw === 'بن' ||
 		raw.startsWith('بن ') ||
-		raw.startsWith('اخراج دایم')
+		raw.startsWith('اخراج دایم') ||
+		raw === 'شړل' ||
+		raw.startsWith('شړل ') ||
+		raw.startsWith('دایمي شړل')
 	) {
 		const reason =
-			raw.replace(/^(\/ban|!ban|بن|اخراج دایم)\s*/i, '').trim() || 'تخلف از قوانین گروه';
+			raw.replace(/^(\/ban|!ban|بن|اخراج دایم|دایمي شړل|شړل)\s*/i, '').trim() ||
+			pick('تخلف از قوانین گروه', 'د ګروپ له قوانینو سرغړونه', 'Violation of group rules');
 		return {
 			matched: true,
 			commandId: 'ban',
 			category: 'punishment',
 			botApiMethod: 'banChatMember',
 			reasonText: reason,
-			responsePreviewFa:
-				`🚫 کاربر <b>${targetName}</b> [<code>${targetId}</code>] به صورت دائم از گروه مسدود و اخراج شد.\n` +
-				`📝 علت: ${reason}`,
+			responsePreviewFa: pick(
+				`🚫 کاربر <b>${targetName}</b> [<code>${targetId}</code>] به صورت دائم از گروه مسدود و اخراج شد.\n📝 علت: ${reason}`,
+				`🚫 کاروونکی <b>${targetName}</b> [<code>${targetId}</code>] په دایمي توګه له ګروپ څخه بند او وشړل شو.\n📝 لامل: ${reason}`,
+				`🚫 User <b>${targetName}</b> [<code>${targetId}</code>] was permanently banned.\n📝 Reason: ${reason}`,
+			),
 			inlineButtons: [
 				[
-					{ text: '🔓 رفع مسدودیت (Unban)', callback_data: `mg:unban:${targetId}` },
-					{ text: '🗑️ پاکسازی کل پیام‌های کاربر', callback_data: `mg:delall:${targetId}` },
+					{
+						text: pick('🔓 رفع مسدودیت (Unban)', '🔓 بندیز لرې کول (Unban)', '🔓 Unban User'),
+						callback_data: `mg:unban:${targetId}`,
+					},
+					{
+						text: pick(
+							'🗑️ پاکسازی کل پیام‌های کاربر',
+							'🗑️ د کاروونکي ټول پیغامونه پاکول',
+							'🗑️ Delete All User Messages',
+						),
+						callback_data: `mg:delall:${targetId}`,
+					},
 				],
 			],
 		};
 	}
 
-	// 3. Check `/unban` | `حذف بن` | `آزادسازی`
-	if (lower.startsWith('/unban') || raw.startsWith('حذف بن') || raw.startsWith('آزادسازی')) {
+	// 4. Check `/unmute` | `حذف سکوت` | `لغو سکوت` | `بې‌غږه لرې` | `چوپتیا لرې` (before `/mute`)
+	if (
+		lower.startsWith('/unmute') ||
+		lower.startsWith('!unmute') ||
+		raw.startsWith('حذف سکوت') ||
+		raw.startsWith('لغو سکوت') ||
+		raw.startsWith('باز کردن صدا') ||
+		raw.startsWith('بې‌غږه لرې') ||
+		raw.startsWith('بې غږه لرې') ||
+		raw.startsWith('چوپتیا لرې') ||
+		raw.startsWith('غږ ازاد')
+	) {
 		return {
 			matched: true,
-			commandId: 'unban',
+			commandId: 'unmute',
 			category: 'punishment',
-			botApiMethod: 'unbanChatMember',
-			responsePreviewFa: `✅ مسدودیت کاربر <b>${targetName}</b> [<code>${targetId}</code>] رفع شد و اکنون می‌تواند مجدداً عضو گروه شود.`,
+			botApiMethod: 'restrictChatMember',
+			responsePreviewFa: pick(
+				`🔊 سکوت کاربر <b>${targetName}</b> [<code>${targetId}</code>] لغو شد و دسترسی ارسال پیام او بازگردانی گردید.`,
+				`🔊 د کاروونکي <b>${targetName}</b> [<code>${targetId}</code>] بې‌غږه‌کونه لرې شوه او د پیغام لېږلو اجازه یې بېرته ورکړل شوه.`,
+				`🔊 User <b>${targetName}</b> [<code>${targetId}</code>] was unmuted and can send messages again.`,
+			),
 		};
 	}
 
-	// 4. Check `/mute` | `سکوت` | `بی صدا` | `خفه`
+	// 5. Check `/mute` | `سکوت` | `بی صدا` | `خفه` | `بې‌غږه` | `چوپ`
 	if (
 		lower.startsWith('/mute') ||
 		lower.startsWith('/tmute') ||
 		raw.startsWith('سکوت') ||
 		raw.startsWith('بی صدا') ||
-		raw.startsWith('خفه')
+		raw.startsWith('خفه') ||
+		raw.startsWith('بې‌غږه') ||
+		raw.startsWith('بې غږه') ||
+		raw.startsWith('چوپ')
 	) {
-		const arg = raw.replace(/^(\/t?mute|سکوت|بی صدا|خفه)\s*/i, '').trim();
+		const arg = raw.replace(/^(\/t?mute|سکوت|بی صدا|خفه|بې‌غږه|بې غږه|چوپ)\s*/i, '').trim();
 		const seconds = parseDurationToSeconds(arg);
-		const humanDuration =
-			seconds >= 86400
-				? `${Math.round(seconds / 86400)} روز`
+		const daysVal = Math.round(seconds / 86400);
+		const hoursVal = Math.round(seconds / 3600);
+		const minsVal = Math.round(seconds / 60);
+		const humanDuration = isPs
+			? seconds >= 86400
+				? `${daysVal} ${daysVal === 1 ? 'ورځ' : 'ورځې'}`
 				: seconds >= 3600
-					? `${Math.round(seconds / 3600)} ساعت`
-					: `${Math.round(seconds / 60)} دقیقه`;
+					? `${hoursVal} ${hoursVal === 1 ? 'ساعت' : 'ساعته'}`
+					: `${minsVal} ${minsVal === 1 ? 'دقیقه' : 'دقیقې'}`
+			: isEn
+				? seconds >= 86400
+					? `${daysVal}d`
+					: seconds >= 3600
+						? `${hoursVal}h`
+						: `${minsVal}m`
+				: seconds >= 86400
+					? `${daysVal} روز`
+					: seconds >= 3600
+						? `${hoursVal} ساعت`
+						: `${minsVal} دقیقه`;
 
 		return {
 			matched: true,
@@ -538,58 +907,78 @@ export function parseGroupCommand(params: {
 			category: 'punishment',
 			botApiMethod: 'restrictChatMember',
 			durationSeconds: seconds,
-			responsePreviewFa:
-				`🔇 کاربر <b>${targetName}</b> [<code>${targetId}</code>] به مدت <b>${humanDuration}</b> در حالت سکوت قرار گرفت.\n` +
-				`⏱ تا پایان مهلت قادر به ارسال پیام در گروه نخواهد بود.`,
+			responsePreviewFa: pick(
+				`🔇 کاربر <b>${targetName}</b> [<code>${targetId}</code>] به مدت <b>${humanDuration}</b> در حالت سکوت قرار گرفت.\n⏱ تا پایان مهلت قادر به ارسال پیام در گروه نخواهد بود.`,
+				`🔇 کاروونکی <b>${targetName}</b> [<code>${targetId}</code>] د <b>${humanDuration}</b> لپاره بې‌غږه (Mute) شو.\n⏱ د مودې تر پایه به په ګروپ کې د پیغام لېږلو اجازه ونه لري.`,
+				`🔇 User <b>${targetName}</b> [<code>${targetId}</code>] was muted for <b>${humanDuration}</b>.\n⏱ They cannot send messages until the restriction expires.`,
+			),
 			inlineButtons: [
 				[
-					{ text: '🔊 لغو سکوت (Unmute)', callback_data: `mg:unmute:${targetId}` },
-					{ text: '🚫 تبدیل به بن دائم', callback_data: `mg:ban:${targetId}` },
+					{
+						text: pick('🔊 لغو سکوت (Unmute)', '🔊 چوپتیا لرې کول (Unmute)', '🔊 Unmute'),
+						callback_data: `mg:unmute:${targetId}`,
+					},
+					{
+						text: pick('🚫 تبدیل به بن دائم', '🚫 په دایمي بن بدلول', '🚫 Upgrade to Ban'),
+						callback_data: `mg:ban:${targetId}`,
+					},
 				],
 			],
 		};
 	}
 
-	// 5. Check `/unmute` | `حذف سکوت` | `لغو سکوت`
+	// 6. Check `/warn` | `اخطار` | `هشدار` | `خبرداری`
 	if (
-		lower.startsWith('/unmute') ||
-		raw.startsWith('حذف سکوت') ||
-		raw.startsWith('لغو سکوت') ||
-		raw.startsWith('باز کردن صدا')
+		lower.startsWith('/warn') ||
+		raw.startsWith('اخطار') ||
+		raw.startsWith('هشدار') ||
+		(raw.startsWith('خبرداری') && !raw.startsWith('خبرداری لرې'))
 	) {
-		return {
-			matched: true,
-			commandId: 'unmute',
-			category: 'punishment',
-			botApiMethod: 'restrictChatMember',
-			responsePreviewFa: `🔊 سکوت کاربر <b>${targetName}</b> [<code>${targetId}</code>] لغو شد و دسترسی ارسال پیام او بازگردانی گردید.`,
-		};
-	}
-
-	// 6. Check `/warn` | `اخطار` | `هشدار`
-	if (lower.startsWith('/warn') || raw.startsWith('اخطار') || raw.startsWith('هشدار')) {
-		const reason = raw.replace(/^(\/warn|اخطار|هشدار)\s*/i, '').trim() || 'عدم رعایت قوانین گروه';
+		const reason =
+			raw.replace(/^(\/warn|اخطار|هشدار|خبرداری)\s*/i, '').trim() ||
+			pick('عدم رعایت قوانین گروه', 'د ګروپ د قوانینو نه مراعتول', 'Ignoring group rules');
 		return {
 			matched: true,
 			commandId: 'warn',
 			category: 'punishment',
 			botApiMethod: 'sendMessage + restrictChatMember',
 			reasonText: reason,
-			responsePreviewFa:
-				`⚠️ کاربر <b>${targetName}</b> یک اخطار دریافت کرد!\n` +
-				`📊 تعداد اخطارها: <b>۲ از ۳</b> (در صورت دریافت اخطار سوم: سکوت ۲۴ ساعته)\n` +
-				`📝 دلیل: ${reason}`,
+			responsePreviewFa: pick(
+				`⚠️ کاربر <b>${targetName}</b> یک اخطار دریافت کرد!\n📊 تعداد اخطارها: <b>۲ از ۳</b> (در صورت دریافت اخطار سوم: سکوت ۲۴ ساعته)\n📝 دلیل: ${reason}`,
+				`⚠️ کاروونکي <b>${targetName}</b> یو خبرداری ترلاسه کړ!\n📊 د خبرداریو شمېر: <b>۲ له ۳</b> (د درېیم خبرداري پر مهال: ۲۴ ساعته بې‌غږه‌کونه)\n📝 لامل: ${reason}`,
+				`⚠️ User <b>${targetName}</b> received a warning!\n📊 Warnings: <b>2 / 3</b> (3rd warning triggers a 24h mute)\n📝 Reason: ${reason}`,
+			),
 			inlineButtons: [
 				[
-					{ text: '💚 بخشش و حذف اخطار (۱/۳)', callback_data: `mg:unwarn:${targetId}` },
-					{ text: '🔇 سکوت فوری ۲۴ ساعته', callback_data: `mg:mute24h:${targetId}` },
+					{
+						text: pick(
+							'💚 بخشش و حذف اخطار (۱/۳)',
+							'💚 بښل او د خبرداري لرې کول (۱/۳)',
+							'💚 Forgive Warning (1/3)',
+						),
+						callback_data: `mg:unwarn:${targetId}`,
+					},
+					{
+						text: pick(
+							'🔇 سکوت فوری ۲۴ ساعته',
+							'🔇 سملاسي ۲۴ ساعته بې‌غږه‌کونه',
+							'🔇 Instant 24h Mute',
+						),
+						callback_data: `mg:mute24h:${targetId}`,
+					},
 				],
 			],
 		};
 	}
 
-	// 7. Check `/purge` | `پاکسازی`
-	if (lower.startsWith('/purge') || raw.startsWith('پاکسازی')) {
+	// 7. Check `/purge` | `پاکسازی` | `پاکول`
+	if (
+		lower.startsWith('/purge') ||
+		lower.startsWith('/clear') ||
+		raw.startsWith('پاکسازی') ||
+		raw.startsWith('پاکسازي') ||
+		raw.startsWith('پاکول')
+	) {
 		const numMatch = raw.match(/(\d+)/);
 		const count = numMatch ? Math.min(100, Math.max(1, parseInt(numMatch[1], 10))) : 25;
 		return {
@@ -598,98 +987,262 @@ export function parseGroupCommand(params: {
 			category: 'cleanup',
 			botApiMethod: 'deleteMessages (Batch)',
 			batchCount: count,
-			responsePreviewFa: `🧹 <b>پاکسازی دسته‌جمعی انجام شد!</b>\nتعداد <b>${count} پیام</b> اخیر با متد باینری <code>deleteMessages</code> در یک درخواست حذف گردید.`,
+			responsePreviewFa: pick(
+				`🧹 <b>پاکسازی دسته‌جمعی انجام شد!</b>\nتعداد <b>${count} پیام</b> اخیر با متد باینری <code>deleteMessages</code> در یک درخواست حذف گردید.`,
+				`🧹 <b>ډله‌ییز پاکول ترسره شول!</b>\nوروستي <b>${count} پیغامونه</b> د <code>deleteMessages</code> باینري میتود له لارې په یوه غوښتنه کې حذف شول.`,
+				`🧹 <b>Batch purge completed!</b>\nDeleted the last <b>${count} messages</b> in a single <code>deleteMessages</code> request.`,
+			),
 		};
 	}
 
-	// 8. Check `/del` | `حذف`
+	// 8. Check `/del` | `حذف` | `پاک`
 	if (lower === '/del' || lower === '/d' || raw === 'حذف' || raw === 'پاک') {
 		return {
 			matched: true,
 			commandId: 'del',
 			category: 'cleanup',
 			botApiMethod: 'deleteMessages',
-			responsePreviewFa: `🗑️ پیام موردنظر و دستور شما به صورت بی‌صدا در ۸ میلی‌ثانیه حذف شدند.`,
+			responsePreviewFa: pick(
+				`🗑️ پیام موردنظر و دستور شما به صورت بی‌صدا در ۸ میلی‌ثانیه حذف شدند.`,
+				`🗑️ ټاکل شوی پیغام او ستاسو کمانډ په بې‌غږه توګه په ۸ ملي‌ثانیو کې حذف شول.`,
+				`🗑️ Target message and command were silently deleted in 8ms.`,
+			),
 		};
 	}
 
-	// 9. Check `/lock` | `قفل ...`
-	if (lower.startsWith('/lock') || raw.startsWith('قفل ')) {
-		const target = raw.replace(/^(\/lock|قفل)\s*/i, '').trim() || 'گروه';
+	// 9. Check `/lock` | `قفل ...` | `قلف ...`
+	if (lower.startsWith('/lock') || raw.startsWith('قفل ') || raw.startsWith('قلف ')) {
+		const target = raw.replace(/^(\/lock|قفل|قلف)\s*/i, '').trim() || pick('گروه', 'ګروپ', 'group');
 		return {
 			matched: true,
 			commandId: 'lock',
 			category: 'locks',
 			botApiMethod: 'setChatPermissions',
 			targetLockKey: target,
-			responsePreviewFa: `🔒 قفل <b>«${target}»</b> با موفقیت فعال شد.`,
+			responsePreviewFa: pick(
+				`🔒 قفل <b>«${target}»</b> با موفقیت فعال شد.`,
+				`🔒 د <b>«${target}»</b> قلف په بریالیتوب سره فعال شو.`,
+				`🔒 Lock <b>"${target}"</b> enabled successfully.`,
+			),
 			inlineButtons: [
-				[{ text: `🔓 بازگشایی قفل «${target}»`, callback_data: `mg:unlock:${target}` }],
+				[
+					{
+						text: pick(
+							`🔓 بازگشایی قفل «${target}»`,
+							`🔓 د «${target}» قلف خلاصول`,
+							`🔓 Unlock "${target}"`,
+						),
+						callback_data: `mg:unlock:${target}`,
+					},
+				],
 			],
 		};
 	}
 
-	// 10. Check `/vip` | `معاف`
+	// 10. Check `/vip` | `معاف` | `ویژه` | `ځانګړی`
 	if (
 		lower.startsWith('/vip') ||
 		lower.startsWith('/whitelist') ||
 		raw === 'معاف' ||
-		raw === 'ویژه'
+		raw === 'ویژه' ||
+		raw === 'ځانګړی'
 	) {
 		return {
 			matched: true,
 			commandId: 'vip',
 			category: 'users',
 			botApiMethod: 'Internal Whitelist DB',
-			responsePreviewFa: `🌟 کاربر <b>${targetName}</b> [<code>${targetId}</code>] به لیست <b>اعضای ویژه (VIP)</b> اضافه شد و از قفل لینک، ضدفلود و عضویت اجباری معاف گردید.`,
-			inlineButtons: [[{ text: '❌ لغو معافیت VIP', callback_data: `mg:unvip:${targetId}` }]],
+			responsePreviewFa: pick(
+				`🌟 کاربر <b>${targetName}</b> [<code>${targetId}</code>] به لیست <b>اعضای ویژه (VIP)</b> اضافه شد و از قفل لینک، ضدفلود و عضویت اجباری معاف گردید.`,
+				`🌟 کاروونکی <b>${targetName}</b> [<code>${targetId}</code>] د <b>ځانګړو غړو (VIP)</b> لېست ته ورزیات شو او د لینک قلف، فلډ ضد او جبري غړیتوب څخه معاف شو.`,
+				`🌟 User <b>${targetName}</b> [<code>${targetId}</code>] was added to the <b>VIP Whitelist</b> and exempted from link locks, anti-flood, and mandatory join.`,
+			),
+			inlineButtons: [
+				[
+					{
+						text: pick('❌ لغو معافیت VIP', '❌ د VIP معافیت لرې کول', '❌ Remove VIP Exemption'),
+						callback_data: `mg:unvip:${targetId}`,
+					},
+				],
+			],
 		};
 	}
 
-	// 11. Check `/report` | `گزارش`
-	if (lower.startsWith('/report') || lower === '@admin' || raw === 'گزارش') {
+	// 11. Check `/report` | `گزارش` | `راپور`
+	if (lower.startsWith('/report') || lower === '@admin' || raw === 'گزارش' || raw === 'راپور') {
 		return {
 			matched: true,
 			commandId: 'report',
 			category: 'users',
 			botApiMethod: 'sendMessage (Admin PM)',
-			responsePreviewFa: `🚨 <b>گزارش تخلف ثبت شد!</b>\nپیام کاربر <b>${targetName}</b> به پیوی تمام ادمین‌های گروه ارسال گردید.`,
+			responsePreviewFa: pick(
+				`🚨 <b>گزارش تخلف ثبت شد!</b>\nپیام کاربر <b>${targetName}</b> به پیوی تمام ادمین‌های گروه ارسال گردید.`,
+				`🚨 <b>د سرغړونې راپور ثبت شو!</b>\nد کاروونکي <b>${targetName}</b> پیغام د ګروپ ټولو اډمینانو شخصي پیغام ته ولېږل شو.`,
+				`🚨 <b>Violation report sent!</b>\nThe message from <b>${targetName}</b> was forwarded to all group admins in PM.`,
+			),
 			inlineButtons: [
 				[
-					{ text: '🚫 بن متخلف + حذف پیام', callback_data: `mg:report_ban:${targetId}` },
-					{ text: '🔇 سکوت ۲۴ ساعته', callback_data: `mg:report_mute:${targetId}` },
+					{
+						text: pick(
+							'🚫 بن متخلف + حذف پیام',
+							'🚫 سرغړوونکی شړل + پیغام حذفول',
+							'🚫 Ban Offender + Delete',
+						),
+						callback_data: `mg:report_ban:${targetId}`,
+					},
+					{
+						text: pick('🔇 سکوت ۲۴ ساعته', '🔇 ۲۴ ساعته بې‌غږه‌کونه', '🔇 Mute 24h'),
+						callback_data: `mg:report_mute:${targetId}`,
+					},
 				],
-				[{ text: '✅ بررسی شد (نادیده گرفتن)', callback_data: `mg:report_dismiss:${targetId}` }],
+				[
+					{
+						text: pick(
+							'✅ بررسی شد (نادیده گرفتن)',
+							'✅ وڅېړل شو (له پامه غورځول)',
+							'✅ Reviewed (Dismiss)',
+						),
+						callback_data: `mg:report_dismiss:${targetId}`,
+					},
+				],
 			],
 		};
 	}
 
-	// 12. Check `/info` | `اطلاعات` | `آمار من`
+	// 11.5 Check Add-Counter Commands (/myadds, /topadds, /resetadds, /setadds)
+	if (
+		lower === '/myadds' ||
+		lower === '/adds' ||
+		lower === '!myadds' ||
+		lower === '!adds' ||
+		raw === 'آمار اد' ||
+		raw === 'اد من' ||
+		raw === 'ادهای من' ||
+		raw === 'تعداد اد' ||
+		raw === 'زما اډونه' ||
+		raw === 'زما اضافه شوي' ||
+		raw === 'د اډونو شمېر'
+	) {
+		return {
+			matched: true,
+			commandId: 'myadds',
+			category: 'users',
+			botApiMethod: 'Internal Add Counter',
+			responsePreviewFa: pick(
+				`➕ <b>وضعیت ادشمار ${targetName}</b>\n📊 شمارش ادشمار زنده گروه محاسبه و ارسال می‌شود.`,
+				`➕ <b>د ${targetName} د اضافه شویو غړو حالت</b>\n📊 د ګروپ ژوندی اډشمېر محاسبه او لېږل کېږي.`,
+				`➕ <b>Add Counter Status for ${targetName}</b>\n📊 Live group invite count is calculated and sent.`,
+			),
+		};
+	}
+
+	if (
+		lower === '/topadds' ||
+		lower === '/addstop' ||
+		lower === '!topadds' ||
+		raw === 'برترین ادها' ||
+		raw === 'برترین اد' ||
+		raw === 'جدول اد' ||
+		raw === 'لیست ادها' ||
+		raw === 'غوره اضافه کوونکي' ||
+		raw === 'د اډونو جدول'
+	) {
+		return {
+			matched: true,
+			commandId: 'topadds',
+			category: 'users',
+			botApiMethod: 'Internal Add Counter',
+			responsePreviewFa: pick(
+				'🏆 <b>جدول برترین ادکنندگان گروه</b>',
+				'🏆 <b>د ګروپ د غوره اضافه کوونکو جدول</b>',
+				'🏆 <b>Group Top Inviters Leaderboard</b>',
+			),
+		};
+	}
+
+	if (
+		lower.startsWith('/resetadds') ||
+		lower.startsWith('!resetadds') ||
+		raw.startsWith('ریست اد') ||
+		raw.startsWith('صفر کردن اد') ||
+		raw.startsWith('اډونه صفرول') ||
+		raw.startsWith('اډونه ریسیټ')
+	) {
+		const isAll = /\b(all|group)\b/i.test(raw) || /کل|همه|گروه|ټول|ګروپ/.test(raw);
+		return {
+			matched: true,
+			commandId: 'resetadds',
+			category: 'users',
+			botApiMethod: 'Internal Add Counter',
+			resetAll: isAll,
+			responsePreviewFa: isAll
+				? pick(
+						'♻️ شمارنده ادشمار کل گروه با موفقیت صفر شد.',
+						'♻️ د ټول ګروپ د اضافه شویو غړو شمېر په بریالیتوب سره صفر شو.',
+						'♻️ Entire group add counter reset to zero.',
+					)
+				: pick(
+						`♻️ شمارنده ادهای کاربر <b>${targetName}</b> صفر شد.`,
+						`♻️ د کاروونکي <b>${targetName}</b> د اډونو شمېر صفر شو.`,
+						`♻️ Add counter reset to zero for <b>${targetName}</b>.`,
+					),
+		};
+	}
+
+	if (
+		lower.startsWith('/setadds') ||
+		lower.startsWith('!setadds') ||
+		raw.startsWith('تنظیم اد') ||
+		raw.startsWith('اډونه ټاکل')
+	) {
+		const numMatch = raw.match(/(\d+)/);
+		const countVal = numMatch ? Math.max(0, parseInt(numMatch[1], 10)) : 0;
+		return {
+			matched: true,
+			commandId: 'setadds',
+			category: 'users',
+			botApiMethod: 'Internal Add Counter',
+			batchCount: countVal,
+			responsePreviewFa: pick(
+				`✅ تعداد ادهای <b>${targetName}</b> روی <b>${countVal}</b> تنظیم شد.`,
+				`✅ د <b>${targetName}</b> د اډونو شمېر پر <b>${countVal}</b> وټاکل شو.`,
+				`✅ Add count for <b>${targetName}</b> set to <b>${countVal}</b>.`,
+			),
+		};
+	}
+
+	// 12. Check `/info` | `اطلاعات` | `آمار من` | `مالومات`
 	if (
 		lower === '/info' ||
 		lower === '/id' ||
+		lower === '/me' ||
 		raw === 'اطلاعات' ||
 		raw === 'آیدی' ||
-		raw === 'آمار من'
+		raw === 'آمار من' ||
+		raw === 'مالومات' ||
+		raw === 'آیډي' ||
+		raw === 'زما احصایې'
 	) {
 		return {
 			matched: true,
 			commandId: 'info',
 			category: 'users',
 			botApiMethod: 'getChatMember',
-			responsePreviewFa:
-				`👤 <b>شناسنامه امنیتی کاربر در گروه:</b>\n` +
-				`• نام: <b>${targetName}</b>\n` +
-				`• آیدی عددی: <code>${targetId}</code>\n` +
-				`• وضعیت کپچا: ✅ تاییدشده با بیومتریک\n` +
-				`• اخطارها: <code>0 / 3</code> | دعوت‌ها: <code>4 نفر</code>`,
+			responsePreviewFa: pick(
+				`👤 <b>شناسنامه امنیتی کاربر در گروه:</b>\n• نام: <b>${targetName}</b>\n• آیدی عددی: <code>${targetId}</code>\n• وضعیت کپچا: ✅ تاییدشده با بیومتریک\n• اخطارها: <code>0 / 3</code> | دعوت‌ها: <code>4 نفر</code>`,
+				`👤 <b>په ګروپ کې د کاروونکي امنیتي پېژندکارت:</b>\n• نوم: <b>${targetName}</b>\n• عددي آیډي: <code>${targetId}</code>\n• د کپچا حالت: ✅ په بایومتریک تایید شوی\n• خبرداري: <code>0 / 3</code> | بلنې: <code>4 تنه</code>`,
+				`👤 <b>Member Security Card:</b>\n• Name: <b>${targetName}</b>\n• Numeric ID: <code>${targetId}</code>\n• Captcha: ✅ Verified\n• Warnings: <code>0 / 3</code> | Invites: <code>4</code>`,
+			),
 		};
 	}
 
 	return {
 		matched: false,
-		responsePreviewFa:
+		responsePreviewFa: pick(
 			'دستور شناخته نشد. از «پنل» یا دستورات استاندارد مانند «بن»، «سکوت ۲ ساعت»، «اخطار» استفاده کنید.',
+			'کمانډ ونه پېژندل شو. له «پینل» یا معیاري کمانډونو لکه «شړل»، «بې‌غږه ۲ ساعته»، «خبرداری» څخه کار واخلئ.',
+			'Unrecognized command. Use /panel or standard commands like /ban, /mute 2h, or /warn.',
+		),
 	};
 }
 
@@ -715,22 +1268,35 @@ export function evaluateCallbackQueryRbac(params: {
 	callerUserId: number;
 	adminUserIds: number[];
 	callbackData: string;
+	lang?: string;
 }): {
 	allowed: boolean;
 	answerCallbackAlertText: string;
 	showAlertModal: boolean;
 } {
+	const langCode = (params.lang || 'fa').toLowerCase();
+	const isPs = langCode.startsWith('ps') || langCode.startsWith('pus');
+	const isEn = langCode.startsWith('en');
+
 	if (!params.adminUserIds.includes(params.callerUserId)) {
 		return {
 			allowed: false,
-			answerCallbackAlertText: '⛔ دسترسی غیرمجاز! این دکمه شیشه‌ای منحصراً مخصوص ادمین‌های گروه است.',
+			answerCallbackAlertText: isPs
+				? '⛔ غیرمجاز لاسرسی! دا شیشه‌يي تڼۍ یوازې د ګروپ اډمینانو لپاره ده.'
+				: isEn
+					? '⛔ Unauthorized! This inline button is exclusively for group admins.'
+					: '⛔ دسترسی غیرمجاز! این دکمه شیشه‌ای منحصراً مخصوص ادمین‌های گروه است.',
 			showAlertModal: true,
 		};
 	}
 
 	return {
 		allowed: true,
-		answerCallbackAlertText: '✅ تغییرات با موفقیت در هسته فایروال اعمال شد.',
+		answerCallbackAlertText: isPs
+			? '✅ بدلونونه په بریالیتوب سره د فایروال په هسته کې پلي شول.'
+			: isEn
+				? '✅ Changes applied to firewall core successfully.'
+				: '✅ تغییرات با موفقیت در هسته فایروال اعمال شد.',
 		showAlertModal: false,
 	};
 }
@@ -887,6 +1453,108 @@ export const EDGE_CASE_RESOLUTIONS: Record<EdgeCaseScenarioId, EdgeCaseResolutio
 		inlineRecoveryButtonFa: '🔄 جایگزینی توکن جدید بدون حذف تنظیمات',
 	},
 };
+
+export interface EdgeCasePsLocale {
+	titlePs: string;
+	systemBehaviorPs: string;
+	simulatedBotMessagePs: string;
+	inlineRecoveryButtonPs?: string;
+}
+
+export const EDGE_CASE_PS_BY_ID: Record<EdgeCaseScenarioId, EdgeCasePsLocale> = {
+	subscription_expired_unpaid: {
+		titlePs: '۱. د ۲۴ ساعته وړیا آزموینې یا میاشتني ګډون پای او د مالوماتو د ساتنې ۱ اوونۍ مهلت',
+		systemBehaviorPs:
+			'د اعتبار له پای ته رسېدو وروسته، تنظیمات، د بندو کلمو لېست او د ګروپ احصایې یوازې د ۱ اوونۍ (۷ ورځو) لپاره په ډیټابیس کې ساتل کېږي او بوټ په دې موده کې خوندي خوب حالت (Standby) ته ځي. که په دې ۱ اوونۍ کې تمدید شي، بوټ سملاسي پرته له بیا تنظیمولو بېرته فعالېږي؛ خو د ۷ ورځو تر تېرېدو وروسته به د ګروپ مالومات په اتومات ډول له ډیټابیس څخه پاک شي.',
+		simulatedBotMessagePs:
+			'⏳ <b>د دې ګروپ د ساتنې ګډون پای ته رسېدلی دی!</b>\n' +
+			'د فایروال ټول تنظیمات او د ګروپ احصایې <b>یوازې تر راتلونکې ۱ اوونۍ (۷ ورځو) پورې خوندي پاتې کېږي</b> او له هغه وروسته به په اتومات ډول حذف شي.\n' +
+			'د ۳۰ ورځو لپاره د بوټ د سملاسي بیا فعالولو لپاره پر لاندې تڼۍ کلیک وکړئ (۱۰۰ سټارز ⭐):',
+		inlineRecoveryButtonPs: '⭐ د میاشتني ګډون سملاسي تمدید (100 Stars) او اتومات فعالول',
+	},
+	automatic_channel_forward: {
+		titlePs: '۲. د بحث له ګروپ (Discussion Group) سره د تړلي چینل پوسټونو اتومات فارورډ',
+		systemBehaviorPs:
+			'کله چې ګروپ ستاسو له رسمي چینل سره تړلی وي، د چینل پوسټونه په اتومات ډول ګروپ ته راځي. حتی که د فارورډ قلف او لینک قلف فعال وي، بوټ د is_automatic_forward باینري نښه پېژني او هېڅکله ستاسو د خپل چینل پوسټونه نه حذفوي.',
+		simulatedBotMessagePs:
+			'✅ [د تړلي چینل اتومات پوسټ وپېژندل شو: is_automatic_forward=true] — د لینک او فارورډ قلف څخه معاف دی.',
+	},
+	anonymous_admin_command: {
+		titlePs: '۳. د ګروپ د پټ اډمین (Anonymous Admin) له خوا د کمانډ یا لینک لېږل',
+		systemBehaviorPs:
+			'کله چې اډمین د Remain Anonymous اختیار فعال کړی وي، د from.id برخه تشه وي او sender_chat د ګروپ له آیډي سره برابر وي. بوټ دا پیغام د ګروپ د لوړ اډمین په توګه پېژني، کمانډونه یې (شړل، بې‌غږه‌کونه، پینل) اجرا کوي او هېڅکله یې پیغام نه حذفوي.',
+		simulatedBotMessagePs:
+			'🛡️ [د ګروپ پټ اډمین تایید شو: sender_chat == chat.id] — مدیریتي کمانډ په بریالیتوب سره اجرا شو.',
+	},
+	admin_on_admin_ban_attempt: {
+		titlePs: '۴. د یوه اډمین له خوا د ګروپ مالک یا بل اډمین د بن یا بې‌غږه کولو هڅه (د کودتا ضد)',
+		systemBehaviorPs:
+			'بوټ د بن/بې‌غږه‌کونې/ایستلو کمانډونو له اجرا کولو مخکې د مخاطب کاروونکي رول د اډمینانو په حافظه کې ګوري. که مخاطب اډمین وي، کمانډ ودروي او د تکرار په صورت کې د ګروپ اصلي مالک ته په شخصي پیغام کې امنیتي خبرداری لېږي.',
+		simulatedBotMessagePs:
+			'⛔ <b>عملیات ودرول شول!</b> مخاطب کاروونکی د ګروپ له اډمینانو څخه دی او د اډمینانو بندول یا بې‌غږه کول ناشوني دي.',
+	},
+	non_admin_callback_click: {
+		titlePs: '۵. په ګروپ کې د مدیریت پینل پر شیشه‌يي تڼیو د عادي غړو کلیک',
+		systemBehaviorPs:
+			'په ګروپ کې هره شیشه‌يي تڼۍ د RBAC تایید طبقه لري. که عادي غړی د پینل تڼیو یا د «چوپتیا لرې کول» تڼۍ کلیک کړي، بوټ د پیغام له بدلولو پرته یوازې هماغه کس ته د ټیلیګرام اصلي خبرداری ښيي.',
+		simulatedBotMessagePs:
+			'⛔ د ټیلیګرام خبرتیا (answerCallbackQuery): «دا شیشه‌يي تڼۍ یوازې د ګروپ اډمینانو لپاره ده!»',
+	},
+	supergroup_chat_id_migration: {
+		titlePs: '۶. عادي ګروپ سوپرګروپ ته بدلېدل او د ګروپ آیډي ناڅاپي بدلون (Migration)',
+		systemBehaviorPs:
+			'په ټیلیګرام کې سوپرګروپ ته د لوړېدو پر مهال chat_id یوه نوي منفي ۱۰۰ عددي نمبر ته بدلېږي. بوټ په اتومات ډول اتومیک کډوالۍ لیږد اجرا کوي او ټول تنظیمات او د ګډون پاتې ورځې نوي آیډي ته لېږدوي.',
+		simulatedBotMessagePs:
+			'🔄 <b>سوپرګروپ ته د ګروپ لوړول وموندل شول!</b> ټول تنظیمات او د ګروپ ګډون نوي آیډي ته ولېږدول شول.',
+	},
+	bot_permission_downgraded: {
+		titlePs: '۷. د یوه اډمین له خوا د بوټ د حذف یا بندولو واکونو لیرې کول',
+		systemBehaviorPs:
+			'د بوټ واکونو له بدلېدو سره سم my_chat_member پېښه ترلاسه کېږي. بوټ د 400 Bad Request تېروتنې سره د بندېدو پرځای د حذف ماډیول په موقتي ډول ودروي او سملاسي د ګروپ مالک ته په شخصي پیغام کې راپور ورکوي چې کوم اډمین واک کم کړی دی.',
+		simulatedBotMessagePs:
+			'⚠️ <b>د مالک په شخصي پیغام کې بېړنی امنیتي خبرداری:</b> په ګروپ کې د بوټ <code>Delete Messages</code> واک غیرفعال شوی! د لینک ضد فعالیت لپاره واک بېرته فعال کړئ.',
+		inlineRecoveryButtonPs: '🔍 د بوټ د اډمین واکونو بیا کتنه',
+	},
+	unauthorized_second_group_join: {
+		titlePs: '۸. د متفرقه کسانو له خوا ستاسو ځانګړي بوټ په بل ګروپ کې اضافه کول',
+		systemBehaviorPs:
+			'د 1 Bot = 1 Group جلاوالي معمارۍ له مخې، که بل څوک ستاسو بوټ کوم بل ګروپ ته ورزیات کړي، بوټ له ۱۰۰ ملي‌ثانیو کم وخت کې ناورته‌والی پېژني او د leaveChat له لارې سملاسي له هغه ګروپ څخه وځي.',
+		simulatedBotMessagePs:
+			'⛔ دا بوټ په ځانګړي ډول له یوه بل سوپرګروپ سره تړل شوی دی. [د leaveChat اتومات اجرا]',
+	},
+	mass_raid_429_rate_limit: {
+		titlePs: '۹. دروند ریډ برید (په ۵ ثانیو کې ۵۰۰ سپیم پیغامونه) او د ټیلیګرام 429 تېروتنې مدیریت',
+		systemBehaviorPs:
+			'د دې پرځای چې ۵۰۰ جلا deleteMessage غوښتنې ولېږي چې د ټیلیګرام له خوا د بوټ د بندېدو (HTTP 429) لامل شي، بوټ د پیغامونو آیډي‌ګانې په ۲۰۰ ملي‌ثانیي بفر کې راټولوي، هر ۱۰۰ پیغامونه په یوه deleteMessages غوښتنه کې پاکوي او بېړنی قلف فعالوي.',
+		simulatedBotMessagePs:
+			'🛡️ <b>د ریډ برید مهار شو!</b> ۱۰۰ سپیم پیغامونه په ۱ ډله‌ییزه غوښتنه کې پاک شول او موقتي بېړنی قلف فعال شو.',
+	},
+	botfather_token_revoked: {
+		titlePs: '۱۰. په @BotFather کې د بوټ ټوکن بدلېدل یا باطلېدل (401 Unauthorized تېروتنه)',
+		systemBehaviorPs:
+			'که د ګروپ مالک په BotFather کې د بوټ ټوکن ریووک کړي، سیستم د ګروپ تنظیمات نه حذفوي؛ د بوټ حالت «د ټوکن تازه کولو ته اړتیا» ته بدلوي او د @MiniGuardBot شخصي پیغام کې خبر ورکوي ترڅو نوی ټوکن ځای‌ناستی شي.',
+		simulatedBotMessagePs:
+			'🔑 <b>په @BotFather کې د بوټ ټوکن بدل شوی دی!</b> د ګروپ تنظیماتو له لاسه ورکولو پرته د بیا نښلولو لپاره نوی ټوکن دننه کړئ.',
+		inlineRecoveryButtonPs: '🔄 د تنظیماتو له حذف پرته د نوي ټوکن ځای‌ناستي کول',
+	},
+};
+
+export function getLocalizedEdgeCase(edge: EdgeCaseResolution, lang?: string): EdgeCaseResolution {
+	const code = (lang || 'fa').toLowerCase();
+	if (code.startsWith('ps') || code.startsWith('pus')) {
+		const ps = EDGE_CASE_PS_BY_ID[edge.scenarioId];
+		if (ps) {
+			return {
+				...edge,
+				titleFa: ps.titlePs,
+				systemBehaviorFa: ps.systemBehaviorPs,
+				simulatedBotMessageFa: ps.simulatedBotMessagePs,
+				inlineRecoveryButtonFa: ps.inlineRecoveryButtonPs,
+			};
+		}
+	}
+	return edge;
+}
 
 export function resolveEdgeCaseScenario(id: EdgeCaseScenarioId): EdgeCaseResolution {
 	return EDGE_CASE_RESOLUTIONS[id];

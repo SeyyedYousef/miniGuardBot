@@ -364,6 +364,21 @@ export const mockApiLogic = (method: string = 'GET', url: string = '', _data: an
 						sendNotifications: true,
 						periods: [{ id: 'qh-1', start: '00:00', end: '07:00' }],
 					},
+					add_counter: {
+						enabled: true,
+						sendProgressMessage: true,
+						sendCompletionMessage: true,
+						requireTargetToChat: true,
+						requiredCount: 5,
+						preventDuplicateReadd: true,
+						ignoreBots: true,
+						countAdmins: true,
+						countInviteLinks: false,
+						autoDeleteSec: 45,
+						resetPeriodDays: 0,
+						leaderboardEnabled: true,
+						exemptions: ['@admin'],
+					},
 					mandatory_membership: {
 						forced_add_enabled: false,
 						forced_add_count: 3,
@@ -422,6 +437,109 @@ export const mockApiLogic = (method: string = 'GET', url: string = '', _data: an
 					updated_at: currentSettings.updated_at,
 				};
 			}
+		}
+
+		// /groups/:id/add-counter
+		if (path.includes('/groups/') && path.includes('/add-counter/reset') && methodUp === 'POST') {
+			return {
+				ok: true,
+				total_group_adds: 0,
+				leaderboard: [],
+			};
+		}
+		if (path.includes('/groups/') && path.includes('/add-counter/adjust') && methodUp === 'POST') {
+			const uid = Number(_data?.userId || 1001);
+			const nextCount =
+				_data?.count !== undefined
+					? Number(_data.count)
+					: Math.max(0, 4 + Number(_data?.delta || 0));
+			return {
+				ok: true,
+				user: {
+					userId: uid,
+					name: _data?.name || 'علی‌رضا محمدی',
+					username: _data?.username || 'alireza_m',
+					count: nextCount,
+					lifetimeCount: nextCount,
+				},
+				leaderboard: [
+					{
+						rank: 1,
+						userId: uid,
+						name: _data?.name || 'علی‌رضا محمدی',
+						username: _data?.username || 'alireza_m',
+						count: nextCount,
+						lifetimeCount: nextCount,
+						lastAddedAt: new Date().toISOString(),
+						targetCompleted: nextCount >= 5,
+					},
+				],
+			};
+		}
+		if (path.includes('/groups/') && path.endsWith('/add-counter')) {
+			return {
+				group_id: path.split('/groups/')[1]?.split('/')[0] || 'demo-group',
+				settings: {
+					enabled: true,
+					sendProgressMessage: true,
+					sendCompletionMessage: true,
+					requireTargetToChat: true,
+					requiredCount: 5,
+					preventDuplicateReadd: true,
+					ignoreBots: true,
+					countAdmins: true,
+					countInviteLinks: false,
+					autoDeleteSec: 45,
+					resetPeriodDays: 0,
+					leaderboardEnabled: true,
+					exemptions: ['@admin'],
+				},
+				total_group_adds: 29,
+				tracked_users_count: 4,
+				completed_users_count: 2,
+				period_started_at: new Date(Date.now() - 5 * 86400_000).toISOString(),
+				leaderboard: [
+					{
+						rank: 1,
+						userId: 1001,
+						name: 'علی‌رضا محمدی',
+						username: 'alireza_m',
+						count: 11,
+						lifetimeCount: 14,
+						lastAddedAt: new Date(Date.now() - 1800_000).toISOString(),
+						targetCompleted: true,
+					},
+					{
+						rank: 2,
+						userId: 1002,
+						name: 'سارا حسینی',
+						username: 'sara_h',
+						count: 7,
+						lifetimeCount: 7,
+						lastAddedAt: new Date(Date.now() - 7200_000).toISOString(),
+						targetCompleted: true,
+					},
+					{
+						rank: 3,
+						userId: 1003,
+						name: 'امیرحسین رضایی',
+						username: 'amir_rz',
+						count: 4,
+						lifetimeCount: 4,
+						lastAddedAt: new Date(Date.now() - 14400_000).toISOString(),
+						targetCompleted: false,
+					},
+					{
+						rank: 4,
+						userId: 1004,
+						name: 'نگار کریمی',
+						count: 2,
+						lifetimeCount: 4,
+						lastAddedAt: new Date(Date.now() - 36000_000).toISOString(),
+						targetCompleted: false,
+					},
+				],
+			};
 		}
 
 		// /groups/:id/profile

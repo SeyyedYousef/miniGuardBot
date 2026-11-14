@@ -78,6 +78,8 @@ const FA_UI = {
 	modQuietSub: 'زمان‌بندی خودکار تعطیلی چت در ساعات مشخص',
 	modMandatoryTitle: 'عضویت اجباری و دعوت اعضا',
 	modMandatorySub: 'الزام به اد کردن عضو یا عضویت در کانال مرجع',
+	modAddCounterTitle: 'ادشمار و امتیاز دعوت',
+	modAddCounterSub: 'شمارش خودکار ادها، ارسال پیام پیشرفت در گروه و هدف دعوت',
 	modTextsTitle: 'متن‌های سفارشی گروه',
 	modTextsSub: 'خوش‌آمدگویی، اخطار، قوانین، سکوت و عضویت اجباری',
 	modBioTitle: 'بیوگرافی و نام داینامیک گروه',
@@ -130,6 +132,142 @@ const FA_UI = {
 	backBtn: 'بازگشت',
 	saveBtn: 'ذخیره تغییرات',
 	cancelBtn: 'انصراف',
+};
+
+const PS_UI: typeof FA_UI = {
+	appName: 'MiniGuard',
+	appTitle: 'MiniGuard',
+	masterBotUsername: '@MiniGuardBot',
+	appTagline: 'د ټیلیګرام ګروپ د هوښیار او ځانګړي مدیریت پلاتفورم',
+	heroTitle: 'هر ګروپ، یو پرمختللی مدیریتي بوټ',
+	heroSub:
+		'د خپل ګروپ لپاره ستاسو په خوښه نوم او ټوکن سره یو ځانګړی بوټ جوړ کړئ؛ د ۲۴ ساعته وړیا ازمایښت او له ۱۰۰ څخه زیاتو د فایروال او سپیم ضد ځانګړنو سره.',
+	trialPricingPill: '۲۴ ساعته وړیا • بیا میاشتنی ۱۰۰ سټارز ⭐',
+	createBotBtn: 'د ګروپ ځانګړی بوټ جوړول',
+	manageGroupsBtn: 'زما د ګروپونو مدیریت',
+	myGroupsLink: 'زما د ګروپونو مدیریت',
+	myBotsTitle: 'ستاسو ځانګړي بوټان',
+	noBotsYet: 'تاسو لا تر اوسه کوم بوټ نه دی جوړ کړی',
+	botQuotaBadge: 'یوازې ۱ ګروپ',
+	wizardTitle: 'ځانګړی بوټ جوړول او ګروپ سره نښلول',
+	modalTitle: 'ځانګړی بوټ جوړول او ګروپ سره نښلول',
+	wizardDesc:
+		'۱. په @BotFather کې یو بوټ جوړ کړئ او ټوکن یې دننه کړئ.\n۲. د اړوند ګروپ لینک یا پېژند دننه کړئ (هر بوټ یوازې د ۱ ګروپ لپاره دی):',
+	modalDesc:
+		'له @BotFather څخه ترلاسه شوی ټوکن او د ګروپ لینک دننه کړئ (هر بوټ یوازې له ۱ ګروپ سره نښلول کېږي):',
+	openBotFather: '@BotFather خلاصول',
+	tokenLabel: 'د بوټ ټوکن (@BotFather)',
+	groupLinkLabel: 'د ځانګړي ګروپ لینک یا کارن‌نوم',
+	groupLinkPlaceholder: 'https://t.me/your_group یا @your_group',
+	groupNameLabel: 'د ګروپ ښکاره‌کېدونکی نوم (اختیاري)',
+	groupNamePlaceholder: 'د بېلګې په توګه: د ټیلیګرام پروګرامرانو ګروپ',
+	botTokenPlaceholder: '123456789:AAH...',
+	tokenPlaceholder: '123456789:AAH...',
+	submitBotBtn: 'بوټ ثبتول، ګروپ نښلول او ۲۴ ساعته وړیا پیلول',
+	tokenRequired: 'مهرباني وکړئ د بوټ ټوکن دننه کړئ.',
+	tokenErrorEmpty: 'مهرباني وکړئ د بوټ ټوکن دننه کړئ.',
+	tokenInvalid: 'د ټوکن بڼه باوري نه ده (بېلګه: 123456:AAH...).',
+	tokenErrorFormat: 'د ټوکن بڼه باوري نه ده (بېلګه: 123456:AAH...).',
+	groupLinkErrorEmpty:
+		'د ګروپ لینک یا پېژند دننه کول لازمي دي (هر بوټ یوازې د ۱ ګروپ لپاره جوړېږي).',
+	groupLinkErrorFormat: 'د ګروپ د لینک بڼه سمه نه ده (بېلګه: https://t.me/group یا @group).',
+	oneBotOneGroupBanner: 'د MiniGuard د جلا جوړښت قانون: هر بوټ یوازې د ۱ ګروپ لپاره کار کوي.',
+	manageTabTitle: 'د ګروپونو مدیریت',
+	groupsHeader: 'ستاسو تر مدیریت لاندې ګروپونه',
+	noGroupsTitle: 'تاسو لا کوم ګروپ نه دی ورګډ کړی',
+	noGroupsDesc: 'د پیل لپاره، له اصلي پاڼې څخه د خپل ګروپ له لینک سره یو ځانګړی بوټ ثبت کړئ.',
+	addGroupAction: 'د نوي ګروپ لپاره بوټ جوړول',
+	addGroupBtn: 'ګروپ ورګډول',
+	tryDemoGroup: 'ازمایښتي ګروپ ورګډول (سملاسي ټیسټ)',
+	membersLabel: 'غړی',
+	activeBadge: 'فعال',
+	botActive: 'حفاظت فعال دی',
+	trialBadge: '۲۴ ساعته وړیا ازمایښت',
+	paidBadge: 'ځانګړی ګډون فعال',
+	expiredBadge: 'پای ته رسېدلی',
+	botAttachedLabel: 'ځانګړی بوټ:',
+	groupLinkAttachedLabel: 'د ګروپ لینک:',
+	groupPanelTitle: 'د ګروپ د مدیریت تنظیمات',
+	groupControlTitle: 'د ګروپ د مدیریت تنظیمات',
+	subCardTitle: 'د ګروپ بوټ د ګډون وضعیت',
+	subTrialDesc:
+		'۲۴ ساعته وړیا ازمایښتي دوره فعاله ده (له پای مخکې په شخصي پیغام کې اتومات خبرداری)',
+	subPaidDesc: 'میاشتنی ګډون فعال دی • د فایروال او سپیم ضد اتومات تمدید',
+	subExpiredDesc: '۲۴ ساعته دوره پای ته رسېدلې ده • د بوټ د فعالیت دوام لپاره تمدید کړئ',
+	renewStarsBtn: 'د میاشتني ګډون تمدید — ۱۰۰ سټارز ⭐',
+	renewingStarsBtn: 'د سټارز تادیه پروسس کېږي...',
+	starsSuccessToast: 'د ګروپ میاشتنی ګډون د ۱۰۰ سټارز (⭐) په تادیه سره د ۳۰ ورځو لپاره فعال شو!',
+	emergencyLockTitle: 'د ګروپ بیړنی قلف',
+	emergencyLockDesc: 'په بیړنیو حالاتو کې د ټولو غړو لخوا د پیغام لېږلو سمدستي بندول',
+	lockActive: 'بیړنی قلف فعال دی (د خلاصولو لپاره یې کېکاږئ)',
+	lockInactive: 'د چټ بیړنی قلف فعالول',
+	sectionCoreTitle: 'د ګروپ امنیتي ماډلونه او فایروال',
+	modulesSectionTitle: 'د ګروپ امنیتي ماډلونه او فایروال',
+	modGeneralTitle: 'عمومي تنظیمات او ښه راغلاست',
+	modGeneralSub: 'د بوټ ژبه، وختیزه حوزه، لنډمهاله پیغامونه او د چټ کمانډونه',
+	modContentTitle: 'د محتوا محدودیتونه او لینک ضد',
+	modContentSub: 'د لینک، فارورډ، رسنیو، سټیکر او ممنوعه کلمو فلټر',
+	modLimitsTitle: 'پرله‌پسې محدودیت او فلډ ضد',
+	modLimitsSub: 'په ثانیه کې اعظمي پیغامونه او د پیغام مجاز اوږدوالی',
+	modQuietTitle: 'د چوپتیا ساعتونه او شپنی قلف',
+	modQuietSub: 'په ټاکلو ساعتونو کې د چټ د تړلو اتومات مهال‌وېش',
+	modMandatoryTitle: 'اجباري غړیتوب او د غړو بلنه',
+	modMandatorySub: 'د غړو ورګډولو یا په اصلي چینل کې د غړیتوب لازمي کول',
+	modAddCounterTitle: 'د غړو ورګډولو شمېرنه او امتیاز',
+	modAddCounterSub: 'د ورګډونونو اتومات شمېرنه، په ګروپ کې د پرمختګ پیغام او د دعوت هدف',
+	modTextsTitle: 'د ګروپ ځانګړي متنونه',
+	modTextsSub: 'ښه راغلاست، خبرداری، قوانین، چوپتیا او اجباري غړیتوب',
+	modBioTitle: 'د ګروپ ژوندۍ بیوګرافي او نوم',
+	modBioSub: 'د ګروپ نوم او بیوګرافۍ مستقیم کتل او سمول + ژوندي متغیرونه',
+	modAnalyticsTitle: 'د ګروپ احصایه او د فعالیت راپور',
+	modAnalyticsSub: 'د پیغامونو، نویو غړو او ریښتینو بند شویو سپیمونو ګراف',
+	notifSectionTitle: 'هوښیار خبرتیا سیسټم او د خطرونو خبرداری',
+	threatAlertsTitle: 'په شخصي پیغام کې د ګروپ خطرونو بیړنی خبرداری',
+	threatAlertsSub:
+		'د ریډ برید، د لینکونو فلډ، زیانمنو بوټانو یا د اډمین واک بدلېدو پر مهال سملاسي خبرتیا',
+	subExpiryNotifTitle: 'د ګډون پای ته رسېدو هوښیاره خبرتیا (۲۴ ساعته / میاشتنی)',
+	subExpiryNotifSub: 'له پای څخه ۶ ساعته او ۱ ساعت مخکې د ۱۰۰ ⭐ تمدید تڼۍ سره یادونه لېږل',
+	dailyPmReportTitle: 'په شخصي پیغام کې د ګروپ ورځنۍ احصایې راپور',
+	dailyPmReportSub: 'ستاسو شخصي پیغام ته د پیغامونو، نویو غړو او پاک شویو سپیمونو ورځنی لنډیز',
+	sendTestPmBtn: 'په شخصي پیغام کې د ورځني راپور او امنیتي خبرداري بېلګه لېږل (ټیسټ)',
+	testPmSentToast:
+		'ورځنی راپور او د امنیتي خبرداري بېلګه په @MiniGuardBot کې ستاسو شخصي پیغام ته ولېږل شوه!',
+	botHiddenFlowsTitle: 'د سټارټ هوښیار ځوابونه او ګروپ ته د ننوتلو ۴ پیغامونه',
+	childStartPreviewTitle: 'په جوړ شوي بوټ کې د /start اتومات ځواب (۱۱ ژبنی)',
+	childStartPreviewBody:
+		'🛡️ سلام او ښه راغلاست {user}!\nزه د «{group}» ګروپ د ساتنې او هوښیار مدیریت ځانګړی بوټ یم.\n\n⚡ دا بوټ د @MiniGuardBot لخوا جوړ شوی دی!\nکه تاسو هم غواړئ په خپله خوښه نوم او له ۱۰۰ څخه زیاتو پرمختللو د سپیم ضد، فایروال او مهال‌وېش ځانګړنو سره ځانګړی مدیریتي بوټ ولرئ، همدا اوس یې وړیا وازمایئ 👇',
+	masterStartPreviewTitle: 'په اصلي بوټ (@MiniGuardBot) کې د /start اتومات ځواب',
+	masterStartPreviewBody:
+		'🚀 MiniGuard ته ښه راغلاست — د ټیلیګرام ګروپونو د مدیریت نوی نسل!\n\n🔹 هر ګروپ، ستاسو په خوښه نوم او ټوکن سره خپل ځانګړی بوټ\n🔹 له ۱۰۰ څخه زیاتې د فایروال، لینک ضد، فلډ ضد، د چوپتیا ساعتونو او ژوندۍ احصایې ځانګړنې\n🔹 د هر ګروپ لپاره ۲۴ ساعته بشپړ وړیا ازمایښت او وروسته یوازې میاشتنی ۱۰۰ سټارز (⭐)!\n\nهمدا اوس لاندې تڼۍ څخه مینی‌اپ خلاص کړئ او د خپل ګروپ بوټ جوړ کړئ:',
+	join4MsgsTitle: 'ګروپ ته له ورګډېدو سره سم د بوټ ۴ اتومات پیغامونه',
+	joinMsg1:
+		'۱. د پېژندنې او خوندي نښلون پیغام: «🛡️ د ګروپ ځانګړی مدیریتي بوټ په بریالیتوب سره د @MiniGuardBot هستې سره ونښلول شو.»',
+	joinMsg2:
+		'۲. د باینري واکونو ارزونې پیغام: «✅ د پیغام پاکولو، بندولو، پین کولو او غړو مدیریت واکونه تایید شول. فایروال فعال دی.»',
+	joinMsg3:
+		'۳. د ۲۴ ساعته وړیا دوره فعالولو پیغام: «🎁 ۲۴ ساعته وړیا ازمایښتي ګډون فعال شو! وروسته یوازې په میاشتني ۱۰۰ سټارز ⭐ تمدید کېږي.»',
+	joinMsg4:
+		'۴. د مینی‌اپ کنټرول پینل پیغام: «⚙️ درانه اډمینه، د ګروپ د ۱۰۰+ ځانګړنو د تنظیم لپاره لاندې شیشه‌يي تڼۍ کېکاږئ.»',
+	profileTitle: 'کارني حساب او تنظیمات',
+	themeTitle: 'بڼه او تم (Telegram Theme)',
+	themeDark: 'تیاره (Dark)',
+	themeLight: 'روښانه (Light)',
+	languageTitle: 'د اپلیکیشن ژبه (Language)',
+	langTitle: 'د اپلیکیشن ژبه (Language)',
+	myBotsMenu: 'زما د ځانګړو بوټانو مدیریت',
+	securityMenu: 'امنیت، ناستې او د ټوکن کوډګذاري',
+	securityTitle: 'امنیت او ناستې',
+	settingsMenu: 'د خبرتیاوو، شخصي احصایې او لمسي غبرګون تنظیمات',
+	settingsTitle: 'د خبرتیا او لمسي غبرګون تنظیمات',
+	emptySlotTitle: 'زده‌کړه او لارښود',
+	emptySlotDesc: 'ګام په ګام لارښود او د بوټ د چټ کمانډونو بشپړ لړلیک.',
+	navHome: 'کور',
+	navManage: 'د ګروپ مدیریت',
+	navSlot: 'لارښود',
+	navProfile: 'پروفایل',
+	backBtn: 'شاته',
+	saveBtn: 'بدلونونه خوندي کول',
+	cancelBtn: 'لغوه کول',
 };
 
 const EN_UI: typeof FA_UI = {
@@ -208,6 +346,8 @@ const EN_UI: typeof FA_UI = {
 	modQuietSub: 'Automatically schedule group chat silence intervals',
 	modMandatoryTitle: 'Mandatory Join & Invites',
 	modMandatorySub: 'Require new members to invite friends or join a channel',
+	modAddCounterTitle: 'Add Counter & Leaderboard',
+	modAddCounterSub: 'Live member add announcements, progress tracking & invite goals',
 	modTextsTitle: 'Custom Group Texts',
 	modTextsSub: 'Welcome, warning, rules, quiet hours & force-join messages',
 	modBioTitle: 'Dynamic Group Bio & Title',
@@ -332,6 +472,8 @@ const AR_UI: typeof FA_UI = {
 	modQuietSub: 'جدولة إغلاق الدردشة تلقائياً في أوقات محددة',
 	modMandatoryTitle: 'الاشتراك الإجباري ودعوة الأعضاء',
 	modMandatorySub: 'إلزام الأعضاء بدعوة أصدقاء أو الاشتراك في قناة',
+	modAddCounterTitle: 'عداد الإضافات ولوحة المتصدرين',
+	modAddCounterSub: 'حساب الإضافات تلقائياً وإرسال رسائل التقدم والأهداف في المجموعة',
 	modTextsTitle: 'النصوص المخصصة ورسائل الترحيب',
 	modTextsSub: 'رد /start التلقائي، 4 رسائل انضمام للمجموعة وقوانين المجموعة',
 	modBioTitle: 'النبذة والاسم الديناميكي للمجموعة',
@@ -457,6 +599,8 @@ const RU_UI: typeof FA_UI = {
 	modQuietSub: 'Автоматическое закрытие чата по расписанию',
 	modMandatoryTitle: 'Обязательная подписка и инвайты',
 	modMandatorySub: 'Требование пригласить друзей или подписаться на канал',
+	modAddCounterTitle: 'Счётчик инвайтов и рейтинг',
+	modAddCounterSub: 'Автоподсчёт приглашений, уведомления в группе и цели',
 	modTextsTitle: 'Тексты бота, /start и 4 сообщения входа',
 	modTextsSub: 'Ответ /start (@MiniGuardBot), 4 сообщения при входе в группу и правила',
 	modBioTitle: 'Динамическое описание и название',
@@ -563,6 +707,8 @@ const TR_UI: typeof FA_UI = {
 	modQuietSub: 'Belirli saatlerde grubu otomatik sessize alma',
 	modMandatoryTitle: 'Zorunlu Üyelik ve Davet',
 	modMandatorySub: 'Yeni üyelerden arkadaş davet etmesini veya kanala katılmasını isteyin',
+	modAddCounterTitle: 'Üye Ekleme Sayacı ve Liderlik',
+	modAddCounterSub: 'Canlı davet bildirimi, hedef takibi ve grup içi sayaç komutları',
 	modTextsTitle: 'Özel Metinler, /start ve Karşılama',
 	modTextsSub: '@MiniGuardBot /start yanıtı, 4 grup giriş mesajı ve kurallar',
 	modBioTitle: 'Dinamik Grup Biyografisi ve Adı',
@@ -661,6 +807,8 @@ const ES_UI: typeof FA_UI = {
 	modQuietSub: 'Programar cierre automático del chat en horarios específicos',
 	modMandatoryTitle: 'Unión Obligatoria e Invitaciones',
 	modMandatorySub: 'Exigir invitar amigos o unirse a un canal antes de chatear',
+	modAddCounterTitle: 'Contador de Invitaciones',
+	modAddCounterSub: 'Conteo automático de miembros agregados, progreso y metas',
 	modTextsTitle: 'Textos Personalizados y Bienvenida',
 	modTextsSub: 'Respuesta /start, 4 mensajes de ingreso y reglas del grupo',
 	modBioTitle: 'Biografía y Nombre Dinámico',
@@ -759,6 +907,8 @@ const PT_UI: typeof FA_UI = {
 	modQuietSub: 'Agende o fechamento automático do chat em horários definidos',
 	modMandatoryTitle: 'Inscrição Obrigatória e Convites',
 	modMandatorySub: 'Exigir convidar amigos ou entrar em um canal para conversar',
+	modAddCounterTitle: 'Contador de Convites e Ranking',
+	modAddCounterSub: 'Anúncios de progresso ao adicionar membros e metas no grupo',
 	modTextsTitle: 'Textos Personalizados e Boas-vindas',
 	modTextsSub: 'Resposta /start, 4 mensagens de entrada e regras do grupo',
 	modBioTitle: 'Biografia e Nome Dinâmico do Grupo',
@@ -856,6 +1006,8 @@ const DE_UI: typeof FA_UI = {
 	modQuietSub: 'Gruppenchat zu festgelegten Zeiten automatisch stummschalten',
 	modMandatoryTitle: 'Pflichtbeitritt & Einladungen',
 	modMandatorySub: 'Freunde einladen oder Pflichtkanal abonnieren vor dem Schreiben',
+	modAddCounterTitle: 'Einladungszähler & Rangliste',
+	modAddCounterSub: 'Fortschrittsnachrichten in der Gruppe und Einladungsziele',
 	modTextsTitle: 'Eigene Texte, /start & Begrüßung',
 	modTextsSub: '@MiniGuardBot /start-Antwort, 4 Beitrittsnachrichten & Gruppenregeln',
 	modBioTitle: 'Dynamische Gruppen-Bio & Titel',
@@ -954,6 +1106,8 @@ const FR_UI: typeof FA_UI = {
 	modQuietSub: 'Fermeture automatique programmée du chat',
 	modMandatoryTitle: 'Adhésion Obligatoire et Invitations',
 	modMandatorySub: 'Obliger à inviter des amis ou rejoindre un canal',
+	modAddCounterTitle: 'Compteur d’ajouts & Classement',
+	modAddCounterSub: 'Suivi en direct des ajouts, progression et objectifs',
 	modTextsTitle: 'Textes Personnalisés et Bienvenue',
 	modTextsSub: 'Réponse /start, 4 messages d’arrivée et règlement du groupe',
 	modBioTitle: 'Bio et Titre Dynamiques du Groupe',
@@ -1048,6 +1202,8 @@ const ZH_UI: typeof FA_UI = {
 	modQuietSub: '按设定时间表自动开启全群禁言',
 	modMandatoryTitle: '强制关注与拉人解锁',
 	modMandatorySub: '要求新成员先关注指定频道或邀请好友后发言',
+	modAddCounterTitle: '拉人计数器与排行榜',
+	modAddCounterSub: '自动统计邀请人数、群内发送进度提示与目标解锁',
 	modTextsTitle: '自定义文案、/start 与入群引导语',
 	modTextsSub: '@MiniGuardBot /start 回复、入群 4 条引导语与群规',
 	modBioTitle: '动态群组简介与标题',
@@ -1079,6 +1235,8 @@ export const uiText = () => {
 	switch (l) {
 		case 'fa':
 			return FA_UI;
+		case 'ps':
+			return PS_UI;
 		case 'ar':
 			return AR_UI;
 		case 'ru':
@@ -1108,6 +1266,8 @@ export interface MinimalCustomTexts {
 	silenceEndText: string;
 	forceJoinText: string;
 	forceAddText: string;
+	addCounterText: string;
+	addCounterCompleteText: string;
 	resetToDefaultLabel: string;
 	forceJoinLabel: string;
 	forceAddLabel: string;
@@ -1122,9 +1282,29 @@ const MINIMAL_TEXTS_BY_LANG: Record<string, MinimalCustomTexts> = {
 		silenceEndText: '☀️ ساعات سکوت پایان یافت.',
 		forceJoinText: '📢 {user}، برای چت ابتدا عضو شوید: {channel_names}',
 		forceAddText: '👥 {user}، برای چت {remainadd} نفر دعوت کنید ({added}/{number}).',
+		addCounterText:
+			'➕ {user} عزیز، شما تا الان {added} نفر اضافه کردید (+{just_added})\n📊 پیشرفت: {progress_bar} ({percent}%)\n🎯 مانده تا تکمیل ({target} نفر): {remain} نفر',
+		addCounterCompleteText:
+			'🎉 تبریک {user} عزیز! با افزودن {added} عضو، هدف ({target} نفر) با موفقیت تکمیل شد ✅',
 		resetToDefaultLabel: 'بازنشانی به متن مینیمال زبان فعلی',
 		forceJoinLabel: 'پیام عضویت اجباری کانال',
 		forceAddLabel: 'پیام دعوت اجباری عضو (اد اجباری)',
+	},
+	ps: {
+		welcomeText: '👋 {user}، «{group}» ګروپ ته ښه راغلاست.',
+		warningText: '⚠️ {user} | خبرداری {count}/{threshold} ({reason})',
+		rulesText: '📜 قوانین: متقابل درناوی • د لینکونو او سپیم لېږل منع دي',
+		silenceStartText: '🌙 د چوپتیا ساعتونه فعال شول.',
+		silenceEndText: '☀️ د چوپتیا ساعتونه پای ته ورسېدل.',
+		forceJoinText: '📢 {user}، د چټ کولو لپاره لومړی غړیتوب واخلئ: {channel_names}',
+		forceAddText: '👥 {user}، د چټ کولو لپاره {remainadd} نور کسان رادعوت کړئ ({added}/{number}).',
+		addCounterText:
+			'➕ ګرانه {user}، تاسو تر دې دمه {added} کسان ورګډ کړي دي (+{just_added})\n📊 پرمختګ: {progress_bar} ({percent}%)\n🎯 پاتې تر هدف ({target} کسان): {remain} کسان',
+		addCounterCompleteText:
+			'🎉 مبارکي {user}! تاسو د {added} غړو په ورګډولو سره هدف ({target} کسان) په بریالیتوب بشپړ کړ ✅',
+		resetToDefaultLabel: 'د اوسنۍ ژبې ساده (مینیمال) متن ته راګرځول',
+		forceJoinLabel: 'په چینل کې د اجباري غړیتوب پیغام',
+		forceAddLabel: 'د غړي د اجباري ورګډولو پیغام',
 	},
 	en: {
 		welcomeText: '👋 Welcome to {group}, {user}!',
@@ -1134,6 +1314,10 @@ const MINIMAL_TEXTS_BY_LANG: Record<string, MinimalCustomTexts> = {
 		silenceEndText: '☀️ Quiet hours ended.',
 		forceJoinText: '📢 {user}, join first to chat: {channel_names}',
 		forceAddText: '👥 {user}, invite {remainadd} more to chat ({added}/{number}).',
+		addCounterText:
+			'➕ {user}, you have added {added} member(s) so far (+{just_added})\n📊 Progress: {progress_bar} ({percent}%)\n🎯 Remaining ({target}): {remain}',
+		addCounterCompleteText:
+			'🎉 Congrats {user}! Target reached with {added}/{target} added members ✅',
 		resetToDefaultLabel: 'Reset to Minimal Defaults',
 		forceJoinLabel: 'Force Channel Join Message',
 		forceAddLabel: 'Force Member Invite Message',
@@ -1146,6 +1330,9 @@ const MINIMAL_TEXTS_BY_LANG: Record<string, MinimalCustomTexts> = {
 		silenceEndText: '☀️ انتهى وقت الهدوء.',
 		forceJoinText: '📢 {user}، اشترك أولاً للمحادثة: {channel_names}',
 		forceAddText: '👥 {user}، قم بدعوة {remainadd} عضو للمحادثة ({added}/{number}).',
+		addCounterText:
+			'➕ {user}، لقد أضفت {added} عضو حتى الآن (+{just_added})\n📊 التقدم: {progress_bar} ({percent}%)\n🎯 المتبقي ({target}): {remain}',
+		addCounterCompleteText: '🎉 تهانينا {user}! تم إكمال الهدف ({added}/{target}) بنجاح ✅',
 		resetToDefaultLabel: 'إعادة ضبط للنصوص المختصرة',
 		forceJoinLabel: 'رسالة الاشتراك الإجباري بالقناة',
 		forceAddLabel: 'رسالة دعوة الأعضاء الإجبارية',
@@ -1158,6 +1345,9 @@ const MINIMAL_TEXTS_BY_LANG: Record<string, MinimalCustomTexts> = {
 		silenceEndText: '☀️ Тихий час завершен.',
 		forceJoinText: '📢 {user}, подпишитесь для общения: {channel_names}',
 		forceAddText: '👥 {user}, пригласите еще {remainadd} чел. ({added}/{number}).',
+		addCounterText:
+			'➕ {user}, вы добавили {added} уч. (+{just_added})\n📊 Прогресс: {progress_bar} ({percent}%)\n🎯 Осталось ({target}): {remain}',
+		addCounterCompleteText: '🎉 Поздравляем, {user}! Цель ({added}/{target}) достигнута ✅',
 		resetToDefaultLabel: 'Сбросить к минимальным текстам',
 		forceJoinLabel: 'Текст обязательной подписки',
 		forceAddLabel: 'Текст обязательного приглашения',
@@ -1170,6 +1360,9 @@ const MINIMAL_TEXTS_BY_LANG: Record<string, MinimalCustomTexts> = {
 		silenceEndText: '☀️ Sessiz saatler sona erdi.',
 		forceJoinText: '📢 {user}, yazmak için katılın: {channel_names}',
 		forceAddText: '👥 {user}, yazmak için {remainadd} kişi davet edin ({added}/{number}).',
+		addCounterText:
+			'➕ {user}, şu ana kadar {added} kişi eklediniz (+{just_added})\n📊 İlerleme: {progress_bar} ({percent}%)\n🎯 Kalan ({target}): {remain}',
+		addCounterCompleteText: '🎉 Tebrikler {user}! Hedef tamamlandı ({added}/{target}) ✅',
 		resetToDefaultLabel: 'Minimal Varsayılanlara Sıfırla',
 		forceJoinLabel: 'Zorunlu Kanal Üyelik Mesajı',
 		forceAddLabel: 'Zorunlu Üye Davet Mesajı',
@@ -1182,6 +1375,9 @@ const MINIMAL_TEXTS_BY_LANG: Record<string, MinimalCustomTexts> = {
 		silenceEndText: '☀️ Horas de silencio finalizadas.',
 		forceJoinText: '📢 {user}, únete primero para chatear: {channel_names}',
 		forceAddText: '👥 {user}, invita a {remainadd} más para chatear ({added}/{number}).',
+		addCounterText:
+			'➕ {user}, ya invitaste a {added} miembro(s) (+{just_added})\n📊 Progreso: {progress_bar} ({percent}%)\n🎯 Restantes ({target}): {remain}',
+		addCounterCompleteText: '🎉 ¡Felicidades {user}! Meta completada ({added}/{target}) ✅',
 		resetToDefaultLabel: 'Restablecer textos mínimos',
 		forceJoinLabel: 'Mensaje de unión obligatoria',
 		forceAddLabel: 'Mensaje de invitación obligatoria',
@@ -1194,6 +1390,9 @@ const MINIMAL_TEXTS_BY_LANG: Record<string, MinimalCustomTexts> = {
 		silenceEndText: '☀️ Horário de silêncio encerrado.',
 		forceJoinText: '📢 {user}, entre primeiro para conversar: {channel_names}',
 		forceAddText: '👥 {user}, convide mais {remainadd} para conversar ({added}/{number}).',
+		addCounterText:
+			'➕ {user}, você já convidou {added} membro(s) (+{just_added})\n📊 Progresso: {progress_bar} ({percent}%)\n🎯 Restantes ({target}): {remain}',
+		addCounterCompleteText: '🎉 Parabéns {user}! Meta concluída ({added}/{target}) ✅',
 		resetToDefaultLabel: 'Redefinir textos mínimos',
 		forceJoinLabel: 'Mensagem de inscrição obrigatória',
 		forceAddLabel: 'Mensagem de convite obrigatório',
@@ -1206,6 +1405,9 @@ const MINIMAL_TEXTS_BY_LANG: Record<string, MinimalCustomTexts> = {
 		silenceEndText: '☀️ Ruhezeit beendet.',
 		forceJoinText: '📢 {user}, zuerst beitreten zum Schreiben: {channel_names}',
 		forceAddText: '👥 {user}, lade noch {remainadd} Mitglieder ein ({added}/{number}).',
+		addCounterText:
+			'➕ {user}, du hast bisher {added} Mitglieder hinzugefügt (+{just_added})\n📊 Fortschritt: {progress_bar} ({percent}%)\n🎯 Verbleibend ({target}): {remain}',
+		addCounterCompleteText: '🎉 Glückwunsch {user}! Ziel erreicht ({added}/{target}) ✅',
 		resetToDefaultLabel: 'Auf minimale Texte zurücksetzen',
 		forceJoinLabel: 'Pflichtbeitritt-Nachricht',
 		forceAddLabel: 'Pflichteinladung-Nachricht',
@@ -1218,6 +1420,9 @@ const MINIMAL_TEXTS_BY_LANG: Record<string, MinimalCustomTexts> = {
 		silenceEndText: '☀️ Heures calmes terminées.',
 		forceJoinText: '📢 {user}, rejoignez d’abord : {channel_names}',
 		forceAddText: '👥 {user}, invitez encore {remainadd} membre(s) ({added}/{number}).',
+		addCounterText:
+			'➕ {user}, vous avez ajouté {added} membre(s) (+{just_added})\n📊 Progression : {progress_bar} ({percent}%)\n🎯 Restant ({target}) : {remain}',
+		addCounterCompleteText: '🎉 Félicitations {user} ! Objectif atteint ({added}/{target}) ✅',
 		resetToDefaultLabel: 'Réinitialiser aux textes courts',
 		forceJoinLabel: 'Message d’adhésion obligatoire',
 		forceAddLabel: 'Message d’invitation obligatoire',
@@ -1230,6 +1435,9 @@ const MINIMAL_TEXTS_BY_LANG: Record<string, MinimalCustomTexts> = {
 		silenceEndText: '☀️ 静音时段已结束。',
 		forceJoinText: '📢 {user}，请先关注后再发言：{channel_names}',
 		forceAddText: '👥 {user}，请再邀请 {remainadd} 人后发言 ({added}/{number})。',
+		addCounterText:
+			'➕ {user}，您目前已邀请 {added} 位成员 (+{just_added})\n📊 进度: {progress_bar} ({percent}%)\n🎯 还差 ({target}): {remain} 人',
+		addCounterCompleteText: '🎉 恭喜 {user}！已完成邀请目标 ({added}/{target}) ✅',
 		resetToDefaultLabel: '重置为当前语言极简模板',
 		forceJoinLabel: '强制关注频道提示语',
 		forceAddLabel: '强制邀请成员提示语',
@@ -1237,7 +1445,8 @@ const MINIMAL_TEXTS_BY_LANG: Record<string, MinimalCustomTexts> = {
 };
 
 export const getMinimalCustomTexts = (lang?: string): MinimalCustomTexts => {
-	const l = (lang || locale() || 'fa').toLowerCase();
+	const raw = (lang || locale() || 'fa').toLowerCase();
+	const l = raw.startsWith('ps') || raw.startsWith('pus') ? 'ps' : raw;
 	return MINIMAL_TEXTS_BY_LANG[l] || MINIMAL_TEXTS_BY_LANG.fa;
 };
 
@@ -1252,12 +1461,15 @@ export interface RemainingCreditInfo {
 }
 
 export const getRemainingCreditInfo = (
-	group: {
-		subscription_status?: string;
-		trial_ends_at?: string;
-		subscription_expires_at?: string;
-		paid_until?: string;
-	} | null | undefined,
+	group:
+		| {
+				subscription_status?: string;
+				trial_ends_at?: string;
+				subscription_expires_at?: string;
+				paid_until?: string;
+		  }
+		| null
+		| undefined,
 	nowMs: number = Date.now(),
 ): RemainingCreditInfo => {
 	const l = (locale() || 'fa').toLowerCase();
@@ -1269,17 +1481,34 @@ export const getRemainingCreditInfo = (
 			: group?.trial_ends_at || group?.subscription_expires_at || group?.paid_until) || '';
 
 	const totalMs = isTrial ? 24 * 3600 * 1000 : 30 * 24 * 3600 * 1000;
-	let remainingMs = expiresIso ? new Date(expiresIso).getTime() - nowMs : isTrial ? 24 * 3600 * 1000 : 30 * 24 * 3600 * 1000;
+	let remainingMs = expiresIso
+		? new Date(expiresIso).getTime() - nowMs
+		: isTrial
+			? 24 * 3600 * 1000
+			: 30 * 24 * 3600 * 1000;
 	if (Number.isNaN(remainingMs)) remainingMs = 24 * 3600 * 1000;
 
 	if (status === 'expired' || remainingMs <= 0) {
 		const expiredMap: Record<string, { badge: string; detail: string }> = {
-			fa: { badge: 'منقضی شده (۰ ساعت)', detail: 'اعتبار به پایان رسیده است • برای ادامه حفاظت تمدید کنید' },
-			en: { badge: 'Expired (0h left)', detail: 'Credit expired • Renew to keep protection active' },
+			fa: {
+				badge: 'منقضی شده (۰ ساعت)',
+				detail: 'اعتبار به پایان رسیده است • برای ادامه حفاظت تمدید کنید',
+			},
+			ps: {
+				badge: 'پای ته رسېدلی (۰ ساعته)',
+				detail: 'اعتبار پای ته رسېدلی • د ساتنې دوام لپاره تمدید کړئ',
+			},
+			en: {
+				badge: 'Expired (0h left)',
+				detail: 'Credit expired • Renew to keep protection active',
+			},
 			ar: { badge: 'منتهي (0 ساعة)', detail: 'انتهت الصلاحية • جدد لاستمرار الحماية' },
 			ru: { badge: 'Истек (0ч)', detail: 'Срок действия истек • Продлите подписку' },
 			tr: { badge: 'Süresi Doldu (0s)', detail: 'Süre doldu • Korumayı sürdürmek için yenileyin' },
-			es: { badge: 'Expirado (0h)', detail: 'Crédito expirado • Renueva para mantener la protección' },
+			es: {
+				badge: 'Expirado (0h)',
+				detail: 'Crédito expirado • Renueva para mantener la protección',
+			},
 			pt: { badge: 'Expirado (0h)', detail: 'Crédito expirado • Renove para manter a proteção' },
 			de: { badge: 'Abgelaufen (0Std)', detail: 'Abgelaufen • Zum Schutz verlängern' },
 			fr: { badge: 'Expiré (0h)', detail: 'Crédit expiré • Renouvelez pour garder la protection' },
@@ -1323,9 +1552,31 @@ export const getRemainingCreditInfo = (
 		};
 	}
 
+	if (l === 'ps') {
+		const dTxt = days === 1 ? '۱ ورځ' : `${days} ورځې`;
+		const hVal = days > 0 ? hours : totalHours;
+		const hTxt = hVal === 1 ? '۱ ساعت' : `${hVal} ساعته`;
+		const mTxt = mins === 1 ? '۱ دقیقه' : `${mins} دقیقې`;
+		const timePart = days > 0 ? `${dTxt} او ${hTxt}` : totalHours > 0 ? `${hTxt} او ${mTxt}` : mTxt;
+		const prefix = isTrial ? 'وړیا ازمایښت' : 'ځانګړی ګډون';
+		return {
+			isExpired: false,
+			isTrial,
+			totalMs,
+			remainingMs,
+			percentRemaining,
+			shortBadge: `⏳ ${timePart} پاتې`,
+			detailedText: `${prefix}: ستاسو له اعتباره ${timePart} پاتې دي`,
+		};
+	}
+
 	if (l === 'ar') {
 		const timePart =
-			days > 0 ? `${days} يوم و ${hours} س` : totalHours > 0 ? `${totalHours} س و ${mins} د` : `${mins} د`;
+			days > 0
+				? `${days} يوم و ${hours} س`
+				: totalHours > 0
+					? `${totalHours} س و ${mins} د`
+					: `${mins} د`;
 		return {
 			isExpired: false,
 			isTrial,

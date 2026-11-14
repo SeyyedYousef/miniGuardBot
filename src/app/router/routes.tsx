@@ -57,6 +57,11 @@ const MandatoryPage = lazy(() =>
 		default: m.MandatoryPage,
 	})),
 );
+const AddCounterPage = lazy(() =>
+	import('@/slices/group-management/add-counter/index.js').then((m) => ({
+		default: m.AddCounterPage,
+	})),
+);
 const CustomTextsPage = lazy(() =>
 	import('@/slices/group-management/custom-texts/index.js').then((m) => ({
 		default: m.CustomTextsPage,
@@ -146,6 +151,7 @@ export const routes: Route[] = [
 	{ path: '/group/:id/limits', Component: LimitsPage },
 	{ path: '/group/:id/quiet', Component: QuietHoursPage },
 	{ path: '/group/:id/mandatory', Component: MandatoryPage },
+	{ path: '/group/:id/add-counter', Component: AddCounterPage },
 	{ path: '/group/:id/settings/custom-texts', Component: CustomTextsPage },
 	{ path: '/group/:id/analytics', Component: AnalyticsPage },
 	{ path: '/group/:id/dynamic-bio', Component: GroupDynamicBioPage },

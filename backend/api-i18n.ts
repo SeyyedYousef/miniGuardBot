@@ -31,6 +31,7 @@ export type ApiMessageKey =
 
 export const API_MESSAGES: Record<ApiMessageKey, Record<BotLang, string>> = {
 	FORBIDDEN_GROUP: {
+		ps: 'تاسو د دې ګروپ د مدیریت اجازه نلرئ.',
 		fa: 'شما دسترسی به مدیریت این گروه را ندارید.',
 		en: 'You do not have permission to manage this group.',
 		ar: 'ليس لديك إذن لإدارة هذه المجموعة.',
@@ -43,6 +44,7 @@ export const API_MESSAGES: Record<ApiMessageKey, Record<BotLang, string>> = {
 		zh: '您没有管理此群组的权限。',
 	},
 	UNAUTHORIZED_OWNER: {
+		ps: 'غیرمجاز لاسرسی. یوازې د پلاتفورم عمومي مالک (Owner) د دې چارې ترسره کولو اجازه لري.',
 		fa: 'دسترسی غیرمجاز. فقط مدیر کل پلتفرم (Owner) مجاز به انجام این عملیات است.',
 		en: 'Unauthorized access. Only the platform owner is permitted to perform this operation.',
 		ar: 'وصول غير مصرح به. مالك المنصة فقط هو المخول لتنفيذ هذه العملية.',
@@ -51,10 +53,11 @@ export const API_MESSAGES: Record<ApiMessageKey, Record<BotLang, string>> = {
 		es: 'Acceso no autorizado. Solo el propietario de la plataforma puede realizar esta operación.',
 		pt: 'Acesso não autorizado. Apenas o proprietário da plataforma pode realizar esta operação.',
 		de: 'Unbefugter Zugriff. Nur der Plattforminhaber ist berechtigt, diesen Vorgang durchzuführen.',
-		fr: "Accès non autorisé. Seul le propriétaire de la plateforme peut effectuer cette opération.",
+		fr: 'Accès non autorisé. Seul le propriétaire de la plateforme peut effectuer cette opération.',
 		zh: '未经授权的访问。只有平台所有者才能执行此操作。',
 	},
 	FORBIDDEN_BOT: {
+		ps: 'تاسو د دې بوټ د مدیریت اجازه نلرئ.',
 		fa: 'شما دسترسی به مدیریت این ربات را ندارید.',
 		en: 'You do not have permission to manage this bot.',
 		ar: 'ليس لديك إذن لإدارة هذا البوت.',
@@ -67,6 +70,7 @@ export const API_MESSAGES: Record<ApiMessageKey, Record<BotLang, string>> = {
 		zh: '您没有管理此机器人的权限。',
 	},
 	GROUP_NOT_FOUND: {
+		ps: 'ګروپ ونه موندل شو.',
 		fa: 'گروه یافت نشد.',
 		en: 'Group not found.',
 		ar: 'المجموعة غير موجودة.',
@@ -79,6 +83,7 @@ export const API_MESSAGES: Record<ApiMessageKey, Record<BotLang, string>> = {
 		zh: '未找到群组。',
 	},
 	BOT_NOT_FOUND: {
+		ps: 'بوټ ونه موندل شو.',
 		fa: 'ربات یافت نشد.',
 		en: 'Bot not found.',
 		ar: 'البوت غير موجود.',
@@ -91,6 +96,7 @@ export const API_MESSAGES: Record<ApiMessageKey, Record<BotLang, string>> = {
 		zh: '未找到机器人。',
 	},
 	INVALID_TOKEN_FORMAT: {
+		ps: 'د ټوکن بڼه سمه نه ده (بېلګه: 123456789:AAH...). مهرباني وکړئ له @BotFather څخه اخیستل شوی بشپړ ټوکن دننه کړئ.',
 		fa: 'فرمت توکن معتبر نیست (مثال: 123456789:AAH...). لطفاً توکن دریافتی از @BotFather را کامل وارد کنید.',
 		en: 'Invalid token format (e.g. 123456789:AAH...). Please enter the full token from @BotFather.',
 		ar: 'تنسيق الرمز غير صالح (مثال: 123456789:AAH...). يرجى إدخال الرمز الكامل المستلم من @BotFather.',
@@ -103,6 +109,7 @@ export const API_MESSAGES: Record<ApiMessageKey, Record<BotLang, string>> = {
 		zh: '令牌格式无效（例如：123456789:AAH...）。请输入来自 @BotFather 的完整令牌。',
 	},
 	INVALID_TELEGRAM_TOKEN: {
+		ps: 'داخل شوی ټوکن په ټیلیګرام کې باوري نه دی یا د @BotFather لخوا لغوه شوی دی. مهرباني وکړئ له @BotFather څخه یو باوري ټوکن ترلاسه کړئ.',
 		fa: 'توکن وارد شده در تلگرام معتبر نیست یا توسط @BotFather باطل شده است. لطفاً یک توکن معتبر از @BotFather دریافت کنید.',
 		en: 'The entered token is invalid on Telegram or has been revoked by @BotFather. Please obtain a valid token from @BotFather.',
 		ar: 'الرمز المدخل غير صالح على تيليجرام أو تم إلغاؤه بواسطة @BotFather. يرجى الحصول على رمز صالح من @BotFather.',
@@ -115,6 +122,7 @@ export const API_MESSAGES: Record<ApiMessageKey, Record<BotLang, string>> = {
 		zh: '输入的令牌在 Telegram 上无效或已被 @BotFather 撤销。请从 @BotFather 获取有效令牌。',
 	},
 	INVALID_INIT_DATA: {
+		ps: 'د ټیلیګرام ننوتنې تایید ناکام شو. د initData ډیجیټل لاسلیک باوري نه دی.',
 		fa: 'اعتبارسنجی ورود تلگرام ناموفق بود. امضای دیجیتال initData معتبر نیست.',
 		en: 'Telegram authentication failed. Invalid initData signature.',
 		ar: 'فشلت المصادقة مع تيليجرام. توقيع initData الرقمي غير صالح.',
@@ -127,6 +135,7 @@ export const API_MESSAGES: Record<ApiMessageKey, Record<BotLang, string>> = {
 		zh: 'Telegram 身份验证失败。无效的 initData 签名。',
 	},
 	SESSION_EXPIRED: {
+		ps: 'د ټیلیګرام د ناستې وخت پای ته رسېدلی دی. مهرباني وکړئ مینی‌اپ بېرته خلاص کړئ.',
 		fa: 'داده‌های نشست تلگرام منقضی شده‌اند. لطفاً مینی‌اپ را مجدداً باز کنید.',
 		en: 'Telegram session has expired. Please reopen the Mini App.',
 		ar: 'انتهت صلاحية جلسة تيليجرام. يرجى إعادة فتح التطبيق المصغر.',
@@ -139,6 +148,7 @@ export const API_MESSAGES: Record<ApiMessageKey, Record<BotLang, string>> = {
 		zh: 'Telegram 会话已过期。请重新打开 Mini App。',
 	},
 	INVALID_OWNER_PASSWORD: {
+		ps: 'امنیتي پټنوم باوري نه دی.',
 		fa: 'رمز امنیتی نامعتبر است.',
 		en: 'Invalid security password.',
 		ar: 'كلمة المرور الأمنية غير صالحة.',
@@ -151,6 +161,7 @@ export const API_MESSAGES: Record<ApiMessageKey, Record<BotLang, string>> = {
 		zh: '安全密码无效。',
 	},
 	RATE_LIMIT_LOGIN: {
+		ps: 'د ناکامو هڅو شمېر له ټاکلي حده اوښتی دی. مهرباني وکړئ څو دقیقې وروسته بیا هڅه وکړئ.',
 		fa: 'تعداد تلاش‌های ناموفق بیش از حد مجاز است. لطفاً چند دقیقه دیگر تلاش کنید.',
 		en: 'Too many failed login attempts. Please try again in a few minutes.',
 		ar: 'عدد محاولات تسجيل الدخول الفاشلة تجاوز الحد المسموح. يرجى المحاولة بعد بضع دقائق.',
@@ -163,6 +174,7 @@ export const API_MESSAGES: Record<ApiMessageKey, Record<BotLang, string>> = {
 		zh: '失败的登录尝试过多。请在几分钟后重试。',
 	},
 	RATE_LIMIT_EXCEEDED: {
+		ps: 'د غوښتنو شمېر له حده زیات دی. مهرباني وکړئ یوه شېبه صبر وکړئ او بیا هڅه وکړئ.',
 		fa: 'تعداد درخواست‌ها بیش از حد مجاز است. لطفاً چند لحظه بعد تلاش کنید.',
 		en: 'Too many requests. Please wait a moment and try again.',
 		ar: 'تم تجاوز الحد المسموح من الطلبات. يرجى الانتظار قليلاً والمحاولة مجدداً.',
@@ -175,6 +187,7 @@ export const API_MESSAGES: Record<ApiMessageKey, Record<BotLang, string>> = {
 		zh: '请求过多。请稍候再试。',
 	},
 	INTERNAL_SERVER_ERROR: {
+		ps: 'په سرور کې غیرمتوقعه تېروتنه رامنځته شوه. مهرباني وکړئ وروسته بیا هڅه وکړئ.',
 		fa: 'خطای غیرمنتظره در سرور رخ داده است. لطفاً بعداً تلاش کنید.',
 		en: 'An unexpected server error occurred. Please try again later.',
 		ar: 'حدث خطأ غير متوقع في الخادم. يرجى المحاولة لاحقاً.',
@@ -187,6 +200,7 @@ export const API_MESSAGES: Record<ApiMessageKey, Record<BotLang, string>> = {
 		zh: '服务器发生意外错误。请稍后重试。',
 	},
 	INVALID_USER_ID: {
+		ps: 'د کارن پېژند (User ID) باوري نه دی.',
 		fa: 'شناسه کاربری نامعتبر است.',
 		en: 'Invalid user ID.',
 		ar: 'معرف المستخدم غير صالح.',
@@ -199,6 +213,7 @@ export const API_MESSAGES: Record<ApiMessageKey, Record<BotLang, string>> = {
 		zh: '无效的用户 ID。',
 	},
 	SUBSCRIPTION_ACTIVATED: {
+		ps: 'د ګروپ میاشتنی ګډون په بریالیتوب سره فعال شو.',
 		fa: 'اشتراک ماهانه گروه با موفقیت فعال شد.',
 		en: 'Monthly group subscription has been activated successfully.',
 		ar: 'تم تفعيل الاشتراك الشهري للمجموعة بنجاح.',
@@ -211,6 +226,7 @@ export const API_MESSAGES: Record<ApiMessageKey, Record<BotLang, string>> = {
 		zh: '群组按月订阅已成功激活。',
 	},
 	REPORT_SENT_SUCCESS: {
+		ps: 'د ګروپ د فعالیت راپور په بریالیتوب سره ستاسو ټیلیګرام ته ولېږل شو.',
 		fa: 'گزارش عملکرد گروه با موفقیت به تلگرام شما ارسال شد.',
 		en: 'Group analytics report has been sent to your Telegram successfully.',
 		ar: 'تم إرسال تقرير أداء المجموعة إلى تيليجرام الخاص بك بنجاح.',
@@ -223,6 +239,7 @@ export const API_MESSAGES: Record<ApiMessageKey, Record<BotLang, string>> = {
 		zh: '群组分析报告已成功发送至您的 Telegram。',
 	},
 	GDPR_PURGED: {
+		ps: 'ستاسو د حساب ټول معلومات د GDPR معیار سره سم په بشپړه توګه پاک شول.',
 		fa: 'تمامی اطلاعات حساب شما طبق استاندارد GDPR پاکسازی شد.',
 		en: 'All your account data has been purged in accordance with GDPR.',
 		ar: 'تم مسح جميع بيانات حسابك وفقاً لمعايير GDPR.',
@@ -235,6 +252,7 @@ export const API_MESSAGES: Record<ApiMessageKey, Record<BotLang, string>> = {
 		zh: '您的所有账户数据已根据 GDPR 标准完全清除。',
 	},
 	GROUP_ADMIN_REQUIRED: {
+		ps: 'بوټ په ټیلیګرام کې د ګروپ د تنظیماتو بدلولو لپاره د اډمین واک ته اړتیا لري.',
 		fa: 'ربات برای تغییر تنظیمات گروه در تلگرام نیاز به دسترسی ادمین دارد.',
 		en: 'The bot requires administrator privileges in the group on Telegram.',
 		ar: 'يحتاج البوت إلى صلاحيات المشرف في المجموعة على تيليجرام.',
@@ -247,6 +265,7 @@ export const API_MESSAGES: Record<ApiMessageKey, Record<BotLang, string>> = {
 		zh: '机器人需要 Telegram 群组中的管理员权限。',
 	},
 	GROUP_LINK_REQUIRED: {
+		ps: 'مهرباني وکړئ د خپل ټیلیګرام ګروپ پېژند یا لینک دننه کړئ (بېلګه: @my_group).',
 		fa: 'لطفاً آیدی یا لینک گروه تلگرام خود را وارد کنید (مثال: @my_group).',
 		en: 'Please enter your Telegram group username or link (e.g. @my_group).',
 		ar: 'يرجى إدخال معرف أو رابط مجموعة تيليجرام الخاصة بك (مثال: @my_group).',
@@ -259,6 +278,7 @@ export const API_MESSAGES: Record<ApiMessageKey, Record<BotLang, string>> = {
 		zh: '请输入您的 Telegram 群组用户名或链接（例如：@my_group）。',
 	},
 	STARS_INVOICE_ERROR: {
+		ps: 'د ټیلیګرام سرور څخه د سټارز د تادیې بل (Invoice) په جوړولو کې تېروتنه وشوه. مهرباني وکړئ د بوټ نښلون وګورئ.',
 		fa: 'خطا در ایجاد فاکتور پرداخت استارز از سرور تلگرام. لطفاً اتصال ربات را بررسی کنید.',
 		en: 'Failed to create Telegram Stars invoice. Please check the bot connection.',
 		ar: 'فشل إنشاء فاتورة نجوم تيليجرام. يرجى التحقق من اتصال البوت.',
@@ -271,6 +291,7 @@ export const API_MESSAGES: Record<ApiMessageKey, Record<BotLang, string>> = {
 		zh: '创建 Telegram Stars 发票失败。请检查机器人连接。',
 	},
 	PRIVATE_GROUP_ADMIN_PROMPT: {
+		ps: 'د خصوصي ګروپونو (د + بلنې لینک) لپاره باید لومړی بوټ ګروپ ته ورګډ او اډمین کړئ، یا د ګروپ عامه کارن‌نوم (@username) دننه کړئ.',
 		fa: 'برای گروه‌های خصوصی (لینک دعوت +)، ابتدا باید ربات را به گروه اضافه و ادمین کنید، یا آیدی عمومی (@username) گروه را وارد کنید.',
 		en: 'For private groups (invite links with +), you must first add the bot to the group as administrator, or enter the public username (@username).',
 		ar: 'بالنسبة للمجموعات الخاصة (روابط الدعوة +)، يجب أولاً إضافة البوت إلى المجموعة كمشرف، أو إدخال المعرف العام (@username).',
@@ -283,11 +304,12 @@ export const API_MESSAGES: Record<ApiMessageKey, Record<BotLang, string>> = {
 		zh: '对于私有群组（带 + 的邀请链接），您必须先将机器人作为管理员添加到群组中，或输入公开用户名（@username）。',
 	},
 	GROUP_NOT_FOUND_OR_NOT_ADMIN: {
+		ps: 'ګروپ په ټیلیګرام کې ونه موندل شو یا بوټ د ګروپ اډمین نه دی. مهرباني وکړئ بوټ په ګروپ کې اډمین کړئ.',
 		fa: 'گروه در تلگرام یافت نشد یا ربات ادمین گروه نیست. لطفاً ربات را در گروه ادمین کنید.',
 		en: 'Group was not found on Telegram or the bot is not an admin. Please promote the bot to admin in the group.',
 		ar: 'لم يتم العثور على المجموعة على تيليجرام أو أن البوت ليس مشرفاً. يرجى ترقية البوت إلى مشرف في المجموعة.',
 		ru: 'Группа не найдена в Telegram или бот не является администратором. Пожалуйста, назначьте бота администратором.',
-		tr: 'Grup Telegram\'da bulunamadı veya bot yönetici değil. Lütfen botu grupta yönetici yapın.',
+		tr: "Grup Telegram'da bulunamadı veya bot yönetici değil. Lütfen botu grupta yönetici yapın.",
 		es: 'No se encontró el grupo en Telegram o el bot no es administrador. Asigna al bot como administrador en el grupo.',
 		pt: 'O grupo não foi encontrado no Telegram ou o bot não é administrador. Promova o bot a administrador no grupo.',
 		de: 'Gruppe wurde auf Telegram nicht gefunden oder der Bot ist kein Admin. Bitte befördern Sie den Bot in der Gruppe zum Administrator.',
@@ -295,6 +317,7 @@ export const API_MESSAGES: Record<ApiMessageKey, Record<BotLang, string>> = {
 		zh: '在 Telegram 上未找到该群组，或机器人不是管理员。请将机器人提升为群组管理员。',
 	},
 	BOT_INFO_CHANGE_WARNING: {
+		ps: 'بوټ په ټیلیګرام کې د نوم یا بیوګرافۍ بدلولو لپاره د «Change Group Info» (د ګروپ معلومات بدلولو) واک ته اړتیا لري.',
 		fa: 'ربات برای تغییر نام/بیوگرافی در تلگرام نیاز به دسترسی «Change Group Info» (تغییر اطلاعات گروه) دارد.',
 		en: 'The bot requires "Change Group Info" permission on Telegram to update the title/bio.',
 		ar: 'يحتاج البوت إلى إذن "تغيير معلومات المجموعة" على تيليجرام لتحديث العنوان أو السيرة الذاتية.',
@@ -307,6 +330,7 @@ export const API_MESSAGES: Record<ApiMessageKey, Record<BotLang, string>> = {
 		zh: '机器人需要 Telegram 上的“更改群组信息”权限才能更新标题/简介。',
 	},
 	SETTINGS_SAVED_SUCCESS: {
+		ps: 'تنظیمات په بریالیتوب سره خوندي شول.',
 		fa: 'تنظیمات با موفقیت ذخیره شد.',
 		en: 'Settings saved successfully.',
 		ar: 'تم حفظ الإعدادات بنجاح.',
@@ -319,6 +343,7 @@ export const API_MESSAGES: Record<ApiMessageKey, Record<BotLang, string>> = {
 		zh: '设置保存成功。',
 	},
 	BOT_DELETED_SUCCESS: {
+		ps: 'بوټ په بریالیتوب سره له سیسټم څخه لرې شو.',
 		fa: 'ربات با موفقیت از سیستم حذف شد.',
 		en: 'Bot was removed from the system successfully.',
 		ar: 'تمت إزالة البوت من النظام بنجاح.',
@@ -331,6 +356,7 @@ export const API_MESSAGES: Record<ApiMessageKey, Record<BotLang, string>> = {
 		zh: '机器人已成功从系统中移除。',
 	},
 	GROUP_DELETED_SUCCESS: {
+		ps: 'ګروپ په بریالیتوب سره د مینی‌ګارد له سیسټم څخه لرې شو.',
 		fa: 'گروه با موفقیت از سیستم مینی‌گارد حذف شد.',
 		en: 'Group was removed from MiniGuard system successfully.',
 		ar: 'تمت إزالة المجموعة من نظام MiniGuard بنجاح.',
@@ -389,8 +415,7 @@ export function getApiMessage(
 	key: ApiMessageKey,
 	reqOrLang: http.IncomingMessage | BotLang,
 ): string {
-	const lang: BotLang =
-		typeof reqOrLang === 'string' ? reqOrLang : resolveRequestLang(reqOrLang);
+	const lang: BotLang = typeof reqOrLang === 'string' ? reqOrLang : resolveRequestLang(reqOrLang);
 	const entry = API_MESSAGES[key];
 	if (!entry) return key;
 	return entry[lang] || entry.en || entry.fa;
@@ -399,8 +424,38 @@ export function getApiMessage(
 export function getLocalizedSubscriptionPackages(lang: BotLang, monthlyPrice: number = 100) {
 	const packagesData: Record<
 		BotLang,
-		Array<{ id: string; name: string; duration_days: number; price_stars: number; features: string[] }>
+		Array<{
+			id: string;
+			name: string;
+			duration_days: number;
+			price_stars: number;
+			features: string[];
+		}>
 	> = {
+		ps: [
+			{
+				id: 'pkg_trial_24h',
+				name: '۲۴ ساعته وړیا ازمایښت (ټولې ځانګړنې)',
+				duration_days: 1,
+				price_stars: 0,
+				features: [
+					'ستاسو په خوښه نوم د ځانګړي بوټ جوړول',
+					'له ۱۰۰ څخه زیاتې د فایروال او سپیم ضد ځانګړنې',
+					'د اډمین شخصي پیغام ته د ورځنۍ احصایې راپور لېږل',
+				],
+			},
+			{
+				id: 'pkg_monthly_100',
+				name: `د ۱ ګروپ میاشتنی ګډون (${monthlyPrice} سټارز)`,
+				duration_days: 30,
+				price_stars: monthlyPrice,
+				features: [
+					'د ۱ ځانګړي ګروپ لپاره ۲۴/۷ بې له ځنډه ساتنه',
+					'د ټولو ۱۰۰+ امنیتي ماډلونو ملاتړ',
+					'له پای ته رسېدو وروسته تر ۱ اونۍ پورې د معلوماتو ساتنه (Safe Hibernation)',
+				],
+			},
+		],
 		fa: [
 			{
 				id: 'pkg_trial_24h',
@@ -648,10 +703,12 @@ export function getLocalizedSubscriptionPackages(lang: BotLang, monthlyPrice: nu
 
 export function getLocalizedStarsInvoice(lang: BotLang, groupTitle: string, starsAmount: number) {
 	const titleClean = (groupTitle || 'Telegram Group').slice(0, 80);
-	const dict: Record<
-		BotLang,
-		{ title: string; description: string; priceLabel: string }
-	> = {
+	const dict: Record<BotLang, { title: string; description: string; priceLabel: string }> = {
+		ps: {
+			title: 'د مینی‌ګارد میاشتنی ګډون (۳۰ ورځې)',
+			description: `د «${titleClean}» ګروپ لپاره د ۳۰ ورځو هوښیار حفاظت او مدیریت تمدید`,
+			priceLabel: 'د ۱ ګروپ میاشتنی ګډون (۳۰ ورځې)',
+		},
 		fa: {
 			title: 'اشتراک ماهانه مینی‌گارد (۳۰ روز)',
 			description: `تمدید ۳۰ روزه حفاظت و مدیریت هوشمند برای گروه «${titleClean}»`,
@@ -722,6 +779,7 @@ export function getLocalizedCallbackNotice(
 ): string {
 	const notices: Record<string, Record<BotLang, string>> = {
 		LINKS_LOCKED: {
+			ps: '🔒 د لینکونو قلف فعال شو',
 			fa: '🔒 قفل لینک‌ها فعال شد',
 			en: '🔒 Link lock enabled',
 			ar: '🔒 تم تفعيل قفل الروابط',
@@ -734,6 +792,7 @@ export function getLocalizedCallbackNotice(
 			zh: '🔒 链接锁定已启用',
 		},
 		LINKS_UNLOCKED: {
+			ps: '🔓 د لینکونو قلف خلاص شو',
 			fa: '🔓 قفل لینک‌ها باز شد',
 			en: '🔓 Link lock disabled',
 			ar: '🔓 تم إلغاء قفل الروابط',
@@ -746,6 +805,7 @@ export function getLocalizedCallbackNotice(
 			zh: '🔓 链接锁定已解除',
 		},
 		EMERGENCY_LOCKED: {
+			ps: '🚨 د ټول ګروپ بیړنی قلف فعال شو',
 			fa: '🚨 قفل اضطراری کل گروه فعال شد',
 			en: '🚨 Emergency group lock enabled',
 			ar: '🚨 تم تفعيل القفل الطارئ للمجموعة',
@@ -758,6 +818,7 @@ export function getLocalizedCallbackNotice(
 			zh: '🚨 全群紧急锁定已启用',
 		},
 		EMERGENCY_UNLOCKED: {
+			ps: '✅ بیړنی قلف لرې شو',
 			fa: '✅ قفل اضطراری برداشته شد',
 			en: '✅ Emergency group lock disabled',
 			ar: '✅ تم رفع القفل الطارئ',
@@ -770,6 +831,7 @@ export function getLocalizedCallbackNotice(
 			zh: '✅ 紧急锁定已解除',
 		},
 		QUIET_HOURS_ENABLED: {
+			ps: '🌙 د چوپتیا ساعتونه فعال شول',
 			fa: '🌙 ساعات سکوت فعال شد',
 			en: '🌙 Quiet hours enabled',
 			ar: '🌙 تم تفعيل ساعات الهدوء',
@@ -782,6 +844,7 @@ export function getLocalizedCallbackNotice(
 			zh: '🌙 静音时间已启用',
 		},
 		QUIET_HOURS_DISABLED: {
+			ps: '☀️ د چوپتیا ساعتونه غیرفعال شول',
 			fa: '☀️ ساعات سکوت غیرفعال شد',
 			en: '☀️ Quiet hours disabled',
 			ar: '☀️ تم إلغاء ساعات الهدوء',
@@ -794,6 +857,7 @@ export function getLocalizedCallbackNotice(
 			zh: '☀️ 静音时间已停用',
 		},
 		USER_UNMUTED: {
+			ps: '🔊 د کارن بې‌غږه حالت لرې شو',
 			fa: '🔊 سکوت کاربر لغو شد',
 			en: '🔊 User unmuted',
 			ar: '🔊 تم إلغاء كتم المستخدم',
@@ -806,6 +870,7 @@ export function getLocalizedCallbackNotice(
 			zh: '🔊 用户已解除静音',
 		},
 		USER_BANNED: {
+			ps: '🚫 کارن وشړل شو (Ban)',
 			fa: '🚫 کاربر اخراج شد',
 			en: '🚫 User banned',
 			ar: '🚫 تم حظر المستخدم',
@@ -818,6 +883,7 @@ export function getLocalizedCallbackNotice(
 			zh: '🚫 用户已被封禁',
 		},
 		ACTION_DONE: {
+			ps: '✅ چاره ترسره شوه',
 			fa: '✅ اقدام انجام شد',
 			en: '✅ Action completed',
 			ar: '✅ تم الإجراء',

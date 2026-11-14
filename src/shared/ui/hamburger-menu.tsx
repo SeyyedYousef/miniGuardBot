@@ -2,9 +2,7 @@ import { Motion } from '@motionone/solid';
 import { useNavigate } from '@solidjs/router';
 import createFocusTrap from 'solid-focus-trap';
 import { type Component, For, Show } from 'solid-js';
-import { locale, t } from '@/shared/i18n/index.js';
-
-const isRtl = () => locale() === 'fa';
+import { isRtl, t } from '@/shared/i18n/index.js';
 
 interface HamburgerMenuProps {
 	isOpen: boolean;

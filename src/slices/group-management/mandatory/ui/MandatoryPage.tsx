@@ -145,10 +145,35 @@ export const MandatoryPage: Component = () => {
 								value={cfg.forcedAddCount}
 								onChange={(v) => updateCfg('forcedAddCount', v)}
 								min={0}
-								max={50}
+								max={500}
 							/>
 						</div>
 					</Show>
+					<button
+						type="button"
+						onClick={() => {
+							haptic.impact('light');
+							navigate(`/group/${params.id}/add-counter`);
+						}}
+						class="tg-cell justify-between gap-3 py-3 text-start hover:bg-[var(--tg-secondary-bg)]/50 transition-colors"
+					>
+						<div class="flex items-center gap-2.5 min-w-0">
+							<span class="material-symbols-outlined text-[20px] text-[var(--tg-button)] shrink-0">
+								group_add
+							</span>
+							<div class="flex flex-col min-w-0">
+								<span class="text-[13.5px] font-semibold text-[var(--tg-link)]">
+									{t('addCounterSettings.title')}
+								</span>
+								<span class="text-[11.5px] text-[var(--tg-hint)] truncate">
+									{t('addCounterSettings.editTemplatesBtnDesc')}
+								</span>
+							</div>
+						</div>
+						<span class="material-symbols-outlined text-[18px] text-[var(--tg-hint)] rtl:rotate-180 shrink-0">
+							chevron_right
+						</span>
+					</button>
 				</div>
 
 				{/* Force Join Required Chats */}

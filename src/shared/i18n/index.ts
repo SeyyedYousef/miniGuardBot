@@ -5,7 +5,7 @@ import { setLanguage } from '@/shared/api/profile.js';
 
 import { dict as en } from './en.js';
 
-export type Locale = 'fa' | 'en' | 'ar' | 'ru' | 'tr' | 'es' | 'pt' | 'de' | 'fr' | 'zh';
+export type Locale = 'fa' | 'en' | 'ps' | 'ar' | 'ru' | 'tr' | 'es' | 'pt' | 'de' | 'fr' | 'zh';
 
 export type Dictionary = typeof en;
 
@@ -19,6 +19,7 @@ export interface LanguageOption {
 
 export const SUPPORTED_LANGUAGES: readonly LanguageOption[] = [
 	{ code: 'fa', native: 'فارسی', label: 'فارسی (Persian)', flag: '🇮🇷', rtl: true },
+	{ code: 'ps', native: 'پښتو', label: 'پښتو (Pashto)', flag: '🇦🇫', rtl: true },
 	{ code: 'en', native: 'English', label: 'English', flag: '🇬🇧', rtl: false },
 	{ code: 'ar', native: 'العربية', label: 'العربية (Arabic)', flag: '🇸🇦', rtl: true },
 	{ code: 'ru', native: 'Русский', label: 'Русский (Russian)', flag: '🇷🇺', rtl: false },
@@ -32,7 +33,7 @@ export const SUPPORTED_LANGUAGES: readonly LanguageOption[] = [
 
 export const VALID_LOCALE_CODES = SUPPORTED_LANGUAGES.map((l) => l.code);
 
-export const RTL_LOCALES: Locale[] = ['fa', 'ar'];
+export const RTL_LOCALES: Locale[] = ['fa', 'ps', 'ar'];
 
 export const getLanguageLabel = (code?: Locale): string => {
 	const found = SUPPORTED_LANGUAGES.find((l) => l.code === code);
@@ -43,6 +44,7 @@ const mapLanguageCode = (code?: string): Locale => {
 	if (!code) return 'fa';
 	const c = code.toLowerCase();
 	if (c.startsWith('fa') || c.startsWith('per') || c.startsWith('prs')) return 'fa';
+	if (c.startsWith('ps') || c.startsWith('pus')) return 'ps';
 	if (c.startsWith('ar')) return 'ar';
 	if (c.startsWith('ru') || c.startsWith('uk') || c.startsWith('be')) return 'ru';
 	if (c.startsWith('tr')) return 'tr';
@@ -95,6 +97,9 @@ export const loadDictionary = async (loc: Locale) => {
 		switch (loc) {
 			case 'fa':
 				module = await import('./fa.js');
+				break;
+			case 'ps':
+				module = await import('./ps.js');
 				break;
 			case 'ar':
 				module = await import('./ar.js');

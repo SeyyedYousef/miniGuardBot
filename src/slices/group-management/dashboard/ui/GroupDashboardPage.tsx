@@ -283,6 +283,13 @@ export const GroupDashboardPage: Component = () => {
 			path: `/group/${params.id}/mandatory`,
 		},
 		{
+			title: txt().modAddCounterTitle,
+			sub: txt().modAddCounterSub,
+			icon: 'group_add',
+			color: '#007AFF',
+			path: `/group/${params.id}/add-counter`,
+		},
+		{
 			title: txt().modTextsTitle,
 			sub: txt().modTextsSub,
 			icon: 'chat_bubble',

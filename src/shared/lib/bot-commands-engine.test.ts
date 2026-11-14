@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
 	BOT_COMMANDS_CATALOG,
+	COMMANDS_PS_BY_ID,
+	EDGE_CASE_RESOLUTIONS,
 	evaluateCallbackQueryRbac,
+	getLocalizedBotCommand,
+	getLocalizedEdgeCase,
 	normalizeDigits,
 	parseDurationToSeconds,
 	parseGroupCommand,
@@ -85,5 +89,119 @@ describe('MiniGuard Bot Commands, Inline Callbacks & Edge-Case Engine', () => {
 		expect(migration.botActionCode).toContain('ATOMIC_CHAT_ID_MIGRATION');
 
 		expect(BOT_COMMANDS_CATALOG.length).toBeGreaterThanOrEqual(16);
+	});
+
+	it('supports Pashto (ps) duration units, natural commands, localization catalog, and RBAC alerts', () => {
+		expect(parseDurationToSeconds('۲ ساعته')).toBe(7200);
+		expect(parseDurationToSeconds('۳ ورځې')).toBe(259200);
+		expect(parseDurationToSeconds('۴۵ دقیقې')).toBe(2700);
+		expect(parseDurationToSeconds('۴۵ ثانیې')).toBe(45);
+
+		const unbanCmd = parseGroupCommand({
+			text: 'شړل لرې',
+			repliedUserName: 'Ahmad',
+			repliedUserId: 7001,
+			senderIsAdmin: true,
+			lang: 'ps',
+		});
+		expect(unbanCmd.matched).toBe(true);
+		expect(unbanCmd.commandId).toBe('unban');
+		expect(unbanCmd.responsePreviewFa).toContain('بندیز لرې شو');
+
+		const banCmd = parseGroupCommand({
+			text: 'شړل تبلیغات',
+			repliedUserName: 'Spammer',
+			repliedUserId: 7002,
+			senderIsAdmin: true,
+			lang: 'ps',
+		});
+		expect(banCmd.matched).toBe(true);
+		expect(banCmd.commandId).toBe('ban');
+		expect(banCmd.responsePreviewFa).toContain('وشړل شو');
+
+		const unmuteCmd = parseGroupCommand({
+			text: 'بې‌غږه لرې',
+			repliedUserName: 'Member',
+			repliedUserId: 7003,
+			senderIsAdmin: true,
+			lang: 'ps',
+		});
+		expect(unmuteCmd.matched).toBe(true);
+		expect(unmuteCmd.commandId).toBe('unmute');
+
+		const muteCmd = parseGroupCommand({
+			text: 'بې‌غږه ۲ ساعته',
+			repliedUserName: 'Member',
+			repliedUserId: 7003,
+			senderIsAdmin: true,
+			lang: 'ps',
+		});
+		expect(muteCmd.matched).toBe(true);
+		expect(muteCmd.commandId).toBe('mute');
+		expect(muteCmd.durationSeconds).toBe(7200);
+		expect(muteCmd.responsePreviewFa).toContain('۲'.replace('۲', '2'));
+
+		const warnCmd = parseGroupCommand({
+			text: 'خبرداری د لینک لېږل',
+			repliedUserName: 'Member',
+			repliedUserId: 7004,
+			senderIsAdmin: true,
+			lang: 'ps',
+		});
+		expect(warnCmd.matched).toBe(true);
+		expect(warnCmd.commandId).toBe('warn');
+		expect(warnCmd.responsePreviewFa).toContain('خبرداری');
+
+		const panelCmd = parseGroupCommand({
+			text: 'پینل',
+			senderIsAdmin: true,
+			lang: 'ps',
+		});
+		expect(panelCmd.matched).toBe(true);
+		expect(panelCmd.commandId).toBe('panel');
+		expect(panelCmd.responsePreviewFa).toContain('شیشه‌يي مدیریت پینل');
+
+		const purgeCmd = parseGroupCommand({
+			text: 'پاکول ۳۰',
+			senderIsAdmin: true,
+			lang: 'ps',
+		});
+		expect(purgeCmd.matched).toBe(true);
+		expect(purgeCmd.commandId).toBe('purge');
+		expect(purgeCmd.batchCount).toBe(30);
+
+		const rbacAdmin = evaluateCallbackQueryRbac({
+			callerUserId: 101,
+			adminUserIds: [101],
+			callbackData: 'mg:menu:locks',
+			lang: 'ps',
+		});
+		expect(rbacAdmin.allowed).toBe(true);
+		expect(rbacAdmin.answerCallbackAlertText).toContain('فایروال');
+
+		const rbacDenied = evaluateCallbackQueryRbac({
+			callerUserId: 999,
+			adminUserIds: [101],
+			callbackData: 'mg:menu:locks',
+			lang: 'ps',
+		});
+		expect(rbacDenied.allowed).toBe(false);
+		expect(rbacDenied.answerCallbackAlertText).toContain('اډمینانو');
+
+		expect(Object.keys(COMMANDS_PS_BY_ID)).toHaveLength(BOT_COMMANDS_CATALOG.length);
+		for (const cmd of BOT_COMMANDS_CATALOG) {
+			const loc = getLocalizedBotCommand(cmd, 'ps');
+			expect(loc.title.length).toBeGreaterThan(0);
+			expect(loc.desc.length).toBeGreaterThan(0);
+			expect(loc.example.length).toBeGreaterThan(0);
+			expect(loc.triggers.length).toBeGreaterThan(0);
+		}
+
+		for (const edge of Object.values(EDGE_CASE_RESOLUTIONS)) {
+			const psEdge = getLocalizedEdgeCase(edge, 'ps');
+			expect(psEdge.titleFa).not.toBe(edge.titleFa);
+			expect(psEdge.systemBehaviorFa).not.toBe(edge.systemBehaviorFa);
+			expect(psEdge.simulatedBotMessageFa).not.toBe(edge.simulatedBotMessageFa);
+		}
 	});
 });

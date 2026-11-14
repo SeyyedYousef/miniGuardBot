@@ -35,7 +35,44 @@ export interface ManagedGroup {
 	updated_at: string;
 }
 
-interface GroupSettings {
+export interface AddCounterConfig {
+	enabled: boolean;
+	sendProgressMessage: boolean;
+	sendCompletionMessage: boolean;
+	requireTargetToChat: boolean;
+	requiredCount: number;
+	preventDuplicateReadd: boolean;
+	ignoreBots: boolean;
+	countAdmins: boolean;
+	countInviteLinks: boolean;
+	autoDeleteSec: number;
+	resetPeriodDays: number;
+	leaderboardEnabled: boolean;
+	exemptions: string[];
+}
+
+export interface AddCounterLeaderboardEntry {
+	rank: number;
+	userId: number;
+	name: string;
+	username?: string;
+	count: number;
+	lifetimeCount: number;
+	lastAddedAt: string;
+	targetCompleted: boolean;
+}
+
+export interface AddCounterStatsResponse {
+	group_id: string;
+	settings: AddCounterConfig;
+	total_group_adds: number;
+	tracked_users_count: number;
+	completed_users_count: number;
+	period_started_at: string;
+	leaderboard: AddCounterLeaderboardEntry[];
+}
+
+export interface GroupSettings {
 	group_id: string;
 	general: Partial<{
 		language: string;
@@ -59,6 +96,7 @@ interface GroupSettings {
 		periods: Array<{ id: string; start: string; end: string }>;
 	}>;
 	mandatory_membership: Record<string, any>;
+	add_counter?: Partial<AddCounterConfig> | Record<string, any>;
 	custom_texts: Record<string, any>;
 	version: number;
 	updated_at: string;
@@ -257,6 +295,30 @@ export const groupApi = {
 	updateSettings: (groupId: string, category: string, data: unknown, version: number) =>
 		apiClient
 			.put<GroupSettings>(`/groups/${groupId}/settings`, { category, data, version })
+			.then((r: any) => r.data),
+
+	getAddCounterStats: (groupId: string) =>
+		apiClient
+			.get<AddCounterStatsResponse>(`/groups/${groupId}/add-counter`)
+			.then((r: any) => r.data),
+
+	resetAddCounter: (groupId: string, userId?: number) =>
+		apiClient
+			.post<{ ok: boolean; total_group_adds: number; leaderboard: AddCounterLeaderboardEntry[] }>(
+				`/groups/${groupId}/add-counter/reset`,
+				userId !== undefined ? { userId } : {},
+			)
+			.then((r: any) => r.data),
+
+	adjustAddCounter: (
+		groupId: string,
+		payload: { userId: number; delta?: number; count?: number; name?: string; username?: string },
+	) =>
+		apiClient
+			.post<{ ok: boolean; user: any; leaderboard: AddCounterLeaderboardEntry[] }>(
+				`/groups/${groupId}/add-counter/adjust`,
+				payload,
+			)
 			.then((r: any) => r.data),
 
 	getAnalytics: (groupId: string, days: number = 7) =>

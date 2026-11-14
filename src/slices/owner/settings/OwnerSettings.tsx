@@ -44,11 +44,6 @@ export const OwnerSettings: Component = () => {
 		fetchSettings();
 	});
 
-	const isDirty = () => {
-		if (!initialSettings() || !settings()) return false;
-		return JSON.stringify(initialSettings()) !== JSON.stringify(settings());
-	};
-
 	const handleSaveInitiate = (e: Event) => {
 		e.preventDefault();
 		if (!settings()) return;
@@ -207,8 +202,8 @@ export const OwnerSettings: Component = () => {
 									{txt().botHiddenFlowsTitle} (مخصوص مالک کل پلتفرم)
 								</h3>
 								<p class="text-[11.5px] text-[var(--tg-hint)] mt-0.5">
-									تنظیم متن استارت ربات مادر (@MiniGuardBot)، متن معرفی در پیوی ربات‌های ساخته شده و ۴ پیام
-									خودکار هنگام عضویت ربات در گروه
+									تنظیم متن استارت ربات مادر (@MiniGuardBot)، متن معرفی در پیوی ربات‌های ساخته شده و
+									۴ پیام خودکار هنگام عضویت ربات در گروه
 								</p>
 							</div>
 							<button

@@ -15,12 +15,13 @@ import crypto from 'node:crypto';
  *    automated PM notifications (6h left, 1h left, threat alerts, and nightly daily stats report).
  */
 
-export type BotLang = 'fa' | 'en' | 'ar' | 'ru' | 'tr' | 'es' | 'pt' | 'de' | 'fr' | 'zh';
+export type BotLang = 'fa' | 'en' | 'ps' | 'ar' | 'ru' | 'tr' | 'es' | 'pt' | 'de' | 'fr' | 'zh';
 
 export const resolveBotLang = (code?: string): BotLang => {
 	if (!code) return 'fa';
 	const c = code.toLowerCase();
 	if (c.startsWith('fa') || c.startsWith('per') || c.startsWith('prs')) return 'fa';
+	if (c.startsWith('ps') || c.startsWith('pus')) return 'ps';
 	if (c.startsWith('ar')) return 'ar';
 	if (c.startsWith('ru') || c.startsWith('uk') || c.startsWith('be')) return 'ru';
 	if (c.startsWith('tr')) return 'tr';
@@ -92,7 +93,7 @@ export function escapeHtml(str: string): string {
 		.replace(/'/g, '&#39;');
 }
 
-// ─── 3. Default /start Response for User-Created Child Bots (10 Languages) ──
+// ─── 3. Default /start Response for User-Created Child Bots (11 Languages) ──
 export function buildChildBotStartMessage(params: {
 	lang: BotLang;
 	userFirstName: string;
@@ -103,6 +104,36 @@ export function buildChildBotStartMessage(params: {
 	const { lang, groupLink } = params;
 	const userFirstName = escapeHtml(params.userFirstName || 'User');
 	const groupTitle = escapeHtml(params.groupTitle || 'Telegram Group');
+
+	if (lang === 'ps') {
+		return {
+			text:
+				`🛡️ سلام او ښه راغلاست <b>${userFirstName}</b>!\n` +
+				`زه د <b>«${groupTitle}»</b> ګروپ <b>ځانګړی امنیتي او هوښیار مدیریتي بوټ</b> یم.\n\n` +
+				`<blockquote>✨ <b>هر ګروپ، خپل ځانګړی مدیریتي بوټ لري!</b>\n` +
+				`دا بوټ د <b>@MiniGuardBot</b> په جلا هسته کار کوي؛ له اعلانونو او ځنډ پرته، او تر ۱۲ ملي ثانیو کم چټک باینري فایروال لري.</blockquote>\n\n` +
+				`🔥 <b>ایا تاسو هم ټیلیګرام ګروپ لرئ؟</b>\n` +
+				`له ۳۰ ثانیو په کم وخت کې په خپل نوم، پروفایل انځور او ځانګړي برانډ سره خپل مدیریتي بوټ جوړ کړئ او له ۱۰۰ څخه زیاتو د سپیم ضد، هوښیارو قلفونو، د چوپتیا ساعتونو او شیشه‌يي پینل له اسانتیاوو څخه خوند واخلئ (۲۴ ساعته وړیا ازمایښت) 👇`,
+			reply_markup: {
+				inline_keyboard: [
+					[
+						{
+							text: '🚀 د @MiniGuardBot له لارې خپل ځانګړی بوټ جوړ کړئ',
+							url: 'https://t.me/MiniGuardBot',
+						},
+					],
+					[
+						{
+							text: `👥 «${groupTitle}» ګروپ ته ننوځئ`,
+							url: groupLink.startsWith('http')
+								? groupLink
+								: `https://t.me/${groupLink.replace('@', '')}`,
+						},
+					],
+				],
+			},
+		};
+	}
 
 	if (lang === 'fa') {
 		return {
@@ -403,8 +434,36 @@ export function buildChildBotStartMessage(params: {
 	};
 }
 
-// ─── 4. Master Bot (@MiniGuardBot) /start Message (4 Languages) ─────────────
+// ─── 4. Master Bot (@MiniGuardBot) /start Message (11 Languages) ────────────
 export function buildMasterBotStartMessage(lang: BotLang, miniAppUrl: string) {
+	if (lang === 'ps') {
+		return {
+			text:
+				`🛡️ <b>MiniGuard™ | هر ګروپ، خپل ځانګړی مدیریتي بوټ!</b>\n\n` +
+				`نور اړتیا نشته چې عامو، ګڼه‌ګوڼې لرونکو، ورو او له اعلانونو ډکو بوټانو ته اړ شئ!\n` +
+				`په <b>@MiniGuardBot</b> کې، هر ټیلیګرام ګروپ ستاسو په خپل نوم، پروفایل انځور او خوښې کارن‌نوم سره <b>خپل ځانګړی مدیریتي بوټ</b> لري.\n\n` +
+				`<blockquote>⚡ <b>د ۱ پر ۱ جلا جوړښت (۱ بوټ = ۱ ګروپ)</b>\n` +
+				`ستاسو بوټ یوازې او یوازې ستاسو د خپل ګروپ لپاره کار کوي؛ یعنې <b>تر ۱۲ ملي ثانیو کم چټک غبرګون</b>، <b>له اجباري اعلانونو پرته</b> او ستاسو د ګروپ غړو ته <b>۱۰۰٪ ځانګړی اعتبار او وقار</b>!</blockquote>\n\n` +
+				`💎 <b>ولې مسلکي اډمینان MiniGuard غوره کوي؟</b>\n` +
+				`• 🤖 <b>ستاسو شخصي برانډ:</b> بوټ ستاسو د خپل @BotFather ټوکن، نوم او لوګو سره د اډمینانو په لیست کې کار کوي.\n` +
+				`• 🛡️ <b>د Bot API 8.x باینري فایروال:</b> د لینکونو، پټو تورو، د اډمین جعلي حسابونو، د چینل ریپلای او د فلډ بریدونو سمدستي مخنیوی.\n` +
+				`• 🎛 <b>۱۱ ژبنی مینی‌اپ او شیشه‌يي پینل:</b> له ۱۰۰ څخه زیات د محتوا قلفونه، د چوپتیا ساعتونه، اجباري غړیتوب، بایومیټریک تایید او ۴۰+ د چټ کمانډونه (<code>بن</code>، <code>سکوت</code>، <code>پینل</code>).\n` +
+				`• 📊 <b>په شخصي پیغام کې هوښیار راپور:</b> ستاسو شخصي چټ ته د ګروپ ورځنۍ احصایه او بیړني امنیتي خبرداري.\n\n` +
+				`🎁 <b>۲۴ ساعته بشپړ وړیا ازمایښت</b> (له ټولو ځانګړنو سره) او وروسته یوازې <b>میاشتنی ۱۰۰ سټارز (⭐)</b>!\n\n` +
+				`👇 <b>همدا اوس لاندې تڼۍ کېکاږئ او په ۳۰ ثانیو کې د خپل ګروپ ځانګړی بوټ فعال کړئ:</b>`,
+			reply_markup: {
+				inline_keyboard: [
+					[
+						{
+							text: '🚀 ځانګړی بوټ جوړ کړئ او MiniGuard ته ننوځئ',
+							web_app: { url: miniAppUrl },
+						},
+					],
+				],
+			},
+		};
+	}
+
 	if (lang === 'fa') {
 		return {
 			text:
@@ -643,6 +702,15 @@ export function buildGroupJoinOnboardingMessages(params: {
 			btnPowered: string;
 		}
 	> = {
+		ps: {
+			handshake: `🛡️ <b>خوندي نښلون بشپړ شو!</b>\nځانګړی بوټ <b>@${botUsername}</b> اوس له <b>«${groupTitle}»</b> ګروپ سره ونښلول شو او د <b>@MiniGuardBot</b> هستې تر ساتنې لاندې دی.`,
+			permsOk: `✅ <b>د اډمین واکونو باینري ارزونه: بشپړه</b>\nد پیغام پاکولو، غړو محدودولو، پیغام پین کولو او بلنې لینک جوړولو واکونه تایید شول. د سپیم او لینک ضد فایروال په بشپړ ځواک فعال دی.`,
+			permsMissing: `⚠️ <b>د اډمین واکونو لوړولو ته اړتیا ده:</b>\nمهرباني وکړئ بوټ ته د <code>Delete Messages</code> او <code>Ban Users</code> واکونه ورکړئ ترڅو فایروال په بشپړ ځواک کار وکړي.`,
+			trialNotice: `🎁 <b>د ۲۴ ساعتونو وړیا ازمایښتي ګډون فعال شو!</b>\nد ګروپ مدیریت ټول ۱۰۰+ پرمختللي ماډلونه د ۲۴ ساعتونو لپاره په بشپړه توګه وړیا خلاص شول. وروسته یوازې په <b>میاشتني ۱۰۰ سټارز (⭐)</b> حفاظت فعال ساتلی شئ.`,
+			panelReady: `⚙️ <b>د ګروپ هوښیار کنټرول پینل چمتو دی</b>\nدرانه اډمینه، د محتوا محدودیتونو، چوپتیا ساعتونو، ښه راغلاست پیغام او ژوندۍ احصایې د تنظیم لپاره لاندې شیشه‌يي تڼۍ کېکاږئ:`,
+			btnPanel: '🎛 د دې ګروپ د تنظیماتو پینل خلاص کړئ',
+			btnPowered: '⚡ د @MiniGuardBot لخوا چمتو شوی',
+		},
 		fa: {
 			handshake: `🛡️ <b>اتصال امن برقرار شد!</b>\nربات اختصاصی <b>@${botUsername}</b> با موفقیت به گروه <b>«${groupTitle}»</b> متصل شد و تحت حفاظت هسته <b>@MiniGuardBot</b> قرار گرفت.`,
 			permsOk: `✅ <b>بررسی باینری دسترسی‌های ادمین: کامل</b>\nدسترسی‌های حذف پیام، محدودسازی اعضا، پین پیام و ساخت لینک دعوت تأیید شد. فایروال ضداسپم و ضدلینک در بالاترین سطح فعال است.`,
@@ -764,9 +832,30 @@ export function buildDailyAnalyticsPmReport(params: {
 	spamBlocked: number;
 	warningsIssued: number;
 }) {
-	const { lang, groupTitle, dateStr, totalMessages, activeUsers, newMembers, spamBlocked, warningsIssued } = params;
+	const {
+		lang,
+		groupTitle,
+		dateStr,
+		totalMessages,
+		activeUsers,
+		newMembers,
+		spamBlocked,
+		warningsIssued,
+	} = params;
 
 	const templates: Record<BotLang, string> = {
+		ps:
+			`📊 <b>د ګروپ ورځنی تحلیلي راپور — @MiniGuardBot</b>\n` +
+			`🏷 ګروپ: <b>${groupTitle}</b>\n` +
+			`📅 نېټه: <code>${dateStr}</code>\n` +
+			`────────────────────\n` +
+			`💬 د نن ټول پیغامونه: <b>${totalMessages.toLocaleString()}</b>\n` +
+			`👥 فعال کارنان: <b>${activeUsers.toLocaleString()}</b>\n` +
+			`➕ نوي غړي: <b>+${newMembers.toLocaleString()}</b>\n` +
+			`🚫 بند شوي سپیم او لینکونه: <b>${spamBlocked.toLocaleString()}</b>\n` +
+			`⚠️ ورکړل شوي خبرداري: <b>${warningsIssued.toLocaleString()}</b>\n` +
+			`────────────────────\n` +
+			`✅ د ګروپ فایروال وضعیت: <b>فعال او خوندي</b>`,
 		fa:
 			`📊 <b>گزارش آمار روزانه گروه — @MiniGuardBot</b>\n` +
 			`🏷 گروه: <b>${groupTitle}</b>\n` +
@@ -905,6 +994,18 @@ export function buildChatJoinRequestVerificationPrompt(params: {
 	const verifyUrl = `${miniAppUrl}#/group/${groupId}?verify_join=1&biometric=${biometricRequired ? '1' : '0'}`;
 
 	const dict: Record<BotLang, { text: string; btnBiometric: string; btnStandard: string }> = {
+		ps: {
+			text:
+				`🛡️ <b>«${groupTitle}» ګروپ ته د ننوتلو هویت تایید</b>\n\n` +
+				`سلام <b>${userFirstName}</b>!\n` +
+				`د سپیم بوټانو د مخنیوي لپاره، مهرباني وکړئ لاندې تڼۍ کېکاږئ${
+					biometricRequired
+						? ' او د ټیلیګرام د بایومیټریک حسګر له لارې خپل هویت تایید کړئ'
+						: ' او خپل هویت تایید کړئ'
+				} ترڅو ستاسو د غړیتوب غوښتنه سمدستي تایید شي:`,
+			btnBiometric: '🔐 بایومیټریک تایید او ګروپ ته ننوتل',
+			btnStandard: '✅ هویت تایید او ګروپ ته ننوتل',
+		},
 		fa: {
 			text:
 				`🛡️ <b>احراز هویت ورود به گروه «${groupTitle}»</b>\n\n` +
@@ -1034,7 +1135,8 @@ export function buildInChatControlPanelMessage(params: {
 	quietHoursActive: boolean;
 	miniAppUrl: string;
 }) {
-	const { lang, groupId, groupTitle, emergencyLock, floodLimit, quietHoursActive, miniAppUrl } = params;
+	const { lang, groupId, groupTitle, emergencyLock, floodLimit, quietHoursActive, miniAppUrl } =
+		params;
 	const panelUrl = `${miniAppUrl}#/group/${groupId}`;
 
 	const dict: Record<
@@ -1053,6 +1155,19 @@ export function buildInChatControlPanelMessage(params: {
 			btnWebApp: string;
 		}
 	> = {
+		ps: {
+			title: `🎛 <b>د چټک کنټرول شیشه‌يي پینل — ${groupTitle}</b>`,
+			emergencyLabel: `• بیړنی قلف: <b>${emergencyLock ? '🔴 فعال' : '🟢 غیرفعال'}</b>`,
+			floodLabel: `• د فلډ ضد حساسیت: <b>په ۵ ثانیو کې ${floodLimit} پیغامونه</b>`,
+			quietLabel: `• د شپې چوپتیا ساعتونه: <b>${quietHoursActive ? '🌙 فعال' : '⚪ بند'}</b>`,
+			footer: 'له چټ څخه بې له وتلو، د سملاسي بدلون لپاره لاندې شیشه‌يي تڼۍ کېکاږئ:',
+			btnLocks: '🛡️ د محتوا قلفونه',
+			btnFlood: '⚡ د فلډ ضد تنظیم',
+			btnQuiet: `🌙 د چوپتیا ساعتونه (${quietHoursActive ? 'فعال' : 'بند'})`,
+			btnEmergencyLock: '🔒 د ګروپ بیړنی قلف',
+			btnEmergencyUnlock: '🔓 د بیړني قلف خلاصول',
+			btnWebApp: '📱 د تنظیماتو بشپړ مینی‌اپ خلاصول',
+		},
 		fa: {
 			title: `🎛 <b>پنل مدیریت سریع شیشه‌ای — ${groupTitle}</b>`,
 			emergencyLabel: `• قفل اضطراری: <b>${emergencyLock ? '🔴 فعال' : '🟢 غیرفعال'}</b>`,
@@ -1219,6 +1334,15 @@ export function buildSafeHibernationNotice(params: {
 	const { lang, groupId, groupTitle, invoiceLink, miniAppUrl } = params;
 
 	const dict: Record<BotLang, { text: string; btnStars: string; btnView: string }> = {
+		ps: {
+			text:
+				`⏸️ <b>د خوندي خوب حالت (Safe Hibernation Mode) — ${groupTitle}</b>\n\n` +
+				`درانه اډمینه، د دې ګروپ د ۲۴ ساعتونو وړیا ازمایښتي دوره یا میاشتنی ګډون پای ته رسېدلی دی.\n` +
+				`⏳ <b>د معلوماتو د ساتنې ۱ اونیزه موده:</b> ستاسو د فایروال ټول تنظیمات، قلفونه، سپین لیست او د ګروپ احصایې یوازې د <b>۱ اونۍ (۷ ورځو)</b> لپاره په ډېټابېس کې خوندي ساتل کېږي او وروسته به په اتوماتيک ډول پاک شي.\n\n` +
+				`⭐ د پخوانیو تنظیماتو له مخې په ۱ ثانیه کې د بوټ د راویښولو لپاره، خپل میاشتنی ګډون په <b>۱۰۰ ټیلیګرام سټارز</b> تمدید کړئ:`,
+			btnStars: '⭐ په ۱۰۰ سټارز سملاسي تمدید (۱ میاشتنی)',
+			btnView: '🎛 د ګروپ خوندي شوي تنظیمات کتل',
+		},
 		fa: {
 			text:
 				`⏸️ <b>حالت خواب ایمن (Safe Hibernation Mode) — ${groupTitle}</b>\n\n` +

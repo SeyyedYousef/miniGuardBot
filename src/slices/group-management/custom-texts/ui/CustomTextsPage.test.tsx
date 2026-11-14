@@ -46,4 +46,13 @@ describe('CustomTextsPage', () => {
 		const elements = await screen.findAllByText(/خوش‌آمدگویی/);
 		expect(elements.length).toBeGreaterThan(0);
 	});
+
+	it('renders Add-Counter text editors and interactive variable chips', async () => {
+		render(() => <CustomTextsPage />);
+		expect((await screen.findAllByText(/متن پیام ادشمار/)).length).toBeGreaterThan(0);
+		expect((await screen.findAllByText(/متن تکمیل هدف ادشمار/)).length).toBeGreaterThan(0);
+		expect((await screen.findAllByText('{added}')).length).toBeGreaterThan(0);
+		expect((await screen.findAllByText('{remain}')).length).toBeGreaterThan(0);
+		expect((await screen.findAllByText('{target}')).length).toBeGreaterThan(0);
+	});
 });

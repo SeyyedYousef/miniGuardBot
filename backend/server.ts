@@ -52,7 +52,9 @@ import {
 	resolveBotLang,
 	verifyTelegramInitData,
 } from './bot-engine.js';
+
 export { escapeHtml };
+
 import {
 	getApiMessage,
 	getLocalizedCallbackNotice,
@@ -60,6 +62,7 @@ import {
 	getLocalizedSubscriptionPackages,
 	resolveRequestLang,
 } from './api-i18n.js';
+
 export { getApiMessage, resolveRequestLang };
 
 // ─── Simple zero-dependency .env loader ─────────────────────────────────────
@@ -306,6 +309,39 @@ export interface GroupAnalyticsData {
 	}>;
 }
 
+export interface AddCounterUserRecord {
+	userId: number;
+	name: string;
+	username?: string;
+	count: number;
+	lifetimeCount: number;
+	invitedUserIds: number[];
+	lastAddedAt: string;
+	completedTarget?: number;
+}
+
+export interface GroupAddCounterState {
+	totalGroupAdds: number;
+	periodStartedAt: string;
+	users: Record<string, AddCounterUserRecord>;
+}
+
+export interface AddCounterConfig {
+	enabled: boolean;
+	sendProgressMessage: boolean;
+	sendCompletionMessage: boolean;
+	requireTargetToChat: boolean;
+	requiredCount: number;
+	preventDuplicateReadd: boolean;
+	ignoreBots: boolean;
+	countAdmins: boolean;
+	countInviteLinks: boolean;
+	autoDeleteSec: number;
+	resetPeriodDays: number;
+	leaderboardEnabled: boolean;
+	exemptions: string[];
+}
+
 export interface GroupRuntimeSettings {
 	groupId: string;
 	chatId: number;
@@ -327,6 +363,7 @@ export interface GroupRuntimeSettings {
 	adminUserIds: number[];
 	fullSettings?: Record<string, any>;
 	analytics?: GroupAnalyticsData;
+	addCounterState?: GroupAddCounterState;
 }
 
 export interface StoredManagedBot {
@@ -500,6 +537,21 @@ const defaultFullSettings = (groupId: string) => ({
 		verification_enabled: false,
 		exemptions: [] as string[],
 	},
+	add_counter: {
+		enabled: false,
+		sendProgressMessage: true,
+		sendCompletionMessage: true,
+		requireTargetToChat: false,
+		requiredCount: 0,
+		preventDuplicateReadd: true,
+		ignoreBots: true,
+		countAdmins: true,
+		countInviteLinks: false,
+		autoDeleteSec: 45,
+		resetPeriodDays: 0,
+		leaderboardEnabled: true,
+		exemptions: [] as string[],
+	} as AddCounterConfig,
 	custom_texts: {
 		welcomeText: '👋 {user} به «{group}» خوش آمدید.',
 		warningText: '⚠️ {user} | اخطار {count}/{threshold} ({reason})',
@@ -508,6 +560,10 @@ const defaultFullSettings = (groupId: string) => ({
 		silenceEndText: '☀️ ساعات سکوت پایان یافت.',
 		forceJoinText: '📢 {user}، برای چت ابتدا عضو شوید: {channel_names}',
 		forceAddText: '👥 {user}، برای چت {remainadd} نفر دعوت کنید ({added}/{number}).',
+		addCounterText:
+			'➕ {user} عزیز، شما تا الان {added} نفر اضافه کردید (+{just_added})\n📊 پیشرفت: {progress_bar} ({percent}%)\n🎯 مانده تا تکمیل ({target} نفر): {remain} نفر',
+		addCounterCompleteText:
+			'🎉 تبریک {user} عزیز! با افزودن {added} عضو، هدف ({target} نفر) با موفقیت تکمیل شد ✅',
 		inlineButtons: [] as Array<{ id: string; title: string; url: string }>,
 	},
 	general: {
@@ -947,7 +1003,15 @@ function loadPersistentStore() {
 		}
 		if (Array.isArray(parsed.runtimeGroups)) {
 			for (const [cid, cfg] of parsed.runtimeGroups) {
-				groupsStore.set(Number(cid), cfg);
+				const numCid = Number(cid);
+				groupsStore.set(numCid, cfg);
+				if (cfg?.addCounterState?.users) {
+					for (const rec of Object.values(cfg.addCounterState.users as Record<string, any>)) {
+						if (rec?.userId && typeof rec.count === 'number') {
+							userInviteCounter.set(`${numCid}:${rec.userId}`, rec.count);
+						}
+					}
+				}
 			}
 		}
 		if (parsed.ownerSystemSettings) {
@@ -1139,18 +1203,15 @@ function syncRuntimeFromFullSettings(s: GroupRuntimeSettings) {
 			typeof cr.removeLinks === 'boolean' ? cr.removeLinks : Boolean(cr.removeLinks?.enabled);
 	}
 	if (cr.blockBots !== undefined) {
-		s.blockBots =
-			typeof cr.blockBots === 'boolean' ? cr.blockBots : Boolean(cr.blockBots?.enabled);
+		s.blockBots = typeof cr.blockBots === 'boolean' ? cr.blockBots : Boolean(cr.blockBots?.enabled);
 	}
 	const extReply = cr.blockCrossChatReplies ?? cr.blockExternalReplies;
 	if (extReply !== undefined) {
-		s.blockCrossChatReplies =
-			typeof extReply === 'boolean' ? extReply : Boolean(extReply?.enabled);
+		s.blockCrossChatReplies = typeof extReply === 'boolean' ? extReply : Boolean(extReply?.enabled);
 	}
 	const storyFwd = cr.blockStoryForwards ?? cr.blockStories;
 	if (storyFwd !== undefined) {
-		s.blockStoryForwards =
-			typeof storyFwd === 'boolean' ? storyFwd : Boolean(storyFwd?.enabled);
+		s.blockStoryForwards = typeof storyFwd === 'boolean' ? storyFwd : Boolean(storyFwd?.enabled);
 	}
 	const custEmoji = cr.blockPremiumCustomEmojis ?? cr.blockCustomEmoji;
 	if (custEmoji !== undefined) {
@@ -1159,8 +1220,7 @@ function syncRuntimeFromFullSettings(s: GroupRuntimeSettings) {
 	}
 	const spoilers = cr.blockSpoilerMessages ?? cr.blockSpoilers;
 	if (spoilers !== undefined) {
-		s.blockSpoilerMessages =
-			typeof spoilers === 'boolean' ? spoilers : Boolean(spoilers?.enabled);
+		s.blockSpoilerMessages = typeof spoilers === 'boolean' ? spoilers : Boolean(spoilers?.enabled);
 	}
 	if (full.limits?.floodMessages !== undefined) {
 		s.floodLimit = Number(full.limits.floodMessages) || 5;
@@ -1177,6 +1237,241 @@ function syncRuntimeFromFullSettings(s: GroupRuntimeSettings) {
 	if (Array.isArray(full.quiet_hours?.periods) && full.quiet_hours.periods.length > 0) {
 		s.quietHoursActive = true;
 	}
+	syncAddCounterAndMandatory(s);
+}
+
+export function getEffectiveAddCounterConfig(s: GroupRuntimeSettings): AddCounterConfig {
+	const full = s.fullSettings || defaultFullSettings(s.groupId);
+	const ac = full.add_counter || {};
+	const mm = full.mandatory_membership || full.forced_Simembership || {};
+	const requiredCount = Math.max(
+		0,
+		Number(ac.requiredCount ?? mm.forced_add_count ?? mm.forcedAddCount ?? 0) || 0,
+	);
+	const requireTargetToChat =
+		ac.requireTargetToChat !== undefined
+			? Boolean(ac.requireTargetToChat)
+			: mm.forced_add_enabled !== undefined
+				? Boolean(mm.forced_add_enabled)
+				: requiredCount > 0;
+
+	return {
+		enabled: Boolean(ac.enabled),
+		sendProgressMessage: ac.sendProgressMessage !== false,
+		sendCompletionMessage: ac.sendCompletionMessage !== false,
+		requireTargetToChat,
+		requiredCount,
+		preventDuplicateReadd: ac.preventDuplicateReadd !== false,
+		ignoreBots: ac.ignoreBots !== false,
+		countAdmins: ac.countAdmins !== false,
+		countInviteLinks: Boolean(ac.countInviteLinks),
+		autoDeleteSec: Math.max(0, Number(ac.autoDeleteSec ?? 45) || 0),
+		resetPeriodDays: Math.max(0, Number(ac.resetPeriodDays ?? 0) || 0),
+		leaderboardEnabled: ac.leaderboardEnabled !== false,
+		exemptions: Array.isArray(ac.exemptions)
+			? ac.exemptions
+			: Array.isArray(mm.exemptions)
+				? mm.exemptions
+				: Array.isArray(mm.excludedUsers)
+					? mm.excludedUsers
+					: [],
+	};
+}
+
+function syncAddCounterAndMandatory(
+	s: GroupRuntimeSettings,
+	source?: 'add_counter' | 'mandatory_membership',
+) {
+	if (!s.fullSettings) {
+		s.fullSettings = defaultFullSettings(s.groupId);
+	}
+	const full = s.fullSettings;
+	if (!full.mandatory_membership) {
+		full.mandatory_membership = {
+			forced_add_enabled: false,
+			forced_add_count: 0,
+			force_join_enabled: false,
+			required_channels: [],
+			verification_enabled: false,
+			exemptions: [],
+		};
+	}
+	if (!full.add_counter) {
+		full.add_counter = getEffectiveAddCounterConfig(s);
+	}
+
+	if (source === 'add_counter') {
+		const ac = getEffectiveAddCounterConfig(s);
+		full.add_counter = ac;
+		full.mandatory_membership.forced_add_enabled = ac.requireTargetToChat;
+		full.mandatory_membership.forced_add_count = ac.requiredCount;
+		full.mandatory_membership.exemptions = ac.exemptions;
+		return;
+	}
+
+	if (source === 'mandatory_membership') {
+		const mm = full.mandatory_membership;
+		const reqCount = Math.max(0, Number(mm.forced_add_count ?? 0) || 0);
+		const reqEnabled = Boolean(mm.forced_add_enabled);
+		full.add_counter = {
+			...getEffectiveAddCounterConfig(s),
+			requireTargetToChat: reqEnabled,
+			requiredCount: reqCount,
+			exemptions: Array.isArray(mm.exemptions) ? mm.exemptions : [],
+		};
+		return;
+	}
+
+	// Default bidirectional reconcile: ensure both objects are normalized
+	const merged = getEffectiveAddCounterConfig(s);
+	full.add_counter = merged;
+}
+
+export function getOrCreateAddCounterState(
+	s: GroupRuntimeSettings,
+	resetPeriodDays = 0,
+): GroupAddCounterState {
+	const nowMs = Date.now();
+	if (!s.addCounterState || typeof s.addCounterState !== 'object') {
+		s.addCounterState = {
+			totalGroupAdds: 0,
+			periodStartedAt: new Date(nowMs).toISOString(),
+			users: {},
+		};
+	}
+	if (!s.addCounterState.users || typeof s.addCounterState.users !== 'object') {
+		s.addCounterState.users = {};
+	}
+	if (!s.addCounterState.periodStartedAt) {
+		s.addCounterState.periodStartedAt = new Date(nowMs).toISOString();
+	}
+
+	// Automatic rolling period reset if configured
+	if (resetPeriodDays > 0) {
+		const startedMs = Date.parse(s.addCounterState.periodStartedAt);
+		if (Number.isFinite(startedMs) && nowMs - startedMs >= resetPeriodDays * 86400 * 1000) {
+			for (const rec of Object.values(s.addCounterState.users)) {
+				rec.count = 0;
+				rec.invitedUserIds = [];
+				rec.completedTarget = undefined;
+				userInviteCounter.set(`${s.chatId}:${rec.userId}`, 0);
+			}
+			s.addCounterState.periodStartedAt = new Date(nowMs).toISOString();
+		}
+	}
+
+	return s.addCounterState;
+}
+
+export function getUserAddCount(s: GroupRuntimeSettings, userId: number): number {
+	const acCfg = getEffectiveAddCounterConfig(s);
+	const state = getOrCreateAddCounterState(s, acCfg.resetPeriodDays);
+	const rec = state.users[String(userId)];
+	if (rec && typeof rec.count === 'number') {
+		return rec.count;
+	}
+	return userInviteCounter.get(`${s.chatId}:${userId}`) || 0;
+}
+
+export function buildAddCounterLeaderboard(
+	s: GroupRuntimeSettings,
+	limit = 50,
+): Array<{
+	rank: number;
+	userId: number;
+	name: string;
+	username?: string;
+	count: number;
+	lifetimeCount: number;
+	lastAddedAt: string;
+	targetCompleted: boolean;
+}> {
+	const acCfg = getEffectiveAddCounterConfig(s);
+	const state = getOrCreateAddCounterState(s, acCfg.resetPeriodDays);
+	const target = acCfg.requiredCount;
+	const entries = Object.values(state.users)
+		.filter((u) => u && (u.count > 0 || u.lifetimeCount > 0))
+		.sort((a, b) => b.count - a.count || b.lifetimeCount - a.lifetimeCount);
+
+	return entries.slice(0, limit).map((u, idx) => ({
+		rank: idx + 1,
+		userId: u.userId,
+		name: u.name,
+		username: u.username,
+		count: u.count,
+		lifetimeCount: u.lifetimeCount,
+		lastAddedAt: u.lastAddedAt,
+		targetCompleted: target > 0 ? u.count >= target : false,
+	}));
+}
+
+function getUserRankInAddCounter(s: GroupRuntimeSettings, userId: number): number {
+	const board = buildAddCounterLeaderboard(s, 5000);
+	const found = board.find((item) => item.userId === userId);
+	return found ? found.rank : board.length + 1;
+}
+
+export function resetAddCounterState(s: GroupRuntimeSettings, targetUserId?: number) {
+	const acCfg = getEffectiveAddCounterConfig(s);
+	const state = getOrCreateAddCounterState(s, acCfg.resetPeriodDays);
+	if (targetUserId !== undefined) {
+		const rec = state.users[String(targetUserId)];
+		if (rec) {
+			rec.count = 0;
+			rec.invitedUserIds = [];
+			rec.completedTarget = undefined;
+		}
+		userInviteCounter.set(`${s.chatId}:${targetUserId}`, 0);
+		return;
+	}
+	for (const rec of Object.values(state.users)) {
+		rec.count = 0;
+		rec.invitedUserIds = [];
+		rec.completedTarget = undefined;
+		userInviteCounter.set(`${s.chatId}:${rec.userId}`, 0);
+	}
+	state.periodStartedAt = new Date().toISOString();
+}
+
+export function adjustUserAddCount(
+	s: GroupRuntimeSettings,
+	params: { userId: number; delta?: number; count?: number; name?: string; username?: string },
+): AddCounterUserRecord {
+	const acCfg = getEffectiveAddCounterConfig(s);
+	const state = getOrCreateAddCounterState(s, acCfg.resetPeriodDays);
+	const uidKey = String(params.userId);
+	if (!state.users[uidKey]) {
+		state.users[uidKey] = {
+			userId: params.userId,
+			name: params.name || `User ${params.userId}`,
+			username: params.username,
+			count: 0,
+			lifetimeCount: 0,
+			invitedUserIds: [],
+			lastAddedAt: new Date().toISOString(),
+		};
+	}
+	const rec = state.users[uidKey];
+	if (params.name) rec.name = params.name;
+	if (params.username) rec.username = params.username;
+
+	const prev = rec.count;
+	const next =
+		params.count !== undefined
+			? Math.max(0, Math.floor(params.count))
+			: Math.max(0, prev + Math.floor(params.delta || 0));
+	const diff = next - prev;
+	rec.count = next;
+	if (diff > 0) {
+		rec.lifetimeCount += diff;
+		state.totalGroupAdds += diff;
+	}
+	rec.lastAddedAt = new Date().toISOString();
+	if (acCfg.requiredCount > 0 && next < acCfg.requiredCount) {
+		rec.completedTarget = undefined;
+	}
+	userInviteCounter.set(`${s.chatId}:${params.userId}`, next);
+	return rec;
 }
 
 // ─── Clean Bot Token Extractor ──────────────────────────────────────────────
@@ -1382,6 +1677,7 @@ const userDuplicateHistory = new Map<string, Array<{ hash: string; ts: number }>
 const userInviteCounter = new Map<string, number>(); // `${chatId}:${userId}` -> invited count
 const lastWelcomeMessageId = new Map<number, number>(); // chatId -> message_id
 const recentWelcomedUsers = new Map<string, number>(); // `${chatId}:${userId}` -> timestamp
+const recentAddEvents = new Map<string, number>(); // `${chatId}:${addedMemberId}` -> timestamp to dedup new_chat_members vs chat_member
 
 function checkUserFlood(chatId: number, userId: number, limit: number, windowSec: number): boolean {
 	if (!limit || limit <= 0) return false;
@@ -1427,6 +1723,15 @@ interface BackendMinimalLocalePack {
 	silenceEndText: string;
 	forceJoinText: string;
 	forceAddText: string;
+	addCounterText: string;
+	addCounterSimpleText: string;
+	addCounterCompleteText: string;
+	myAddsCard: string;
+	topAddsHeader: string;
+	topAddsEmpty: string;
+	addsResetAllDone: string;
+	addsResetUserDone: string;
+	addsAdjustedDone: string;
 	floodNotice: string;
 	reportSent: string;
 	banButton: string;
@@ -1441,6 +1746,19 @@ const BACKEND_MINIMAL_PACKS: Record<string, BackendMinimalLocalePack> = {
 		silenceEndText: '☀️ ساعات سکوت پایان یافت.',
 		forceJoinText: '📢 {user}، برای چت ابتدا عضو شوید: {channel_names}',
 		forceAddText: '👥 {user}، برای چت {remainadd} نفر دعوت کنید ({added}/{number}).',
+		addCounterText:
+			'➕ {user} عزیز، شما تا الان {added} نفر اضافه کردید (+{just_added})\n📊 پیشرفت: {progress_bar} ({percent}%)\n🎯 مانده تا تکمیل ({target} نفر): {remain} نفر',
+		addCounterSimpleText:
+			'➕ {user} عزیز، شما تا الان {added} نفر به «{group}» اضافه کردید (+{just_added})\n🏆 رتبه شما: #{rank} • کل ادهای گروه: {total_group_adds}',
+		addCounterCompleteText:
+			'🎉 تبریک {user} عزیز! با افزودن {added} عضو، هدف ({target} نفر) با موفقیت تکمیل شد ✅',
+		myAddsCard:
+			'📊 <b>آمار ادشمار {user}</b>\n➕ اد فعلی: <b>{added}</b> نفر (کل: {lifetime_added})\n🎯 هدف گروه: <b>{target}</b> • مانده: <b>{remain}</b>\n{progress_bar} <b>{percent}%</b>\n🏆 رتبه در گروه: <b>#{rank}</b>',
+		topAddsHeader: '🏆 <b>برترین ادکنندگان «{group}»</b>\n',
+		topAddsEmpty: '📭 هنوز هیچ ادی در این دوره ثبت نشده است.',
+		addsResetAllDone: '♻️ شمارنده ادهای کل گروه با موفقیت صفر شد.',
+		addsResetUserDone: '♻️ شمارنده ادهای {user} با موفقیت صفر شد.',
+		addsAdjustedDone: '✅ تعداد ادهای {user} به {added} نفر تغییر یافت.',
 		floodNotice: '⚡ {user} | ۱۵ دقیقه سکوت (ارسال رگباری)',
 		reportSent: '🚨 گزارش پیام {target} توسط {user} ثبت شد.',
 		banButton: '🚫 اخراج متخلف',
@@ -1453,6 +1771,19 @@ const BACKEND_MINIMAL_PACKS: Record<string, BackendMinimalLocalePack> = {
 		silenceEndText: '☀️ Quiet hours ended.',
 		forceJoinText: '📢 {user}, join first to chat: {channel_names}',
 		forceAddText: '👥 {user}, invite {remainadd} more to chat ({added}/{number}).',
+		addCounterText:
+			'➕ {user}, you have added {added} member(s) so far (+{just_added})\n📊 Progress: {progress_bar} ({percent}%)\n🎯 Remaining ({target}): {remain}',
+		addCounterSimpleText:
+			'➕ {user}, you have added {added} member(s) to {group} (+{just_added})\n🏆 Rank: #{rank} • Group total: {total_group_adds}',
+		addCounterCompleteText:
+			'🎉 Congrats {user}! Target reached with {added}/{target} added members ✅',
+		myAddsCard:
+			'📊 <b>Add Stats for {user}</b>\n➕ Current Adds: <b>{added}</b> (Lifetime: {lifetime_added})\n🎯 Target: <b>{target}</b> • Remaining: <b>{remain}</b>\n{progress_bar} <b>{percent}%</b>\n🏆 Group Rank: <b>#{rank}</b>',
+		topAddsHeader: '🏆 <b>Top Inviters in {group}</b>\n',
+		topAddsEmpty: '📭 No member adds recorded in this period yet.',
+		addsResetAllDone: '♻️ Group add counter has been reset to 0.',
+		addsResetUserDone: '♻️ Add counter for {user} has been reset to 0.',
+		addsAdjustedDone: '✅ Add count for {user} set to {added}.',
 		floodNotice: '⚡ {user} | Muted 15m (Flood)',
 		reportSent: '🚨 Reported {target} by {user}.',
 		banButton: '🚫 Ban User',
@@ -1465,6 +1796,18 @@ const BACKEND_MINIMAL_PACKS: Record<string, BackendMinimalLocalePack> = {
 		silenceEndText: '☀️ انتهى وقت الهدوء.',
 		forceJoinText: '📢 {user}، اشترك أولاً للمحادثة: {channel_names}',
 		forceAddText: '👥 {user}، قم بدعوة {remainadd} عضو للمحادثة ({added}/{number}).',
+		addCounterText:
+			'➕ {user}، لقد أضفت {added} عضو حتى الآن (+{just_added})\n📊 التقدم: {progress_bar} ({percent}%)\n🎯 المتبقي ({target}): {remain}',
+		addCounterSimpleText:
+			'➕ {user}، لقد أضفت {added} عضو في «{group}» (+{just_added})\n🏆 الترتيب: #{rank}',
+		addCounterCompleteText: '🎉 تهانينا {user}! تم إكمال الهدف ({added}/{target}) بنجاح ✅',
+		myAddsCard:
+			'📊 <b>إحصائيات الإضافة لـ {user}</b>\n➕ الإضافات الحالية: <b>{added}</b>\n🎯 المطلوب: <b>{target}</b> • المتبقي: <b>{remain}</b>\n{progress_bar} <b>{percent}%</b>',
+		topAddsHeader: '🏆 <b>أفضل الداعين في «{group}»</b>\n',
+		topAddsEmpty: '📭 لا توجد إضافات مسجلة في هذه الفترة.',
+		addsResetAllDone: '♻️ تم تصفير عداد الإضافات للمجموعة.',
+		addsResetUserDone: '♻️ تم تصفير عداد الإضافات لـ {user}.',
+		addsAdjustedDone: '✅ تم تحديث إضافات {user} إلى {added}.',
 		floodNotice: '⚡ {user} | كتم 15 دقيقة (تكرار)',
 		reportSent: '🚨 تم الإبلاغ عن {target} بواسطة {user}.',
 		banButton: '🚫 حظر المخالف',
@@ -1477,6 +1820,18 @@ const BACKEND_MINIMAL_PACKS: Record<string, BackendMinimalLocalePack> = {
 		silenceEndText: '☀️ Тихий час завершен.',
 		forceJoinText: '📢 {user}, подпишитесь для общения: {channel_names}',
 		forceAddText: '👥 {user}, пригласите еще {remainadd} чел. ({added}/{number}).',
+		addCounterText:
+			'➕ {user}, вы добавили {added} уч. (+{just_added})\n📊 Прогресс: {progress_bar} ({percent}%)\n🎯 Осталось ({target}): {remain}',
+		addCounterSimpleText:
+			'➕ {user}, вы добавили {added} уч. в «{group}» (+{just_added})\n🏆 Ранг: #{rank}',
+		addCounterCompleteText: '🎉 Поздравляем, {user}! Цель ({added}/{target}) достигнута ✅',
+		myAddsCard:
+			'📊 <b>Статистика инвайтов {user}</b>\n➕ Сейчас: <b>{added}</b> • Цель: <b>{target}</b>\n🎯 Осталось: <b>{remain}</b>\n{progress_bar} <b>{percent}%</b>',
+		topAddsHeader: '🏆 <b>Топ инвайтеров «{group}»</b>\n',
+		topAddsEmpty: '📭 Приглашений пока не зарегистрировано.',
+		addsResetAllDone: '♻️ Счетчик приглашений группы сброшен.',
+		addsResetUserDone: '♻️ Счетчик {user} сброшен.',
+		addsAdjustedDone: '✅ Счетчик {user} установлен на {added}.',
 		floodNotice: '⚡ {user} | Мут 15м (Флуд)',
 		reportSent: '🚨 Жалоба на {target} от {user}.',
 		banButton: '🚫 Забанить',
@@ -1489,15 +1844,52 @@ const BACKEND_MINIMAL_PACKS: Record<string, BackendMinimalLocalePack> = {
 		silenceEndText: '☀️ Sessiz saatler sona erdi.',
 		forceJoinText: '📢 {user}, yazmak için katılın: {channel_names}',
 		forceAddText: '👥 {user}, yazmak için {remainadd} kişi davet edin ({added}/{number}).',
+		addCounterText:
+			'➕ {user}, şu ana kadar {added} kişi eklediniz (+{just_added})\n📊 İlerleme: {progress_bar} ({percent}%)\n🎯 Kalan ({target}): {remain}',
+		addCounterSimpleText:
+			'➕ {user}, {group} grubuna {added} kişi eklediniz (+{just_added})\n🏆 Sıra: #{rank}',
+		addCounterCompleteText: '🎉 Tebrikler {user}! Hedef tamamlandı ({added}/{target}) ✅',
+		myAddsCard:
+			'📊 <b>{user} Ekleme İstatistikleri</b>\n➕ Eklenen: <b>{added}</b> • Hedef: <b>{target}</b>\n🎯 Kalan: <b>{remain}</b>\n{progress_bar} <b>{percent}%</b>',
+		topAddsHeader: '🏆 <b>{group} En Çok Ekleyenler</b>\n',
+		topAddsEmpty: '📭 Henüz ekleme kaydı yok.',
+		addsResetAllDone: '♻️ Grup ekleme sayacı sıfırlandı.',
+		addsResetUserDone: '♻️ {user} sayacı sıfırlandı.',
+		addsAdjustedDone: '✅ {user} ekleme sayısı {added} olarak ayarlandı.',
 		floodNotice: '⚡ {user} | 15dk susturuldu (Flood)',
 		reportSent: '🚨 {target}, {user} tarafından bildirildi.',
 		banButton: '🚫 Yasakla',
 	},
+	ps: {
+		welcomeText: '👋 {user}، «{group}» ګروپ ته ښه راغلاست.',
+		warningText: '⚠️ {user} | خبرداری {count}/{threshold} ({reason})',
+		rulesText: '📜 قوانین: متقابل درناوی • د لینکونو او سپیم لېږل منع دي',
+		silenceStartText: '🌙 د چوپتیا ساعتونه فعال دي.',
+		silenceEndText: '☀️ د چوپتیا ساعتونه پای ته ورسېدل.',
+		forceJoinText: '📢 {user}، د چټ کولو لپاره لومړی غړیتوب واخلئ: {channel_names}',
+		forceAddText: '👥 {user}، د چټ کولو لپاره {remainadd} نور کسان رادعوت کړئ ({added}/{number}).',
+		addCounterText:
+			'➕ ګرانه {user}، تاسو تر دې دمه {added} کسان ورګډ کړي دي (+{just_added})\n📊 پرمختګ: {progress_bar} ({percent}%)\n🎯 پاتې تر هدف ({target} کسان): {remain} کسان',
+		addCounterSimpleText:
+			'➕ ګرانه {user}، تاسو تر اوسه «{group}» ته {added} کسان ورګډ کړي دي (+{just_added})\n🏆 ستاسو درجه: #{rank} • د ګروپ ټول ورګډونونه: {total_group_adds}',
+		addCounterCompleteText:
+			'🎉 مبارکي {user}! تاسو د {added} غړو په ورګډولو سره هدف ({target} کسان) په بریالیتوب بشپړ کړ ✅',
+		myAddsCard:
+			'📊 <b>د {user} د غړو ورګډولو احصایه</b>\n➕ اوسني ورګډونونه: <b>{added}</b> کسان (ټول: {lifetime_added})\n🎯 د ګروپ هدف: <b>{target}</b> • پاتې: <b>{remain}</b>\n{progress_bar} <b>{percent}%</b>\n🏆 په ګروپ کې درجه: <b>#{rank}</b>',
+		topAddsHeader: '🏆 <b>د «{group}» ګروپ تر ټولو فعال بلونکي</b>\n',
+		topAddsEmpty: '📭 په دې موده کې تر اوسه کوم غړی نه دی ورګډ شوی.',
+		addsResetAllDone: '♻️ د ټول ګروپ د ورګډولو شمېرنه په بریالیتوب سره صفر شوه.',
+		addsResetUserDone: '♻️ د {user} د ورګډولو شمېرنه په بریالیتوب سره صفر شوه.',
+		addsAdjustedDone: '✅ د {user} د ورګډو شویو کسانو شمېر {added} ته تنظیم شو.',
+		floodNotice: '⚡ {user} | ۱۵ دقیقې بې‌غږه شو (پرله‌پسې پیغامونه)',
+		reportSent: '🚨 د {user} لخوا د {target} پر پیغام راپور ثبت شو.',
+		banButton: '🚫 سرغړونکی شړل',
+	},
 };
 
 function getBackendMinimalPack(lang?: string): BackendMinimalLocalePack {
-	const l = (lang || 'fa').toLowerCase().slice(0, 2);
-	return BACKEND_MINIMAL_PACKS[l] || BACKEND_MINIMAL_PACKS.en;
+	const resolved = resolveBotLang(lang || 'fa');
+	return BACKEND_MINIMAL_PACKS[resolved] || BACKEND_MINIMAL_PACKS.en;
 }
 
 const LEGACY_CUSTOM_TEXT_SET = new Set([
@@ -1511,34 +1903,87 @@ const LEGACY_CUSTOM_TEXT_SET = new Set([
 	'سلام {name} عزیز! به گروه {group} خوش آمدی 🌹',
 ]);
 
-function resolveCustomTemplate(
-	savedValue: string | undefined,
-	fallbackValue: string,
-): string {
+function resolveCustomTemplate(savedValue: string | undefined, fallbackValue: string): string {
 	if (!savedValue || !savedValue.trim() || LEGACY_CUSTOM_TEXT_SET.has(savedValue.trim())) {
 		return fallbackValue;
 	}
 	return savedValue;
 }
 
-function formatGroupTemplate(
+function buildProgressBar(added: number, target: number, width = 8): string {
+	if (target <= 0) {
+		const filled = Math.max(0, Math.min(width, added));
+		return '🟩'.repeat(filled) + '⬜'.repeat(width - filled);
+	}
+	const ratio = Math.max(0, Math.min(1, added / target));
+	const filled = Math.round(ratio * width);
+	return '🟩'.repeat(filled) + '⬜'.repeat(width - filled);
+}
+
+function getFormattedLocalDate(lang = 'fa'): string {
+	try {
+		const locale = lang.startsWith('fa') ? 'fa-IR-u-ca-persian' : 'en-CA';
+		return new Intl.DateTimeFormat(locale, {
+			year: 'numeric',
+			month: '2-digit',
+			day: '2-digit',
+		}).format(new Date());
+	} catch {
+		return new Date().toISOString().slice(0, 10);
+	}
+}
+
+function buildCleanInlineButtonsMarkup(customTexts?: Record<string, any>) {
+	const rawButtons = Array.isArray(customTexts?.inlineButtons) ? customTexts.inlineButtons : [];
+	const cleanButtons = rawButtons.filter(
+		(b: any) =>
+			b?.title &&
+			b?.url &&
+			/^https?:\/\//i.test(String(b.url).trim()) &&
+			!String(b.url).includes('t.me/MiniGuardBot') &&
+			!String(b.title).includes('@MiniGuardBot'),
+	);
+	return cleanButtons.length > 0
+		? {
+				inline_keyboard: cleanButtons.map((b: any) => [
+					{ text: String(b.title).trim(), url: String(b.url).trim() },
+				]),
+			}
+		: undefined;
+}
+
+export function formatGroupTemplate(
 	template: string,
 	vars: {
 		user?: string;
 		name?: string;
+		username?: string;
 		id?: number | string;
 		group?: string;
 		time?: string;
+		date?: string;
+		lang?: string;
 		reason?: string;
+		rule?: string;
 		count?: number | string;
 		threshold?: number | string;
 		channel_names?: string;
 		remainadd?: number | string;
+		remain?: number | string;
 		added?: number | string;
+		lifetime_added?: number | string;
 		number?: number | string;
+		target?: number | string;
+		just_added?: number | string;
+		added_users?: string;
+		percent?: number | string;
+		progress_bar?: string;
+		rank?: number | string;
+		total_group_adds?: number | string;
 	},
 ): string {
-	const userStr = escapeHtml(vars.user || vars.name || 'کاربر');
+	const rawUser = vars.user || vars.name || 'کاربر';
+	const userStr = escapeHtml(rawUser);
 	const groupStr = escapeHtml(vars.group || 'گروه');
 	const nowTime =
 		vars.time ||
@@ -1547,20 +1992,59 @@ function formatGroupTemplate(
 			hour: '2-digit',
 			minute: '2-digit',
 		}).format(new Date());
+	const nowDate = vars.date || getFormattedLocalDate(vars.lang || 'fa');
+	const usernameRaw = String(vars.username || '')
+		.trim()
+		.replace(/^@/, '');
+	const usernameStr = usernameRaw ? `@${escapeHtml(usernameRaw)}` : `<b>${userStr}</b>`;
+	const mentionStr = vars.id
+		? `<a href="tg://user?id=${escapeHtml(String(vars.id))}">${userStr}</a>`
+		: `<b>${userStr}</b>`;
+
+	const addedNum = Math.max(0, Number(vars.added ?? 0) || 0);
+	const targetNum = Math.max(0, Number(vars.target ?? vars.number ?? 0) || 0);
+	const remainNum =
+		vars.remain !== undefined
+			? Math.max(0, Number(vars.remain) || 0)
+			: vars.remainadd !== undefined
+				? Math.max(0, Number(vars.remainadd) || 0)
+				: Math.max(0, targetNum - addedNum);
+	const percentNum =
+		vars.percent !== undefined
+			? Math.max(0, Math.min(100, Number(vars.percent) || 0))
+			: targetNum > 0
+				? Math.max(0, Math.min(100, Math.round((addedNum / targetNum) * 100)))
+				: addedNum > 0
+					? 100
+					: 0;
+	const progressBarStr = vars.progress_bar || buildProgressBar(addedNum, targetNum);
 
 	return template
 		.replace(/\{user\}/gi, `<b>${userStr}</b>`)
 		.replace(/\{name\}/gi, `<b>${userStr}</b>`)
-		.replace(/\{id\}/gi, String(vars.id ?? ''))
+		.replace(/\{mention\}/gi, mentionStr)
+		.replace(/\{username\}/gi, usernameStr)
+		.replace(/\{id\}/gi, escapeHtml(String(vars.id ?? '')))
 		.replace(/\{group\}/gi, `<b>${groupStr}</b>`)
-		.replace(/\{time\}/gi, nowTime)
+		.replace(/\{time\}/gi, escapeHtml(nowTime))
+		.replace(/\{date\}/gi, escapeHtml(nowDate))
 		.replace(/\{reason\}/gi, escapeHtml(vars.reason || ''))
+		.replace(/\{rule\}/gi, escapeHtml(vars.rule || vars.reason || ''))
 		.replace(/\{count\}/gi, String(vars.count ?? 1))
 		.replace(/\{threshold\}/gi, String(vars.threshold ?? 3))
 		.replace(/\{channel_names\}/gi, escapeHtml(vars.channel_names || ''))
-		.replace(/\{remainadd\}/gi, String(vars.remainadd ?? 0))
-		.replace(/\{added\}/gi, String(vars.added ?? 0))
-		.replace(/\{number\}/gi, String(vars.number ?? 0));
+		.replace(/\{remainadd\}/gi, String(remainNum))
+		.replace(/\{remain\}/gi, String(remainNum))
+		.replace(/\{added\}/gi, String(addedNum))
+		.replace(/\{lifetime_added\}/gi, String(vars.lifetime_added ?? addedNum))
+		.replace(/\{number\}/gi, String(targetNum))
+		.replace(/\{target\}/gi, String(targetNum))
+		.replace(/\{just_added\}/gi, String(vars.just_added ?? 0))
+		.replace(/\{added_users\}/gi, escapeHtml(vars.added_users || ''))
+		.replace(/\{percent\}/gi, String(percentNum))
+		.replace(/\{progress_bar\}/gi, progressBarStr)
+		.replace(/\{rank\}/gi, String(vars.rank ?? 1))
+		.replace(/\{total_group_adds\}/gi, String(vars.total_group_adds ?? addedNum));
 }
 
 function getCurrentTimeHHMM(timezone: string = 'Asia/Tehran'): string {
@@ -1585,10 +2069,7 @@ function isTimeWithinRange(currentHHMM: string, startHHMM: string, endHHMM: stri
 	return currentHHMM >= startHHMM || currentHHMM <= endHHMM;
 }
 
-function isRuleActiveNow(
-	ruleObj: any,
-	currentHHMM: string,
-): { active: boolean; penalty: string } {
+function isRuleActiveNow(ruleObj: any, currentHHMM: string): { active: boolean; penalty: string } {
 	if (ruleObj === undefined || ruleObj === null) return { active: false, penalty: 'default' };
 	if (typeof ruleObj === 'boolean') return { active: ruleObj, penalty: 'default' };
 	if (typeof ruleObj === 'object') {
@@ -1611,7 +2092,13 @@ function isRuleActiveNow(
 async function sendWelcomeForNewMember(params: {
 	chatId: number;
 	chatTitle: string;
-	member: { id: number; first_name?: string; last_name?: string; username?: string; is_bot?: boolean };
+	member: {
+		id: number;
+		first_name?: string;
+		last_name?: string;
+		username?: string;
+		is_bot?: boolean;
+	};
 	settings: GroupRuntimeSettings;
 	token: string;
 }): Promise<void> {
@@ -1641,34 +2128,22 @@ async function sendWelcomeForNewMember(params: {
 	);
 	const displayName =
 		`${member.first_name || ''} ${member.last_name || ''}`.trim() ||
-		(member.username ? `@${member.username}` : 'کاربر');
+		(member.username
+			? `@${member.username}`
+			: resolveBotLang(groupLang) === 'ps'
+				? 'کارن'
+				: 'کاربر');
 
 	const formattedText = formatGroupTemplate(rawTemplate, {
 		user: displayName,
 		name: displayName,
 		id: member.id,
-		group: chatTitle || settings.chatTitle || 'گروه',
+		group:
+			chatTitle || settings.chatTitle || (resolveBotLang(groupLang) === 'ps' ? 'ګروپ' : 'گروه'),
 		time: getCurrentTimeHHMM(generalCfg.timezone || 'Asia/Tehran'),
 	});
 
-	const rawButtons = Array.isArray(customTexts.inlineButtons) ? customTexts.inlineButtons : [];
-	const cleanButtons = rawButtons.filter(
-		(b: any) =>
-			b?.title &&
-			b?.url &&
-			/^https?:\/\//i.test(String(b.url).trim()) &&
-			!String(b.url).includes('t.me/MiniGuardBot') &&
-			!String(b.title).includes('@MiniGuardBot'),
-	);
-
-	const replyMarkup =
-		cleanButtons.length > 0
-			? {
-					inline_keyboard: cleanButtons.map((b: any) => [
-						{ text: String(b.title).trim(), url: String(b.url).trim() },
-					]),
-				}
-			: undefined;
+	const replyMarkup = buildCleanInlineButtonsMarkup(customTexts);
 
 	// Clean previous welcome message if enabled
 	if (welcomeCfg.cleanPreviousWelcome !== false) {
@@ -1689,13 +2164,201 @@ async function sendWelcomeForNewMember(params: {
 		lastWelcomeMessageId.set(chatId, msgId);
 		const shouldAutoDelete =
 			generalCfg.ephemeralWelcome !== false || generalCfg.autoDeleteBot !== false;
-		const delaySec = Math.max(5, Number(generalCfg.autoDeleteDelay || welcomeCfg.autoDeleteSec || 60));
+		const delaySec = Math.max(
+			5,
+			Number(generalCfg.autoDeleteDelay || welcomeCfg.autoDeleteSec || 60),
+		);
 		if (shouldAutoDelete && process.env.NODE_ENV !== 'test' && !process.env.VITEST) {
 			setTimeout(() => {
 				telegram.deleteMessage(chatId, msgId, token).catch(() => {});
 			}, delaySec * 1000).unref?.();
 		}
 	}
+}
+
+async function recordAndNotifyMemberAdds(params: {
+	chatId: number;
+	inviter: {
+		id: number;
+		first_name?: string;
+		last_name?: string;
+		username?: string;
+		is_bot?: boolean;
+	};
+	addedMembers: Array<{
+		id: number;
+		first_name?: string;
+		last_name?: string;
+		username?: string;
+		is_bot?: boolean;
+	}>;
+	settings: GroupRuntimeSettings;
+	inviterIsAdmin: boolean;
+	token: string;
+}): Promise<{ creditedCount: number }> {
+	const { chatId, inviter, addedMembers, settings, inviterIsAdmin, token } = params;
+	if (!inviter?.id || !Array.isArray(addedMembers) || addedMembers.length === 0) {
+		return { creditedCount: 0 };
+	}
+
+	const full = settings.fullSettings || defaultFullSettings(settings.groupId);
+	const generalCfg = full.general || {};
+	const acCfg = getEffectiveAddCounterConfig(settings);
+	const state = getOrCreateAddCounterState(settings, acCfg.resetPeriodDays);
+	const nowMs = Date.now();
+
+	// Deduplicate across new_chat_members and chat_member within 15 seconds
+	const freshMembers: typeof addedMembers = [];
+	for (const m of addedMembers) {
+		if (!m?.id || m.id === inviter.id) continue;
+		const evKey = `${chatId}:${m.id}`;
+		const prevTs = recentAddEvents.get(evKey) || 0;
+		if (nowMs - prevTs < 15000) continue;
+		recentAddEvents.set(evKey, nowMs);
+		if (acCfg.ignoreBots && m.is_bot) continue;
+		freshMembers.push(m);
+	}
+	if (recentAddEvents.size > 5000) {
+		recentAddEvents.clear();
+	}
+
+	if (freshMembers.length === 0) {
+		return { creditedCount: 0 };
+	}
+
+	if (inviterIsAdmin && !acCfg.countAdmins) {
+		return { creditedCount: 0 };
+	}
+
+	// Anti-cheat: prevent duplicate credit for already-invited member IDs across group period
+	const alreadyInvitedSet = new Set<number>();
+	if (acCfg.preventDuplicateReadd) {
+		for (const uRec of Object.values(state.users)) {
+			for (const idVal of uRec.invitedUserIds || []) {
+				alreadyInvitedSet.add(idVal);
+			}
+		}
+	}
+
+	const creditedMembers = freshMembers.filter((m) => !alreadyInvitedSet.has(m.id));
+	if (creditedMembers.length === 0) {
+		return { creditedCount: 0 };
+	}
+
+	const uidKey = String(inviter.id);
+	const inviterName =
+		`${inviter.first_name || ''} ${inviter.last_name || ''}`.trim() ||
+		(inviter.username ? `@${inviter.username}` : 'کاربر');
+
+	if (!state.users[uidKey]) {
+		state.users[uidKey] = {
+			userId: inviter.id,
+			name: inviterName,
+			username: inviter.username,
+			count: 0,
+			lifetimeCount: 0,
+			invitedUserIds: [],
+			lastAddedAt: new Date(nowMs).toISOString(),
+		};
+	}
+
+	const rec = state.users[uidKey];
+	rec.name = inviterName;
+	if (inviter.username) rec.username = inviter.username;
+	const prevCount = rec.count;
+	rec.count += creditedMembers.length;
+	rec.lifetimeCount += creditedMembers.length;
+	rec.lastAddedAt = new Date(nowMs).toISOString();
+	rec.invitedUserIds = [...(rec.invitedUserIds || []), ...creditedMembers.map((m) => m.id)].slice(
+		-2000,
+	);
+
+	state.totalGroupAdds += creditedMembers.length;
+	userInviteCounter.set(`${chatId}:${inviter.id}`, rec.count);
+
+	// Announce in group chat if Add-Counter feature is enabled
+	if (acCfg.enabled && generalCfg.botEnabled !== false) {
+		const groupLang = generalCfg.language || settings.language || 'fa';
+		const pack = getBackendMinimalPack(groupLang);
+		const customTexts = full.custom_texts || {};
+		const target = acCfg.requiredCount;
+		const justCompleted =
+			target > 0 &&
+			prevCount < target &&
+			rec.count >= target &&
+			rec.completedTarget !== target &&
+			acCfg.sendCompletionMessage;
+
+		const shouldSend = justCompleted || acCfg.sendProgressMessage;
+		if (shouldSend) {
+			const trimmedCustomAddText = String(customTexts.addCounterText || '').trim();
+			const isDefaultAddCounterText =
+				!trimmedCustomAddText ||
+				Object.values(BACKEND_MINIMAL_PACKS).some(
+					(p) => p.addCounterText.trim() === trimmedCustomAddText,
+				);
+			const rawTpl = justCompleted
+				? resolveCustomTemplate(customTexts.addCounterCompleteText, pack.addCounterCompleteText)
+				: isDefaultAddCounterText && target <= 0
+					? pack.addCounterSimpleText
+					: resolveCustomTemplate(customTexts.addCounterText, pack.addCounterText);
+
+			const addedNamesStr = creditedMembers
+				.map(
+					(m) =>
+						`${m.first_name || ''} ${m.last_name || ''}`.trim() ||
+						(m.username ? `@${m.username}` : `User ${m.id}`),
+				)
+				.join('، ');
+
+			const rank = getUserRankInAddCounter(settings, inviter.id);
+			const formattedMsg = formatGroupTemplate(rawTpl, {
+				user: inviterName,
+				name: inviterName,
+				username: inviter.username,
+				id: inviter.id,
+				group: settings.chatTitle,
+				time: getCurrentTimeHHMM(generalCfg.timezone || 'Asia/Tehran'),
+				lang: groupLang,
+				added: rec.count,
+				lifetime_added: rec.lifetimeCount,
+				remain: Math.max(0, target - rec.count),
+				remainadd: Math.max(0, target - rec.count),
+				target,
+				number: target,
+				just_added: creditedMembers.length,
+				added_users: addedNamesStr,
+				rank,
+				total_group_adds: state.totalGroupAdds,
+			});
+
+			if (justCompleted) {
+				rec.completedTarget = target;
+			}
+
+			const replyMarkup = buildCleanInlineButtonsMarkup(customTexts);
+			const sent = await telegram.sendMessage(
+				chatId,
+				formattedMsg,
+				{ reply_markup: replyMarkup },
+				token,
+			);
+			if (
+				acCfg.autoDeleteSec > 0 &&
+				sent.ok &&
+				sent.result?.message_id &&
+				process.env.NODE_ENV !== 'test' &&
+				!process.env.VITEST
+			) {
+				const delMsgId = sent.result.message_id;
+				setTimeout(() => {
+					telegram.deleteMessage(chatId, delMsgId, token).catch(() => {});
+				}, acCfg.autoDeleteSec * 1000).unref?.();
+			}
+		}
+	}
+
+	return { creditedCount: creditedMembers.length };
 }
 
 function evaluateGroupContentAndLimits(params: {
@@ -1744,46 +2407,101 @@ function evaluateGroupContentAndLimits(params: {
 	// 2. Media Restrictions
 	if (msg.photo) {
 		const r = checkRule(['blockPhotos', 'LockPhotos']);
-		if (r.active) return { allowed: false, reasonFa: 'ارسال تصویر', reasonEn: 'Photo blocked', penalty: r.penalty };
+		if (r.active)
+			return {
+				allowed: false,
+				reasonFa: 'ارسال تصویر',
+				reasonEn: 'Photo blocked',
+				penalty: r.penalty,
+			};
 	}
 	if (msg.video) {
 		const r = checkRule(['blockVideos', 'LockVideos']);
-		if (r.active) return { allowed: false, reasonFa: 'ارسال ویدیو', reasonEn: 'Video blocked', penalty: r.penalty };
+		if (r.active)
+			return {
+				allowed: false,
+				reasonFa: 'ارسال ویدیو',
+				reasonEn: 'Video blocked',
+				penalty: r.penalty,
+			};
 	}
 	if (msg.sticker) {
 		const r = checkRule(['blockStickers', 'LockStickers', 'LockAnimatedStickers']);
-		if (r.active) return { allowed: false, reasonFa: 'ارسال استیکر', reasonEn: 'Sticker blocked', penalty: r.penalty };
+		if (r.active)
+			return {
+				allowed: false,
+				reasonFa: 'ارسال استیکر',
+				reasonEn: 'Sticker blocked',
+				penalty: r.penalty,
+			};
 	}
 	if (msg.animation) {
 		const r = checkRule(['blockGifs', 'LockGIFs']);
-		if (r.active) return { allowed: false, reasonFa: 'ارسال گیف', reasonEn: 'GIF blocked', penalty: r.penalty };
+		if (r.active)
+			return { allowed: false, reasonFa: 'ارسال گیف', reasonEn: 'GIF blocked', penalty: r.penalty };
 	}
 	if (msg.voice || msg.video_note) {
 		const r = checkRule(['blockVoiceMessages', 'LockVoice', 'LockRoundVideos']);
-		if (r.active) return { allowed: false, reasonFa: 'ارسال ویس/ویدیو مسیج', reasonEn: 'Voice blocked', penalty: r.penalty };
+		if (r.active)
+			return {
+				allowed: false,
+				reasonFa: 'ارسال ویس/ویدیو مسیج',
+				reasonEn: 'Voice blocked',
+				penalty: r.penalty,
+			};
 	}
 	if (msg.audio) {
 		const r = checkRule(['blockAudio', 'LockAudio']);
-		if (r.active) return { allowed: false, reasonFa: 'ارسال فایل صوتی', reasonEn: 'Audio blocked', penalty: r.penalty };
+		if (r.active)
+			return {
+				allowed: false,
+				reasonFa: 'ارسال فایل صوتی',
+				reasonEn: 'Audio blocked',
+				penalty: r.penalty,
+			};
 	}
 	if (msg.document) {
 		const r = checkRule(['blockFiles', 'LockFiles']);
-		if (r.active) return { allowed: false, reasonFa: 'ارسال فایل', reasonEn: 'File blocked', penalty: r.penalty };
+		if (r.active)
+			return {
+				allowed: false,
+				reasonFa: 'ارسال فایل',
+				reasonEn: 'File blocked',
+				penalty: r.penalty,
+			};
 	}
 	if (msg.location || msg.venue) {
 		const r = checkRule(['blockLocations', 'LockLocations', 'LockLiveLocations']);
-		if (r.active) return { allowed: false, reasonFa: 'ارسال لوکیشن', reasonEn: 'Location blocked', penalty: r.penalty };
+		if (r.active)
+			return {
+				allowed: false,
+				reasonFa: 'ارسال لوکیشن',
+				reasonEn: 'Location blocked',
+				penalty: r.penalty,
+			};
 	}
 	if (msg.contact) {
 		const r = checkRule(['blockContacts', 'LockContacts']);
-		if (r.active) return { allowed: false, reasonFa: 'ارسال مخاطب', reasonEn: 'Contact blocked', penalty: r.penalty };
+		if (r.active)
+			return {
+				allowed: false,
+				reasonFa: 'ارسال مخاطب',
+				reasonEn: 'Contact blocked',
+				penalty: r.penalty,
+			};
 	}
 	if (
 		(msg.photo || msg.video || msg.document || msg.animation || msg.audio) &&
 		(!msg.caption || !msg.caption.trim())
 	) {
 		const r = checkRule(['blockCaptionless']);
-		if (r.active) return { allowed: false, reasonFa: 'رسانه بدون کپشن', reasonEn: 'Captionless media', penalty: r.penalty };
+		if (r.active)
+			return {
+				allowed: false,
+				reasonFa: 'رسانه بدون کپشن',
+				reasonEn: 'Captionless media',
+				penalty: r.penalty,
+			};
 	}
 
 	// 3. Interactions & Forwards
@@ -1793,7 +2511,12 @@ function evaluateGroupContentAndLimits(params: {
 	if (isForwarded) {
 		const rAll = checkRule(['blockForwards']);
 		if (rAll.active) {
-			return { allowed: false, reasonFa: 'فوروارد پیام', reasonEn: 'Forward blocked', penalty: rAll.penalty };
+			return {
+				allowed: false,
+				reasonFa: 'فوروارد پیام',
+				reasonEn: 'Forward blocked',
+				penalty: rAll.penalty,
+			};
 		}
 		const isChannelFwd =
 			msg.forward_from_chat?.type === 'channel' ||
@@ -1802,78 +2525,183 @@ function evaluateGroupContentAndLimits(params: {
 		if (isChannelFwd) {
 			const rChan = checkRule(['restrictChannelForwards', 'blockChannelForwards']);
 			if (rChan.active) {
-				return { allowed: false, reasonFa: 'فوروارد از کانال', reasonEn: 'Channel forward', penalty: rChan.penalty };
+				return {
+					allowed: false,
+					reasonFa: 'فوروارد از کانال',
+					reasonEn: 'Channel forward',
+					penalty: rChan.penalty,
+				};
 			}
 		}
 	}
 	if (msg.via_bot) {
 		const r = checkRule(['blockAppMessages', 'blockInlineBots', 'blockViaBot']);
-		if (r.active) return { allowed: false, reasonFa: 'ربات اینلاین', reasonEn: 'Inline bot', penalty: r.penalty };
+		if (r.active)
+			return {
+				allowed: false,
+				reasonFa: 'ربات اینلاین',
+				reasonEn: 'Inline bot',
+				penalty: r.penalty,
+			};
 	}
 	if (msg.poll) {
 		const r = checkRule(['blockPolls', 'LockPolls']);
-		if (r.active) return { allowed: false, reasonFa: 'ارسال نظرسنجی', reasonEn: 'Poll blocked', penalty: r.penalty };
+		if (r.active)
+			return {
+				allowed: false,
+				reasonFa: 'ارسال نظرسنجی',
+				reasonEn: 'Poll blocked',
+				penalty: r.penalty,
+			};
 	}
 	if (msg.game) {
 		const r = checkRule(['blockGames', 'LockGames']);
-		if (r.active) return { allowed: false, reasonFa: 'ارسال بازی', reasonEn: 'Game blocked', penalty: r.penalty };
+		if (r.active)
+			return {
+				allowed: false,
+				reasonFa: 'ارسال بازی',
+				reasonEn: 'Game blocked',
+				penalty: r.penalty,
+			};
 	}
 	if (msg.reply_markup?.inline_keyboard) {
 		const r = checkRule(['blockInlineKeyboards']);
-		if (r.active) return { allowed: false, reasonFa: 'دکمه شیشه‌ای', reasonEn: 'Inline keyboard', penalty: r.penalty };
+		if (r.active)
+			return {
+				allowed: false,
+				reasonFa: 'دکمه شیشه‌ای',
+				reasonEn: 'Inline keyboard',
+				penalty: r.penalty,
+			};
 	}
 	if (msg.reply_to_message && !msg.forum_topic_created) {
 		const r = checkRule(['blockUserReplies', 'blockQuoteReplies']);
-		if (r.active) return { allowed: false, reasonFa: 'ریپلای غیرمجاز', reasonEn: 'Reply blocked', penalty: r.penalty };
+		if (r.active)
+			return {
+				allowed: false,
+				reasonFa: 'ریپلای غیرمجاز',
+				reasonEn: 'Reply blocked',
+				penalty: r.penalty,
+			};
 	}
 
 	// 4. Text, Links, Mentions, Hashtags, Phones, Scripts & Keywords
 	if (text) {
 		if (text.startsWith('/') || text.startsWith('!')) {
 			const r = checkRule(['blockSlashCommands', 'blockCommands']);
-			if (r.active) return { allowed: false, reasonFa: 'ارسال دستور ربات', reasonEn: 'Command blocked', penalty: r.penalty };
+			if (r.active)
+				return {
+					allowed: false,
+					reasonFa: 'ارسال دستور ربات',
+					reasonEn: 'Command blocked',
+					penalty: r.penalty,
+				};
 		}
 		if (/#[\p{L}\p{N}_]+/u.test(text)) {
 			const r = checkRule(['blockHashtags', 'removeHashtags']);
-			if (r.active) return { allowed: false, reasonFa: 'ارسال هشتگ', reasonEn: 'Hashtag blocked', penalty: r.penalty };
+			if (r.active)
+				return {
+					allowed: false,
+					reasonFa: 'ارسال هشتگ',
+					reasonEn: 'Hashtag blocked',
+					penalty: r.penalty,
+				};
 		}
 		if (/@[A-Za-z0-9_]{4,}/i.test(text)) {
 			const r = checkRule(['blockUsernames', 'removeMentions']);
-			if (r.active) return { allowed: false, reasonFa: 'ارسال یوزرنیم/منشن', reasonEn: 'Mention blocked', penalty: r.penalty };
+			if (r.active)
+				return {
+					allowed: false,
+					reasonFa: 'ارسال یوزرنیم/منشن',
+					reasonEn: 'Mention blocked',
+					penalty: r.penalty,
+				};
 		}
 		if (/(?:\+?\d{1,3}[\s-]?)?(?:\(?\d{3,4}\)?[\s-]?)?\d{3}[\s-]?\d{4}/.test(text)) {
 			const r = checkRule(['blockPhoneNumbers']);
-			if (r.active) return { allowed: false, reasonFa: 'شماره تماس', reasonEn: 'Phone number', penalty: r.penalty };
+			if (r.active)
+				return {
+					allowed: false,
+					reasonFa: 'شماره تماس',
+					reasonEn: 'Phone number',
+					penalty: r.penalty,
+				};
 		}
-		if (/\b[a-z0-9-]+\.(?:com|org|net|io|ir|me|co|info|xyz|app|dev|gg|link|shop|top|club|site)\b/i.test(text)) {
+		if (
+			/\b[a-z0-9-]+\.(?:com|org|net|io|ir|me|co|info|xyz|app|dev|gg|link|shop|top|club|site)\b/i.test(
+				text,
+			)
+		) {
 			const r = checkRule(['blockDomains', 'removeShortLinks']);
-			if (r.active) return { allowed: false, reasonFa: 'ارسال دامنه/سایت', reasonEn: 'Domain blocked', penalty: r.penalty };
+			if (r.active)
+				return {
+					allowed: false,
+					reasonFa: 'ارسال دامنه/سایت',
+					reasonEn: 'Domain blocked',
+					penalty: r.penalty,
+				};
 		}
 		const hasEmoji = /\p{Extended_Pictographic}/u.test(text);
 		if (hasEmoji) {
 			const rAllEmoji = checkRule(['blockEmojis']);
-			if (rAllEmoji.active) return { allowed: false, reasonFa: 'ارسال ایموجی', reasonEn: 'Emoji blocked', penalty: rAllEmoji.penalty };
+			if (rAllEmoji.active)
+				return {
+					allowed: false,
+					reasonFa: 'ارسال ایموجی',
+					reasonEn: 'Emoji blocked',
+					penalty: rAllEmoji.penalty,
+				};
 			const stripped = text.replace(/[\p{Extended_Pictographic}\uFE0F\u200D\s]/gu, '');
 			if (stripped.length === 0) {
 				const rOnly = checkRule(['blockEmojiOnly', 'blockEmojisOnly']);
-				if (rOnly.active) return { allowed: false, reasonFa: 'پیام فقط ایموجی', reasonEn: 'Emoji-only', penalty: rOnly.penalty };
+				if (rOnly.active)
+					return {
+						allowed: false,
+						reasonFa: 'پیام فقط ایموجی',
+						reasonEn: 'Emoji-only',
+						penalty: rOnly.penalty,
+					};
 			}
 		}
 		if (/[A-Za-z]/.test(text)) {
 			const r = checkRule(['blockLatinLetters']);
-			if (r.active) return { allowed: false, reasonFa: 'حروف لاتین/انگلیسی', reasonEn: 'Latin letters', penalty: r.penalty };
+			if (r.active)
+				return {
+					allowed: false,
+					reasonFa: 'حروف لاتین/انگلیسی',
+					reasonEn: 'Latin letters',
+					penalty: r.penalty,
+				};
 		}
 		if (/[\u0600-\u06FF]/.test(text)) {
 			const r = checkRule(['blockPersianArabicLetters', 'blockArabicScript']);
-			if (r.active) return { allowed: false, reasonFa: 'حروف فارسی/عربی', reasonEn: 'Persian/Arabic script', penalty: r.penalty };
+			if (r.active)
+				return {
+					allowed: false,
+					reasonFa: 'حروف فارسی/عربی',
+					reasonEn: 'Persian/Arabic script',
+					penalty: r.penalty,
+				};
 		}
 		if (/[\u0400-\u04FF]/.test(text)) {
 			const r = checkRule(['blockCyrillicLetters', 'blockCyrillicScript']);
-			if (r.active) return { allowed: false, reasonFa: 'حروف سیریلیک/روسی', reasonEn: 'Cyrillic script', penalty: r.penalty };
+			if (r.active)
+				return {
+					allowed: false,
+					reasonFa: 'حروف سیریلیک/روسی',
+					reasonEn: 'Cyrillic script',
+					penalty: r.penalty,
+				};
 		}
 		if (/[\u4E00-\u9FFF]/.test(text)) {
 			const r = checkRule(['blockChineseCharacters', 'blockChineseScript']);
-			if (r.active) return { allowed: false, reasonFa: 'کاراکتر چینی', reasonEn: 'Chinese characters', penalty: r.penalty };
+			if (r.active)
+				return {
+					allowed: false,
+					reasonFa: 'کاراکتر چینی',
+					reasonEn: 'Chinese characters',
+					penalty: r.penalty,
+				};
 		}
 		// Banned Keywords (ContentRestrictionsPage: bannedKeywords + warnings.blacklistedWords)
 		const lowerText = text.toLowerCase();
@@ -1882,20 +2710,34 @@ function evaluateGroupContentAndLimits(params: {
 			...(Array.isArray(full.warnings?.blacklistedWords) ? full.warnings.blacklistedWords : []),
 		];
 		for (const kw of bannedList) {
-			const cleanKw = String(kw || '').trim().toLowerCase();
+			const cleanKw = String(kw || '')
+				.trim()
+				.toLowerCase();
 			if (cleanKw && lowerText.includes(cleanKw)) {
-				return { allowed: false, reasonFa: 'کلمه ممنوعه', reasonEn: 'Banned keyword', penalty: 'default' };
+				return {
+					allowed: false,
+					reasonFa: 'کلمه ممنوعه',
+					reasonEn: 'Banned keyword',
+					penalty: 'default',
+				};
 			}
 		}
 		// Required Keywords
 		const reqList: string[] = Array.isArray(cr.requiredKeywords) ? cr.requiredKeywords : [];
 		if (reqList.length > 0) {
 			const hasRequired = reqList.some((kw) => {
-				const cleanKw = String(kw || '').trim().toLowerCase();
+				const cleanKw = String(kw || '')
+					.trim()
+					.toLowerCase();
 				return cleanKw && lowerText.includes(cleanKw);
 			});
 			if (!hasRequired) {
-				return { allowed: false, reasonFa: 'عدم وجود کلمه الزامی', reasonEn: 'Missing required keyword', penalty: 'delete' };
+				return {
+					allowed: false,
+					reasonFa: 'عدم وجود کلمه الزامی',
+					reasonEn: 'Missing required keyword',
+					penalty: 'delete',
+				};
 			}
 		}
 	}
@@ -1913,12 +2755,7 @@ async function sendAutoDeletingNotice(
 ): Promise<void> {
 	const full = settings.fullSettings || defaultFullSettings(settings.groupId);
 	const generalCfg = full.general || {};
-	const sent = await telegram.sendMessage(
-		chatId,
-		htmlText,
-		{ reply_markup: replyMarkup },
-		token,
-	);
+	const sent = await telegram.sendMessage(chatId, htmlText, { reply_markup: replyMarkup }, token);
 	if (sent.ok && sent.result?.message_id) {
 		const msgId = sent.result.message_id;
 		const shouldAutoDelete =
@@ -1933,6 +2770,58 @@ async function sendAutoDeletingNotice(
 			}, delaySec * 1000).unref?.();
 		}
 	}
+}
+
+const VIOLATION_REASON_PS: Record<string, string> = {
+	'ارسال پیام تکراری': 'د تکراري پیغام لېږل',
+	'ارسال تصویر': 'د انځور لېږل',
+	'ارسال ویدیو': 'د ویډیو لېږل',
+	'ارسال استیکر': 'د سټیکر لېږل',
+	'ارسال گیف': 'د ګیف (GIF) لېږل',
+	'ارسال ویس/ویدیو مسیج': 'د غږیز یا ویډیويي پیغام لېږل',
+	'ارسال فایل صوتی': 'د غږیز فایل لېږل',
+	'ارسال فایل': 'د فایل لېږل',
+	'ارسال لوکیشن': 'د موقعیت لېږل',
+	'ارسال مخاطب': 'د اړیکې لېږل',
+	'رسانه بدون کپشن': 'بې له شرحې رسنۍ',
+	'فوروارد پیام': 'د پیغام فارورډ کول',
+	'فوروارد از کانال': 'له چینل څخه فارورډ',
+	'ربات اینلاین': 'انلاین بوټ',
+	'ارسال نظرسنجی': 'د نظرپوښتنې لېږل',
+	'ارسال بازی': 'د لوبې لېږل',
+	'دکمه شیشه‌ای': 'شیشه‌يي تڼۍ',
+	'ریپلای غیرمجاز': 'غیرمجاز ریپلای',
+	'ارسال دستور ربات': 'د بوټ کمانډ لېږل',
+	'ارسال هشتگ': 'د هشټګ (#) لېږل',
+	'ارسال یوزرنیم/منشن': 'د کارن‌نوم / مینشن (@) لېږل',
+	'شماره تماس': 'د اړیکې شمېره',
+	'ارسال دامنه/سایت': 'د ویب‌سایټ / ډومین لېږل',
+	'ارسال ایموجی': 'د ایموجي لېږل',
+	'پیام فقط ایموجی': 'یوازې ایموجي پیغام',
+	'حروف لاتین/انگلیسی': 'لاتیني / انګلیسي توري',
+	'حروف فارسی/عربی': 'فارسي / عربي توري',
+	'حروف سیریلیک/روسی': 'سیریلیک / روسي توري',
+	'کاراکتر چینی': 'چینايي توري',
+	'کلمه ممنوعه': 'ممنوعه کلمه',
+	'عدم وجود کلمه الزامی': 'د لازمې کلمې نشتوالی',
+	'ارسال لینک': 'د لینک لېږل',
+	'کاراکتر مخفی': 'پټ توري',
+	'جعل نام مدیر': 'د اډمین جعلي نوم',
+	'ریپلای خارجی': 'بهرنی ریپلای',
+	'فوروارد استوری': 'د سټوري فارورډ',
+	'ایموجی پریمیوم': 'پریمیوم ایموجي',
+};
+
+function resolveViolationReasonText(reasonFa: string, reasonEn: string, lang: BotLang): string {
+	if (lang === 'fa' || lang === 'ar') return reasonFa;
+	if (lang === 'ps') {
+		if (VIOLATION_REASON_PS[reasonFa]) return VIOLATION_REASON_PS[reasonFa];
+		const minMatch = reasonFa.match(/^کوتاه‌تر از حد مجاز \((\d+) کاراکتر\)$/);
+		if (minMatch) return `له ټاکلي حده لنډ (لږترلږه ${minMatch[1]} توري)`;
+		const maxMatch = reasonFa.match(/^طولانی‌تر از حد مجاز \((\d+) کاراکتر\)$/);
+		if (maxMatch) return `له ټاکلي حده اوږد (تر ډېره ${maxMatch[1]} توري)`;
+	}
+	return reasonEn || reasonFa;
 }
 
 async function applyViolationPenaltyAndNotify(params: {
@@ -1962,13 +2851,14 @@ async function applyViolationPenaltyAndNotify(params: {
 	const full = settings.fullSettings || defaultFullSettings(settings.groupId);
 	const generalCfg = full.general || {};
 	const customTexts = full.custom_texts || {};
-	const groupLang = generalCfg.language || settings.language || 'fa';
+	const groupLang = resolveBotLang(generalCfg.language || settings.language || 'fa');
 	const pack = getBackendMinimalPack(groupLang);
-	const reasonText = groupLang === 'fa' || groupLang === 'ar' ? reasonFa : reasonEn || reasonFa;
+	const reasonText = resolveViolationReasonText(reasonFa, reasonEn, groupLang);
 
 	const uidStr = String(fromUser.id);
 	const userName =
-		`${fromUser.first_name || ''} ${fromUser.last_name || ''}`.trim() || 'کاربر';
+		`${fromUser.first_name || ''} ${fromUser.last_name || ''}`.trim() ||
+		(groupLang === 'ps' ? 'کارن' : 'کاربر');
 	if (!analytics.topUsers[uidStr]) {
 		analytics.topUsers[uidStr] = {
 			id: fromUser.id,
@@ -1994,22 +2884,33 @@ async function applyViolationPenaltyAndNotify(params: {
 			? rulePenalty
 			: String(generalCfg.defaultPenalty || 'delete');
 
-	if (
-		(generalCfg.autoWarning || effectivePenalty === 'warn') &&
-		warnCount >= warnThreshold
-	) {
-		effectivePenalty = String(generalCfg.warningFinalPenalty || full.warnings?.penalty || 'mute_24h');
+	if ((generalCfg.autoWarning || effectivePenalty === 'warn') && warnCount >= warnThreshold) {
+		effectivePenalty = String(
+			generalCfg.warningFinalPenalty || full.warnings?.penalty || 'mute_24h',
+		);
 		analytics.topUsers[uidStr].warns = 0;
 	}
 
 	if (effectivePenalty === 'mute' || effectivePenalty === 'mute_1h') {
 		const until = Math.floor(Date.now() / 1000) + 3600;
-		await telegram.restrictChatMember(chatId, fromUser.id, { can_send_messages: false }, until, token);
+		await telegram.restrictChatMember(
+			chatId,
+			fromUser.id,
+			{ can_send_messages: false },
+			until,
+			token,
+		);
 		analytics.mutedUsers += 1;
 		todayStat.muted_users += 1;
 	} else if (effectivePenalty === 'mute_24h') {
 		const until = Math.floor(Date.now() / 1000) + 86400;
-		await telegram.restrictChatMember(chatId, fromUser.id, { can_send_messages: false }, until, token);
+		await telegram.restrictChatMember(
+			chatId,
+			fromUser.id,
+			{ can_send_messages: false },
+			until,
+			token,
+		);
 		analytics.mutedUsers += 1;
 		todayStat.muted_users += 1;
 	} else if (effectivePenalty === 'kick') {
@@ -2110,10 +3011,16 @@ export async function processTelegramUpdate(
 				}
 
 				// Send the 4-Message Automated Group Onboarding Sequence (with Owner custom overrides if set)
+				const onboardingLang = resolveBotLang(
+					m.from?.language_code ||
+						settings.fullSettings?.general?.language ||
+						settings.language ||
+						'fa',
+				);
 				const onboarding = buildGroupJoinOnboardingMessages({
-					lang: 'fa',
+					lang: onboardingLang,
 					groupId: String(Math.abs(chatId)),
-					groupTitle: m.chat.title || 'این گروه',
+					groupTitle: m.chat.title || (onboardingLang === 'ps' ? 'دا ګروپ' : 'این گروه'),
 					botUsername: childBotMeta?.bot_username || 'MiniGuardBot',
 					hasFullAdminPerms: hasFullAdmin,
 					miniAppUrl: MINI_APP_URL,
@@ -2155,6 +3062,7 @@ export async function processTelegramUpdate(
 				(newStatus === 'member' || newStatus === 'restricted')
 			) {
 				const settings = getGroupSettings(chatId, cm.chat?.title);
+				const acCfg = getEffectiveAddCounterConfig(settings);
 				await sendWelcomeForNewMember({
 					chatId,
 					chatTitle: cm.chat?.title || settings.chatTitle,
@@ -2162,6 +3070,32 @@ export async function processTelegramUpdate(
 					settings,
 					token,
 				});
+				const actor = cm.from;
+				if (actor && actor.id !== joinedUser.id) {
+					await recordAndNotifyMemberAdds({
+						chatId,
+						inviter: actor,
+						addedMembers: [joinedUser],
+						settings,
+						inviterIsAdmin: settings.adminUserIds.includes(actor.id),
+						token,
+					});
+					savePersistentStore();
+				} else if (
+					acCfg.countInviteLinks &&
+					cm.invite_link?.creator &&
+					cm.invite_link.creator.id !== joinedUser.id
+				) {
+					await recordAndNotifyMemberAdds({
+						chatId,
+						inviter: cm.invite_link.creator,
+						addedMembers: [joinedUser],
+						settings,
+						inviterIsAdmin: settings.adminUserIds.includes(cm.invite_link.creator.id),
+						token,
+					});
+					savePersistentStore();
+				}
 			}
 			return;
 		}
@@ -2174,20 +3108,21 @@ export async function processTelegramUpdate(
 			const chatId = cb.message?.chat?.id;
 			const settings = getGroupSettings(chatId);
 
-			const rbac = evaluateCallbackQueryRbac({
-				callerUserId: fromId,
-				adminUserIds: settings.adminUserIds,
-				callbackData: data,
-			});
-
 			const groupLang = resolveBotLang(
 				settings.general?.language || settings.language || cb.from?.language_code || 'en',
 			);
 
+			const rbac = evaluateCallbackQueryRbac({
+				callerUserId: fromId,
+				adminUserIds: settings.adminUserIds,
+				callbackData: data,
+				lang: groupLang,
+			});
+
 			if (!rbac.allowed) {
 				await telegram.answerCallbackQuery(
 					cb.id,
-					rbac.modalMessageFa || getApiMessage('FORBIDDEN_GROUP', groupLang),
+					rbac.answerCallbackAlertText || getApiMessage('FORBIDDEN_GROUP', groupLang),
 					true,
 					token,
 				);
@@ -2358,12 +3293,14 @@ export async function processTelegramUpdate(
 				fromUser?.id,
 			);
 			savePersistentStore();
-			await telegram.sendMessage(
-				chatId,
-				`✅ <b>پرداخت استارز با موفقیت انجام شد!</b>\n\n🌟 اشتراک گروه <b>${mg?.title || gid}</b> به مدت ۳۰ روز تمدید گردید و تمامی ماژول‌های حفاظتی فعال هستند.`,
-				{},
-				token,
-			);
+			const paymentLang = resolveBotLang(fromUser?.language_code || mg?.language || 'fa');
+			const paymentConfirmationText =
+				paymentLang === 'ps'
+					? `✅ <b>د سټارز تادیه په بریالیتوب سره ترسره شوه!</b>\n\n🌟 د <b>${escapeHtml(mg?.title || gid)}</b> ګروپ ګډون د ۳۰ ورځو لپاره وغځول شو او ټول امنیتي ماډلونه فعال دي.`
+					: paymentLang === 'en'
+						? `✅ <b>Telegram Stars payment completed!</b>\n\n🌟 Subscription for group <b>${escapeHtml(mg?.title || gid)}</b> has been extended for 30 days and all protection modules are active.`
+						: `✅ <b>پرداخت استارز با موفقیت انجام شد!</b>\n\n🌟 اشتراک گروه <b>${mg?.title || gid}</b> به مدت ۳۰ روز تمدید گردید و تمامی ماژول‌های حفاظتی فعال هستند.`;
+			await telegram.sendMessage(chatId, paymentConfirmationText, {}, token);
 			return;
 		}
 
@@ -2460,25 +3397,33 @@ export async function processTelegramUpdate(
 
 				const currentHHMM = getCurrentTimeHHMM(generalCfg.timezone || 'Asia/Tehran');
 				const blockBotsActive =
-					settings.blockBots ||
-					isRuleActiveNow(crCfg.blockBots, currentHHMM).active;
-				const removeBotInvitersActive =
-					isRuleActiveNow(crCfg.removeBotInviters ?? crCfg.blockBotInvites, currentHHMM).active;
+					settings.blockBots || isRuleActiveNow(crCfg.blockBots, currentHHMM).active;
+				const removeBotInvitersActive = isRuleActiveNow(
+					crCfg.removeBotInviters ?? crCfg.blockBotInvites,
+					currentHHMM,
+				).active;
 
-				let humanAddedByInviter = 0;
+				const addedMembersList: any[] = [];
 				for (const newMember of msg.new_chat_members) {
 					if (newMember.is_bot) {
 						// Kick unauthorized bots added by non-admins
 						if (!isAdmin && blockBotsActive) {
 							await telegram.banChatMember(chatId, newMember.id, { revoke_messages: true }, token);
 							if (removeBotInvitersActive && fromUser && !fromUser.is_bot) {
-								await telegram.banChatMember(chatId, fromUser.id, { revoke_messages: false }, token);
+								await telegram.banChatMember(
+									chatId,
+									fromUser.id,
+									{ revoke_messages: false },
+									token,
+								);
 								await telegram.unbanChatMember(chatId, fromUser.id, token);
 							}
+						} else if (fromUser && fromUser.id !== newMember.id) {
+							addedMembersList.push(newMember);
 						}
 					} else {
 						if (fromUser && fromUser.id !== newMember.id) {
-							humanAddedByInviter += 1;
+							addedMembersList.push(newMember);
 						}
 						await sendWelcomeForNewMember({
 							chatId,
@@ -2490,13 +3435,16 @@ export async function processTelegramUpdate(
 					}
 				}
 
-				// Credit inviter for Mandatory Add (forceAdd)
-				if (fromUser && humanAddedByInviter > 0) {
-					const invKey = `${chatId}:${fromUser.id}`;
-					userInviteCounter.set(
-						invKey,
-						(userInviteCounter.get(invKey) || 0) + humanAddedByInviter,
-					);
+				// Record & announce Add-Counter / Forced-Add progress
+				if (fromUser && addedMembersList.length > 0) {
+					await recordAndNotifyMemberAdds({
+						chatId,
+						inviter: fromUser,
+						addedMembers: addedMembersList,
+						settings,
+						inviterIsAdmin: isAdmin,
+						token,
+					});
 				}
 
 				// Delete Join Service Message if hideJoinLeave / deleteSystemMessages is enabled
@@ -2536,7 +3484,10 @@ export async function processTelegramUpdate(
 			// 3. Handle Pinned Service Message cleanup if enabled
 			if (
 				msg.pinned_message &&
-				isRuleActiveNow(crCfg.removePinMsgs, getCurrentTimeHHMM(generalCfg.timezone || 'Asia/Tehran')).active
+				isRuleActiveNow(
+					crCfg.removePinMsgs,
+					getCurrentTimeHHMM(generalCfg.timezone || 'Asia/Tehran'),
+				).active
 			) {
 				await telegram.deleteMessage(chatId, msg.message_id, token).catch(() => {});
 				return;
@@ -2586,11 +3537,8 @@ export async function processTelegramUpdate(
 			const trimmedText = text.trim();
 
 			// Handle Public /rules or قوانین Command
-			if (/^([/!]rules)\b/i.test(trimmedText) || /^قوانین(\s|$)/.test(trimmedText)) {
-				const rawRules = resolveCustomTemplate(
-					full.custom_texts?.rulesText,
-					pack.rulesText,
-				);
+			if (/^([/!]rules)\b/i.test(trimmedText) || /^(قوانین|اصول)(\s|$)/.test(trimmedText)) {
+				const rawRules = resolveCustomTemplate(full.custom_texts?.rulesText, pack.rulesText);
 				const formattedRules = formatGroupTemplate(rawRules, {
 					user: fromUser?.first_name || 'کاربر',
 					group: settings.chatTitle,
@@ -2602,7 +3550,7 @@ export async function processTelegramUpdate(
 			// Handle Public /report Command for Regular Members (if enabled in General Settings)
 			if (
 				generalCfg.publicReportCommand !== false &&
-				(/^([/!]report)\b/i.test(trimmedText) || /^گزارش(\s|$)/.test(trimmedText)) &&
+				(/^([/!]report)\b/i.test(trimmedText) || /^(گزارش|راپور)(\s|$)/.test(trimmedText)) &&
 				msg.reply_to_message?.from
 			) {
 				const reportedUser = msg.reply_to_message.from;
@@ -2647,8 +3595,88 @@ export async function processTelegramUpdate(
 								: undefined,
 							repliedUserId: msg.reply_to_message?.from?.id,
 							senderIsAdmin: isAdmin,
+							lang: resolveBotLang(groupLang),
 						})
 					: { matched: false, responsePreviewFa: '' };
+
+			// Public Add-Counter Query Commands (/myadds, /topadds, آمار اد, برترین ادها)
+			if (
+				parsedCmd.matched &&
+				(parsedCmd.commandId === 'myadds' || parsedCmd.commandId === 'topadds')
+			) {
+				const acCfg = getEffectiveAddCounterConfig(settings);
+				if (
+					acCfg.leaderboardEnabled !== false &&
+					(acCfg.enabled || acCfg.requireTargetToChat || isAdmin)
+				) {
+					const acState = getOrCreateAddCounterState(settings, acCfg.resetPeriodDays);
+					if (parsedCmd.commandId === 'myadds') {
+						const subject = msg.reply_to_message?.from || fromUser;
+						if (subject) {
+							const subjectName =
+								`${subject.first_name || ''} ${subject.last_name || ''}`.trim() ||
+								(subject.username ? `@${subject.username}` : 'کاربر');
+							const rec = acState.users[String(subject.id)];
+							const addedCount = rec ? rec.count : getUserAddCount(settings, subject.id);
+							const lifetimeCount = rec ? rec.lifetimeCount : addedCount;
+							const target = acCfg.requiredCount;
+							const rank = getUserRankInAddCounter(settings, subject.id);
+							const cardText = formatGroupTemplate(pack.myAddsCard, {
+								user: subjectName,
+								name: subjectName,
+								username: subject.username,
+								id: subject.id,
+								group: settings.chatTitle,
+								lang: groupLang,
+								added: addedCount,
+								lifetime_added: lifetimeCount,
+								remain: Math.max(0, target - addedCount),
+								remainadd: Math.max(0, target - addedCount),
+								target,
+								number: target,
+								rank,
+								total_group_adds: acState.totalGroupAdds,
+							});
+							await sendAutoDeletingNotice(chatId, cardText, settings, token, 45);
+							return;
+						}
+					}
+
+					if (parsedCmd.commandId === 'topadds') {
+						const topList = buildAddCounterLeaderboard(settings, 10);
+						const header = formatGroupTemplate(pack.topAddsHeader, {
+							group: settings.chatTitle,
+							lang: groupLang,
+						});
+						if (topList.length === 0) {
+							await sendAutoDeletingNotice(
+								chatId,
+								`${header}\n${pack.topAddsEmpty}`,
+								settings,
+								token,
+								30,
+							);
+							return;
+						}
+						const medals = ['🥇', '🥈', '🥉'];
+						const rows = topList.map((entry, idx) => {
+							const badge = medals[idx] || `${idx + 1}.`;
+							const displayName = escapeHtml(entry.name);
+							const goalTag =
+								acCfg.requiredCount > 0 ? ` (${entry.count}/${acCfg.requiredCount})` : '';
+							return `${badge} <b>${displayName}</b> — <code>${entry.count}</code>${goalTag}`;
+						});
+						await sendAutoDeletingNotice(
+							chatId,
+							`${header}\n${rows.join('\n')}`,
+							settings,
+							token,
+							45,
+						);
+						return;
+					}
+				}
+			}
 
 			if (parsedCmd.matched && isAdmin) {
 				// Delete command invocation message to keep chat clean (if enabled in General Settings)
@@ -2772,7 +3800,70 @@ export async function processTelegramUpdate(
 					for (let i = 1; i <= count; i++) {
 						telegram.deleteMessage(chatId, msg.message_id - i, token).catch(() => {});
 					}
-					await sendAutoDeletingNotice(chatId, `🧹 ${count} پیام اخیر پاکسازی شد.`, settings, token, 8);
+					const purgeNotice =
+						resolvedLang === 'ps'
+							? `🧹 وروستي ${count} پیغامونه پاک شول.`
+							: resolvedLang === 'en'
+								? `🧹 Purged the last ${count} messages.`
+								: `🧹 ${count} پیام اخیر پاکسازی شد.`;
+					await sendAutoDeletingNotice(chatId, purgeNotice, settings, token, 8);
+					return;
+				}
+
+				if (parsedCmd.commandId === 'resetadds') {
+					if (parsedCmd.resetAll || !msg.reply_to_message?.from) {
+						resetAddCounterState(settings);
+						recordGroupAuditLog(settings, 'صفر کردن آمار ادشمار کل گروه', {}, fromUser?.id);
+						savePersistentStore();
+						await sendAutoDeletingNotice(chatId, pack.addsResetAllDone, settings, token, 15);
+						return;
+					}
+					const targetUser = msg.reply_to_message.from;
+					resetAddCounterState(settings, targetUser.id);
+					recordGroupAuditLog(
+						settings,
+						`صفر کردن ادهای ${targetUser.first_name || targetUser.id}`,
+						{ target_user_id: targetUser.id },
+						fromUser?.id,
+					);
+					savePersistentStore();
+					const msgDone = formatGroupTemplate(pack.addsResetUserDone, {
+						user: targetUser.first_name || 'کاربر',
+						id: targetUser.id,
+						group: settings.chatTitle,
+					});
+					await sendAutoDeletingNotice(chatId, msgDone, settings, token, 15);
+					return;
+				}
+
+				if (parsedCmd.commandId === 'setadds' && msg.reply_to_message?.from) {
+					const targetUser = msg.reply_to_message.from;
+					const newVal = Math.max(0, parsedCmd.batchCount || 0);
+					const targetName =
+						`${targetUser.first_name || ''} ${targetUser.last_name || ''}`.trim() || 'کاربر';
+					const updatedRec = adjustUserAddCount(settings, {
+						userId: targetUser.id,
+						count: newVal,
+						name: targetName,
+						username: targetUser.username,
+					});
+					recordGroupAuditLog(
+						settings,
+						`تنظیم ادهای ${targetName} روی ${newVal}`,
+						{ target_user_id: targetUser.id, count: newVal },
+						fromUser?.id,
+					);
+					savePersistentStore();
+					const acCfg = getEffectiveAddCounterConfig(settings);
+					const msgDone = formatGroupTemplate(pack.addsAdjustedDone, {
+						user: targetName,
+						id: targetUser.id,
+						group: settings.chatTitle,
+						added: updatedRec.count,
+						target: acCfg.requiredCount,
+						number: acCfg.requiredCount,
+					});
+					await sendAutoDeletingNotice(chatId, msgDone, settings, token, 15);
 					return;
 				}
 			}
@@ -2806,7 +3897,10 @@ export async function processTelegramUpdate(
 						? mmCfg.excludedUsers
 						: [];
 				const isExempt = exemptions.some((ex) => {
-					const cleanEx = String(ex || '').trim().replace(/^@/, '').toLowerCase();
+					const cleanEx = String(ex || '')
+						.trim()
+						.replace(/^@/, '')
+						.toLowerCase();
 					return (
 						cleanEx === String(fromUser.id) ||
 						(fromUser.username && cleanEx === fromUser.username.toLowerCase())
@@ -2814,14 +3908,14 @@ export async function processTelegramUpdate(
 				});
 
 				if (!isExempt) {
-					// 5a. Forced Member Invite Check
-					const forcedAddCount = Number(mmCfg.forced_add_count ?? mmCfg.forcedAddCount ?? 0);
-					const forcedAddEnabled =
-						mmCfg.forced_add_enabled !== undefined
-							? Boolean(mmCfg.forced_add_enabled)
-							: forcedAddCount > 0;
+					// 5a. Forced Member Invite Check (uses persistent Add-Counter ledger)
+					const acCfg = getEffectiveAddCounterConfig(settings);
+					const forcedAddCount = acCfg.requiredCount;
+					const forcedAddEnabled = acCfg.requireTargetToChat;
 					if (forcedAddEnabled && forcedAddCount > 0) {
-						const addedSoFar = userInviteCounter.get(`${chatId}:${fromUser.id}`) || 0;
+						const acState = getOrCreateAddCounterState(settings, acCfg.resetPeriodDays);
+						const rec = acState.users[String(fromUser.id)];
+						const addedSoFar = rec ? rec.count : getUserAddCount(settings, fromUser.id);
 						if (addedSoFar < forcedAddCount) {
 							await telegram.deleteMessage(chatId, msg.message_id, token);
 							const remain = forcedAddCount - addedSoFar;
@@ -2829,13 +3923,23 @@ export async function processTelegramUpdate(
 								full.custom_texts?.forceAddText,
 								pack.forceAddText,
 							);
+							const userFullName =
+								`${fromUser.first_name || ''} ${fromUser.last_name || ''}`.trim() || 'کاربر';
 							const notice = formatGroupTemplate(rawAddTpl, {
-								user: fromUser.first_name || 'کاربر',
+								user: userFullName,
+								name: userFullName,
+								username: fromUser.username,
 								id: fromUser.id,
 								group: settings.chatTitle,
+								lang: groupLang,
 								remainadd: remain,
+								remain,
 								added: addedSoFar,
+								lifetime_added: rec?.lifetimeCount ?? addedSoFar,
 								number: forcedAddCount,
+								target: forcedAddCount,
+								rank: getUserRankInAddCounter(settings, fromUser.id),
+								total_group_adds: acState.totalGroupAdds,
 							});
 							await sendAutoDeletingNotice(chatId, notice, settings, token, 15);
 							return;
@@ -2859,7 +3963,8 @@ export async function processTelegramUpdate(
 								.trim()
 								.replace(/^https?:\/\/t\.me\//i, '@');
 							if (!cleanCh) continue;
-							const targetCh = cleanCh.startsWith('@') || cleanCh.startsWith('-') ? cleanCh : `@${cleanCh}`;
+							const targetCh =
+								cleanCh.startsWith('@') || cleanCh.startsWith('-') ? cleanCh : `@${cleanCh}`;
 							const memRes = await telegram.getChatMember(targetCh, fromUser.id, token);
 							if (
 								memRes.ok &&
@@ -2938,7 +4043,11 @@ export async function processTelegramUpdate(
 
 			const dupLimit = Number(limCfg.duplicateCount ?? limCfg.duplicateLimit ?? 0);
 			const dupWin = Number(limCfg.duplicateWindow ?? 60);
-			if (fromUser && dupLimit > 1 && checkUserDuplicate(chatId, fromUser.id, text, dupLimit, dupWin)) {
+			if (
+				fromUser &&
+				dupLimit > 1 &&
+				checkUserDuplicate(chatId, fromUser.id, text, dupLimit, dupWin)
+			) {
 				await telegram.deleteMessage(chatId, msg.message_id, token);
 				analytics.spamBlocked += 1;
 				todayStat.spam_blocked += 1;
@@ -3124,6 +4233,7 @@ function getGroupVerifyError(
 	const { username, slug, title } = params;
 	const dict: Record<string, Record<BotLang, string>> = {
 		EMPTY_GROUP_LINK: {
+			ps: 'مهرباني وکړئ د خپل ټیلیګرام ګروپ پېژند یا لینک دننه کړئ (بېلګه: @my_group).',
 			fa: 'لطفاً آیدی یا لینک گروه تلگرام خود را وارد کنید (مثال: @my_group).',
 			en: 'Please enter your Telegram group username or link (e.g. @my_group).',
 			ar: 'يرجى إدخال معرف أو رابط مجموعة تيليجرام الخاصة بك (مثال: @my_group).',
@@ -3136,6 +4246,7 @@ function getGroupVerifyError(
 			zh: '请输入您的 Telegram 群组用户名或链接（例如：@my_group）。',
 		},
 		PRIVATE_GROUP_NOT_DETECTED: {
+			ps: `د خصوصي ګروپونو (د + بلنې لینک) لپاره، باید لومړی پر «@${username} ګروپ ته ورګډ او اډمین کړئ» تڼۍ کلیک وکړئ ترڅو بوټ ګروپ ته ننوځي، یا د ګروپ عامه کارن‌نوم (@username) دننه کړئ.`,
 			fa: `برای گروه‌های خصوصی (لینک دعوت +)، ابتدا باید روی دکمه «افزودن @${username} به گروه و ادمین کردن» بزنید تا ربات وارد گروه شود، یا آیدی عمومی (@username) گروه را وارد کنید.`,
 			en: `For private groups (invite links with +), please click "Add @${username} to group and promote to Admin" first, or enter the public @username.`,
 			ar: `بالنسبة للمجموعات الخاصة (روابط الدعوة +)، يرجى الضغط على زر "إضافة @${username} إلى المجموعة وتعيينه مشرفاً" أولاً، أو إدخال المعرف العام (@username).`,
@@ -3148,6 +4259,7 @@ function getGroupVerifyError(
 			zh: `对于私有群组（带 + 的链接），请先点击“将 @${username} 添加到群组并设为管理员”，或输入公开 @用户名。`,
 		},
 		CHAT_NOT_FOUND: {
+			ps: `«@${slug}» ګروپ په ټیلیګرام کې ونه موندل شو! مهرباني وکړئ وګورئ چې د ګروپ پېژند مو سم لیکلی دی او لومړی مو @${username} بوټ پکې اډمین کړی دی.`,
 			fa: `گروه «@${slug}» در تلگرام پیدا نشد! لطفاً بررسی کنید که آیدی گروه را درست وارد کرده باشید و ابتدا ربات @${username} را در آن ادمین کرده باشید.`,
 			en: `Group "@${slug}" was not found on Telegram! Please verify the group username and ensure @${username} is an admin in the group.`,
 			ar: `المجموعة "@${slug}" غير موجودة على تيليجرام! يرجى التحقق من معرف المجموعة والتأكد من تعيين @${username} مشرفاً أولاً.`,
@@ -3160,6 +4272,7 @@ function getGroupVerifyError(
 			zh: `在 Telegram 上未找到群组“@${slug}”！请核对用户名并确保 @${username} 已是管理员。`,
 		},
 		NOT_A_GROUP: {
+			ps: `«@${slug}» پېژند د یوه شخصي حساب یا بوټ دی، نه د ګروپ! مهرباني وکړئ د یوه ټیلیګرام ګروپ یا سوپرګروپ پېژند دننه کړئ.`,
 			fa: `آیدی «@${slug}» مربوط به یک حساب شخصی است، نه گروه! لطفاً آیدی یک گروه یا سوپرگروه را وارد کنید.`,
 			en: `The ID "@${slug}" belongs to a personal account or bot, not a group! Please enter a valid Telegram group username.`,
 			ar: `المعرف "@${slug}" يعود لحساب شخصي وليس لمجموعة! يرجى إدخال معرف مجموعة تيليجرام.`,
@@ -3172,6 +4285,7 @@ function getGroupVerifyError(
 			zh: `ID“@${slug}”属于个人账户，而不是群组！请输入有效的 Telegram 群组。`,
 		},
 		BOT_NOT_ADMIN: {
+			ps: `@${username} بوټ لا تر اوسه په «${title || slug}» ګروپ کې اډمین (Administrator) نه دی! مهرباني وکړئ لومړی د «ګروپ ته د بوټ ورګډول او اډمین کول» تڼۍ له لارې بوټ په ګروپ کې اډمین کړئ.`,
 			fa: `ربات @${username} هنوز در گروه «${title || slug}» ادمین (Administrator) نشده است! لطفاً ابتدا با دکمه «افزودن ربات به گروه و ادمین کردن» ربات را در گروه ادمین کنید.`,
 			en: `Bot @${username} is not an administrator in "${title || slug}"! Please add and promote the bot to Administrator in the group first.`,
 			ar: `البوت @${username} ليس مشرفاً في المجموعة "${title || slug}"! يرجى ترقية البوت إلى مشرف في المجموعة أولاً.`,
@@ -3768,7 +4882,7 @@ export function createServer() {
 					const filePathOnTg = fileRes.result?.file_path;
 					if (
 						!filePathOnTg ||
-						!/^[a-zA-Z0-9_\-\/.]+$/.test(filePathOnTg) ||
+						!/^[a-zA-Z0-9_\-/.]+$/.test(filePathOnTg) ||
 						filePathOnTg.includes('..')
 					) {
 						res.writeHead(404);
@@ -4735,14 +5849,24 @@ export function createServer() {
 						if (!s.fullSettings.quiet_hours) s.fullSettings.quiet_hours = {};
 						s.fullSettings.quiet_hours.emergencyLock = s.emergencyLock;
 						s.fullSettings.quiet_hours.enabled = s.quietHoursActive;
+						s.fullSettings.add_counter = getEffectiveAddCounterConfig(s);
+						const defaultTexts = defaultFullSettings(groupIdStr).custom_texts;
+						s.fullSettings.custom_texts = {
+							...defaultTexts,
+							...(s.fullSettings.custom_texts || {}),
+						};
 						return sendJson(200, s.fullSettings);
 					}
 
 					if (method === 'PUT' || method === 'POST') {
 						const body = await parseJsonBody();
 						// Support { category, data, version } from groupApi.updateSettings
+						let syncedCategory: 'add_counter' | 'mandatory_membership' | undefined;
 						if (body?.category && body?.data !== undefined) {
 							s.fullSettings[body.category] = body.data;
+							if (body.category === 'add_counter' || body.category === 'mandatory_membership') {
+								syncedCategory = body.category;
+							}
 						} else {
 							if (body?.content_restrictions) {
 								s.fullSettings.content_restrictions = {
@@ -4773,6 +5897,14 @@ export function createServer() {
 									...(s.fullSettings.mandatory_membership || {}),
 									...body.mandatory_membership,
 								};
+								syncedCategory = 'mandatory_membership';
+							}
+							if (body?.add_counter) {
+								s.fullSettings.add_counter = {
+									...(s.fullSettings.add_counter || {}),
+									...body.add_counter,
+								};
+								syncedCategory = 'add_counter';
 							}
 							if (body?.custom_texts) {
 								s.fullSettings.custom_texts = {
@@ -4796,10 +5928,98 @@ export function createServer() {
 						s.fullSettings.version = (Number(s.fullSettings.version) || 1) + 1;
 						s.fullSettings.updated_at = new Date().toISOString();
 						syncRuntimeFromFullSettings(s);
+						if (syncedCategory) {
+							syncAddCounterAndMandatory(s, syncedCategory);
+						}
 						recordGroupAuditLog(s, `بروزرسانی تنظیمات گروه (${body?.category || 'عمومی'})`);
 						savePersistentStore();
 						return sendJson(200, s.fullSettings);
 					}
+				}
+
+				// GET /api/v1/groups/:id/add-counter
+				if (parts.length === 3 && parts[2] === 'add-counter' && method === 'GET') {
+					const s = findRuntimeGroupByIdOrChatId(groupIdStr);
+					const acCfg = getEffectiveAddCounterConfig(s);
+					const state = getOrCreateAddCounterState(s, acCfg.resetPeriodDays);
+					const leaderboard = buildAddCounterLeaderboard(s, 100);
+					return sendJson(200, {
+						group_id: groupIdStr,
+						settings: acCfg,
+						total_group_adds: state.totalGroupAdds,
+						tracked_users_count: Object.keys(state.users).length,
+						completed_users_count:
+							acCfg.requiredCount > 0
+								? leaderboard.filter((u) => u.count >= acCfg.requiredCount).length
+								: 0,
+						period_started_at: state.periodStartedAt,
+						leaderboard,
+					});
+				}
+
+				// POST /api/v1/groups/:id/add-counter/reset
+				if (
+					parts.length === 4 &&
+					parts[2] === 'add-counter' &&
+					parts[3] === 'reset' &&
+					method === 'POST'
+				) {
+					const s = findRuntimeGroupByIdOrChatId(groupIdStr);
+					const body = await parseJsonBody();
+					const targetUid =
+						body?.userId !== undefined && body?.userId !== null && body?.userId !== ''
+							? Number(body.userId)
+							: undefined;
+					resetAddCounterState(s, Number.isFinite(targetUid) ? targetUid : undefined);
+					recordGroupAuditLog(
+						s,
+						targetUid !== undefined
+							? `صفر کردن ادشمار کاربر ${targetUid}`
+							: 'صفر کردن کل ادشمار گروه',
+						targetUid !== undefined ? { user_id: targetUid } : {},
+					);
+					savePersistentStore();
+					const acCfg = getEffectiveAddCounterConfig(s);
+					const state = getOrCreateAddCounterState(s, acCfg.resetPeriodDays);
+					return sendJson(200, {
+						ok: true,
+						group_id: groupIdStr,
+						total_group_adds: state.totalGroupAdds,
+						period_started_at: state.periodStartedAt,
+						leaderboard: buildAddCounterLeaderboard(s, 100),
+					});
+				}
+
+				// POST /api/v1/groups/:id/add-counter/adjust
+				if (
+					parts.length === 4 &&
+					parts[2] === 'add-counter' &&
+					parts[3] === 'adjust' &&
+					method === 'POST'
+				) {
+					const s = findRuntimeGroupByIdOrChatId(groupIdStr);
+					const body = await parseJsonBody();
+					const userId = Number(body?.userId);
+					if (!Number.isFinite(userId) || userId <= 0) {
+						return sendJson(400, { error: getApiMessage('INVALID_USER_ID', req) });
+					}
+					const rec = adjustUserAddCount(s, {
+						userId,
+						delta: body?.delta !== undefined ? Number(body.delta) : undefined,
+						count: body?.count !== undefined ? Number(body.count) : undefined,
+						name: body?.name ? String(body.name) : undefined,
+						username: body?.username ? String(body.username) : undefined,
+					});
+					recordGroupAuditLog(s, `تنظیم دستی ادشمار کاربر ${rec.name} به ${rec.count}`, {
+						user_id: userId,
+						count: rec.count,
+					});
+					savePersistentStore();
+					return sendJson(200, {
+						ok: true,
+						user: rec,
+						leaderboard: buildAddCounterLeaderboard(s, 100),
+					});
 				}
 
 				// GET /api/v1/groups/:id/analytics (100% Real Group Telemetry — Zero Fake Data)
@@ -4917,20 +6137,62 @@ export function createServer() {
 					const body = await parseJsonBody();
 					const targetUserId = Number(body?.user_id || OWNER_TELEGRAM_ID);
 					const liveMembers = mg?.member_count || mg?.members_count || 1;
+					const reportLang = resolveBotLang(
+						String(
+							body?.lang ||
+								(req.headers['x-request-lang'] as string) ||
+								s.fullSettings?.general?.language ||
+								s.language ||
+								resolveRequestLang(req) ||
+								'fa',
+						),
+					);
+					const groupNameEscaped = escapeHtml(
+						mg?.title || s.chatTitle || (reportLang === 'ps' ? 'ګروپ' : 'گروه'),
+					);
 
-					const reportText = [
-						`📊 <b>گزارش عملکرد واقعی گروه «${escapeHtml(mg?.title || s.chatTitle || 'گروه')}»</b>`,
-						`━━━━━━━━━━━━━━━━━━━━`,
-						`👥 <b>تعداد کل اعضا:</b> ${liveMembers.toLocaleString('fa-IR')} نفر`,
-						`💬 <b>کل پیام‌های ثبت‌شده:</b> ${analytics.totalMessages.toLocaleString('fa-IR')}`,
-						`🛡️ <b>اسپم و تخلفات مسدودشده:</b> ${analytics.spamBlocked.toLocaleString('fa-IR')}`,
-						`➕ <b>ورودی‌های جدید:</b> ${analytics.newMembers.toLocaleString('fa-IR')} نفر`,
-						`➖ <b>خروجی‌ها:</b> ${analytics.membersLeft.toLocaleString('fa-IR')} نفر`,
-						`🔇 <b>سکوت‌های اعمال‌شده:</b> ${analytics.mutedUsers.toLocaleString('fa-IR')}`,
-						`🚫 <b>اخراج‌های دائمی:</b> ${analytics.bannedUsers.toLocaleString('fa-IR')}`,
-						`━━━━━━━━━━━━━━━━━━━━`,
-						`⏱ <i>تولید شده توسط موتور تحلیلی MiniGuard</i>`,
-					].join('\n');
+					const reportText =
+						reportLang === 'ps'
+							? [
+									`📊 <b>د «${groupNameEscaped}» ګروپ د ریښتیني فعالیت راپور</b>`,
+									`━━━━━━━━━━━━━━━━━━━━`,
+									`👥 <b>ټول غړي:</b> ${liveMembers.toLocaleString('en-US')} تنه`,
+									`💬 <b>ثبت شوي ټول پیغامونه:</b> ${analytics.totalMessages.toLocaleString('en-US')}`,
+									`🛡️ <b>بند شوي سپیم او سرغړونې:</b> ${analytics.spamBlocked.toLocaleString('en-US')}`,
+									`➕ <b>نوي راغلي غړي:</b> ${analytics.newMembers.toLocaleString('en-US')} تنه`,
+									`➖ <b>وتلي غړي:</b> ${analytics.membersLeft.toLocaleString('en-US')} تنه`,
+									`🔇 <b>بې‌غږه شوي کارنان (Mute):</b> ${analytics.mutedUsers.toLocaleString('en-US')}`,
+									`🚫 <b>دایمي شړل شوي کارنان (Ban):</b> ${analytics.bannedUsers.toLocaleString('en-US')}`,
+									`━━━━━━━━━━━━━━━━━━━━`,
+									`⏱ <i>د MiniGuard تحلیلي انجن لخوا چمتو شوی</i>`,
+								].join('\n')
+							: reportLang === 'en'
+								? [
+										`📊 <b>Live Performance Report — "${groupNameEscaped}"</b>`,
+										`━━━━━━━━━━━━━━━━━━━━`,
+										`👥 <b>Total Members:</b> ${liveMembers.toLocaleString('en-US')}`,
+										`💬 <b>Recorded Messages:</b> ${analytics.totalMessages.toLocaleString('en-US')}`,
+										`🛡️ <b>Spam & Violations Blocked:</b> ${analytics.spamBlocked.toLocaleString('en-US')}`,
+										`➕ <b>New Members:</b> ${analytics.newMembers.toLocaleString('en-US')}`,
+										`➖ <b>Members Left:</b> ${analytics.membersLeft.toLocaleString('en-US')}`,
+										`🔇 <b>Muted Users:</b> ${analytics.mutedUsers.toLocaleString('en-US')}`,
+										`🚫 <b>Banned Users:</b> ${analytics.bannedUsers.toLocaleString('en-US')}`,
+										`━━━━━━━━━━━━━━━━━━━━`,
+										`⏱ <i>Generated by MiniGuard Analytics Engine</i>`,
+									].join('\n')
+								: [
+										`📊 <b>گزارش عملکرد واقعی گروه «${groupNameEscaped}»</b>`,
+										`━━━━━━━━━━━━━━━━━━━━`,
+										`👥 <b>تعداد کل اعضا:</b> ${liveMembers.toLocaleString('fa-IR')} نفر`,
+										`💬 <b>کل پیام‌های ثبت‌شده:</b> ${analytics.totalMessages.toLocaleString('fa-IR')}`,
+										`🛡️ <b>اسپم و تخلفات مسدودشده:</b> ${analytics.spamBlocked.toLocaleString('fa-IR')}`,
+										`➕ <b>ورودی‌های جدید:</b> ${analytics.newMembers.toLocaleString('fa-IR')} نفر`,
+										`➖ <b>خروجی‌ها:</b> ${analytics.membersLeft.toLocaleString('fa-IR')} نفر`,
+										`🔇 <b>سکوت‌های اعمال‌شده:</b> ${analytics.mutedUsers.toLocaleString('fa-IR')}`,
+										`🚫 <b>اخراج‌های دائمی:</b> ${analytics.bannedUsers.toLocaleString('fa-IR')}`,
+										`━━━━━━━━━━━━━━━━━━━━`,
+										`⏱ <i>تولید شده توسط موتور تحلیلی MiniGuard</i>`,
+									].join('\n');
 
 					if (process.env.NODE_ENV !== 'test' && !process.env.VITEST && tokenToUse) {
 						const dmRes = await telegram.sendMessage(targetUserId, reportText, {}, tokenToUse);
@@ -5091,7 +6353,10 @@ export function createServer() {
 						first_name?: string;
 						last_name?: string;
 						username?: string;
-					}>('getChat', { chat_id: OWNER_TELEGRAM_ID }, BOT_TOKEN).catch(() => ({ ok: false, result: undefined }));
+					}>('getChat', { chat_id: OWNER_TELEGRAM_ID }, BOT_TOKEN).catch(() => ({
+						ok: false,
+						result: undefined,
+					}));
 					if (chatInfo.ok && chatInfo.result) {
 						ownerUsersMeta[ownerKey] = {
 							...ownerUsersMeta[ownerKey],
@@ -5146,7 +6411,9 @@ export function createServer() {
 						credit_balance: creditInfo.remaining_days,
 						remaining_hours: creditInfo.remaining_hours,
 						remaining_label: creditInfo.remaining_label,
-						subscription_status: creditInfo.is_expired ? 'expired' : mg.subscription_status || 'trial',
+						subscription_status: creditInfo.is_expired
+							? 'expired'
+							: mg.subscription_status || 'trial',
 						expires_at: expIso,
 						status: mg.is_active && !creditInfo.is_expired ? 'active' : 'suspended',
 						created_at: mg.created_at,
@@ -5197,9 +6464,7 @@ export function createServer() {
 			) {
 				const body = await parseJsonBody();
 				const pathEntityId = /^\/owner\/entities\/([^/]+)\/credit$/.exec(cleanPath)?.[1];
-				const rawTarget = String(
-					body?.entity_id || body?.id || pathEntityId || '',
-				).trim();
+				const rawTarget = String(body?.entity_id || body?.id || pathEntityId || '').trim();
 				const daysToAdd = Number(body?.days ?? body?.amount ?? 30);
 				const hoursToAdd = Number(body?.hours ?? 0);
 				const mode: 'add' | 'set' = body?.mode === 'set' ? 'set' : 'add';
@@ -5365,7 +6630,10 @@ export function createServer() {
 						first_name?: string;
 						last_name?: string;
 						username?: string;
-					}>('getChat', { chat_id: OWNER_TELEGRAM_ID }, BOT_TOKEN).catch(() => ({ ok: false, result: undefined }));
+					}>('getChat', { chat_id: OWNER_TELEGRAM_ID }, BOT_TOKEN).catch(() => ({
+						ok: false,
+						result: undefined,
+					}));
 					if (chatInfo.ok && chatInfo.result) {
 						ownerUsersMeta[ownerKey] = {
 							...ownerUsersMeta[ownerKey],
@@ -5606,8 +6874,7 @@ export function createServer() {
 					let sentCount = 0;
 					if (process.env.NODE_ENV !== 'test' && !process.env.VITEST && BOT_TOKEN) {
 						for (const tid of targetChatIds) {
-							const tokenForTarget =
-								tid < 0 ? getBotTokenForGroup('', tid) : BOT_TOKEN;
+							const tokenForTarget = tid < 0 ? getBotTokenForGroup('', tid) : BOT_TOKEN;
 							const resSend = await telegram
 								.sendMessage(tid, msgText, {}, tokenForTarget)
 								.catch(() => ({ ok: false }));
